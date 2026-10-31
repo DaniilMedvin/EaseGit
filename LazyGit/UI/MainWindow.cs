@@ -18,7 +18,7 @@ public enum MainResult
 
 /// <summary>
 /// Главный экран репозитория: шапка, панель файлов слева, diff справа.
-/// space — stage/unstage выбранного файла, a — всех файлов, c — коммит, r — обновить.
+/// space — stage/unstage выбранного файла, a — всех файлов, c — коммит, r — обновить, ? — справка.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
@@ -75,7 +75,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         };
         if (!auth.IsAuthorized)
             hintList.Add(new Hint("ctrl+g", "войти"));
-        hintList.Add(new Hint("esc", "назад"));
+        hintList.Add(new Hint("?", "справка"));
         hintList.Add(new Hint("q", "выход"));
         hints.SetHints(hintList);
 
@@ -137,6 +137,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (key == Key.C)
         {
             OpenCommitDialog();
+            return true;
+        }
+
+        if (key.AsRune.Value == '?' || key == Key.F1)
+        {
+            using var help = new HelpDialog();
+            App!.Run(help);
             return true;
         }
 
