@@ -42,13 +42,13 @@ public sealed class DiffPanel : View
         return new PreparedDiff(simplified, DiffHighlighter.Highlight(simplified, path));
     }
 
-    /// <summary>Показывает diff и прокручивает в начало.</summary>
-    public void SetDiff(PreparedDiff diff)
+    /// <summary>Показывает diff. Без <paramref name="keepScroll"/> прокручивает в начало.</summary>
+    public void SetDiff(PreparedDiff diff, bool keepScroll = false)
     {
         _lines = diff.Lines;
         _highlights = diff.Highlights;
         _message = _lines.Count == 0 ? "Нет изменений для показа" : null;
-        _scroll = 0;
+        _scroll = keepScroll ? Math.Clamp(_scroll, 0, Math.Max(0, _lines.Count - Viewport.Height)) : 0;
         var maxNumber = _lines.Select(l => Math.Max(l.OldNumber ?? 0, l.NewNumber ?? 0)).DefaultIfEmpty(0).Max();
         _numberWidth = Math.Max(3, maxNumber.ToString().Length);
         SetNeedsDraw();

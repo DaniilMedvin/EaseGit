@@ -25,6 +25,7 @@ LazyGit/
 │   ├── GitRunner.cs           запуск процесса git → GitResult
 │   ├── GitResult.cs           record: ExitCode, StdOut, StdErr, Command
 │   ├── GitService.cs          GetStatusAsync(), StageAsync(), CommitAsync(), ...
+│   ├── RepoWatcher.cs         FileSystemWatcher: изменения файлов и .git → одно событие Changed
 │   └── Parsers/
 │       ├── StatusParser.cs
 │       ├── BranchParser.cs

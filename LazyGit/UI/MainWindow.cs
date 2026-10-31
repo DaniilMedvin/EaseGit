@@ -19,6 +19,7 @@ public enum MainResult
 /// <summary>
 /// Главный экран репозитория: шапка, панель файлов слева, diff справа.
 /// space — stage/unstage выбранного файла, a — всех файлов, c — коммит, r — обновить, ? — справка.
+/// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
@@ -33,6 +34,11 @@ public sealed class MainWindow : Runnable<MainResult?>
     private bool _busy;
     private object? _statusTimeout;
     private CancellationTokenSource? _diffLoading;
+    private RepoWatcher? _watcher;
+    private bool _refreshPending;
+
+    // Файл, diff которого сейчас показан: при обновлении того же файла прокрутка сохраняется.
+    private (FileSection Section, string Path)? _diffKey;
 
     public MainWindow(GitService git, AuthStatus auth)
     {
@@ -91,7 +97,29 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         base.OnIsRunningChanged(newIsRunning);
         if (newIsRunning)
+        {
             _ = RefreshAsync();
+            StartWatching();
+        }
+        else
+        {
+            _watcher?.Dispose();
+            _watcher = null;
+        }
+    }
+
+    private void StartWatching()
+    {
+        try
+        {
+            _watcher = new RepoWatcher(_git.RepoRoot);
+            _watcher.Changed += (_, _) => App?.Invoke(() => _ = RefreshAsync(silent: true));
+        }
+        catch (Exception ex) when (ex is IOException or ArgumentException or PlatformNotSupportedException)
+        {
+            // Без автообновления экран по-прежнему обновляется после действий и по r.
+            ShowStatus($"{Theme.SymbolWarning} Автообновление недоступно: {ex.Message}", Theme.Warning);
+        }
     }
 
     protected override bool OnKeyDown(Key key)
@@ -240,25 +268,44 @@ public sealed class MainWindow : Runnable<MainResult?>
         finally
         {
             _busy = false;
+            RunPendingRefresh();
         }
     }
 
-    private async Task RefreshAsync()
+    /// <summary>
+    /// Перечитывает статус. silent — автообновление: без сообщения «Обновление…».
+    /// Если сейчас выполняется другая команда, обновление откладывается до её завершения.
+    /// </summary>
+    private async Task RefreshAsync(bool silent = false)
     {
         if (_busy)
+        {
+            _refreshPending = true;
             return;
+        }
 
         _busy = true;
-        App?.Invoke(() => ShowStatus($"{Theme.SpinnerFrames[0]} Обновление…", Theme.Muted));
+        if (!silent)
+            App?.Invoke(() => ShowStatus($"{Theme.SpinnerFrames[0]} Обновление…", Theme.Muted));
         try
         {
-            if (await LoadStatusAsync())
+            if (await LoadStatusAsync() && !silent)
                 App?.Invoke(() => ShowStatus("", Theme.Muted));
         }
         finally
         {
             _busy = false;
+            RunPendingRefresh();
         }
+    }
+
+    private void RunPendingRefresh()
+    {
+        if (!_refreshPending)
+            return;
+
+        _refreshPending = false;
+        App?.Invoke(() => _ = RefreshAsync(silent: true));
     }
 
     /// <summary>Перечитывает статус и обновляет шапку и панель файлов. Возвращает false при ошибке.</summary>
@@ -302,10 +349,15 @@ public sealed class MainWindow : Runnable<MainResult?>
         _diffLoading?.Cancel();
         if (_files.SelectedFile is not { } row)
         {
+            _diffKey = null;
             _diffTitle.Text = " Diff ";
             _diff.SetMessage("");
             return;
         }
+
+        var key = (row.Section, row.File.Path);
+        var sameFile = _diffKey == key;
+        _diffKey = key;
 
         var loading = new CancellationTokenSource();
         _diffLoading = loading;
@@ -320,7 +372,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             App?.Invoke(() =>
             {
                 if (!loading.IsCancellationRequested)
-                    _diff.SetDiff(prepared);
+                    _diff.SetDiff(prepared, keepScroll: sameFile);
             });
         }
         catch (OperationCanceledException)
