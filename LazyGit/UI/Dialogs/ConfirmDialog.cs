@@ -25,8 +25,9 @@ public sealed class ConfirmDialog : Runnable<bool?>
     public ConfirmDialog(string question, string command, string warning, string confirmText)
     {
         var textWidth = DialogWidth - 4;
+        var commandLines = Wrap(command, textWidth - 2);
         var warningLines = Wrap(warning, textWidth);
-        var height = 9 + warningLines.Count;
+        var height = 8 + commandLines.Count + warningLines.Count;
 
         X = Pos.Center();
         Y = Pos.Center();
@@ -52,14 +53,21 @@ public sealed class ConfirmDialog : Runnable<bool?>
         var caption = new Label { Text = "Будет выполнено:", X = 0, Y = 2 };
         caption.SetScheme(Theme.Text(Theme.Muted));
 
-        var commandLabel = new Label { Text = command, X = 2, Y = 3, Width = Dim.Fill() };
+        var commandLabel = new Label
+        {
+            Text = string.Join('\n', commandLines),
+            X = 2,
+            Y = 3,
+            Width = Dim.Fill(),
+            Height = commandLines.Count,
+        };
         commandLabel.SetScheme(Theme.Text(Theme.Info));
 
         var warningLabel = new Label
         {
             Text = string.Join('\n', warningLines),
             X = 0,
-            Y = 5,
+            Y = 4 + commandLines.Count,
             Width = Dim.Fill(),
             Height = warningLines.Count,
         };
@@ -68,7 +76,7 @@ public sealed class ConfirmDialog : Runnable<bool?>
         _cancel = CreateButton("Отмена", false);
         _confirm = CreateButton(confirmText, true);
         _cancel.X = Pos.Center() - (confirmText.Length + 4) / 2 - 6;
-        _cancel.Y = 6 + warningLines.Count;
+        _cancel.Y = 5 + commandLines.Count + warningLines.Count;
         _confirm.X = Pos.Right(_cancel) + 4;
         _confirm.Y = _cancel.Y;
 

@@ -1,13 +1,18 @@
 using Terminal.Gui.ViewBase;
-using Terminal.Gui.Views;
 
 namespace LazyGit.UI.Widgets;
 
-public sealed record Hint(string Key, string Description);
+/// <param name="Optional">Второстепенная подсказка: убирается первой, если строка не помещается.</param>
+public sealed record Hint(string Key, string Description, bool Optional = false);
 
-/// <summary>Строка подсказок по клавишам: «клавиша описание · клавиша описание».</summary>
+/// <summary>
+/// Строка подсказок по клавишам: «клавиша описание · клавиша описание».
+/// Если не помещается, сначала убираются второстепенные подсказки (с конца), затем обрезается с «…».
+/// </summary>
 public sealed class HintBar : View
 {
+    private IReadOnlyList<Hint> _hints = [];
+
     public HintBar()
     {
         Width = Dim.Fill();
@@ -17,27 +22,30 @@ public sealed class HintBar : View
 
     public void SetHints(IEnumerable<Hint> hints)
     {
-        RemoveAll();
-        View? previous = null;
-        foreach (var hint in hints)
-        {
-            if (previous is not null)
-                previous = AddPart($" {Theme.SymbolSeparator} ", Theme.Muted, previous);
-            previous = AddPart(hint.Key, Theme.Fg, previous);
-            previous = AddPart(" " + hint.Description, Theme.Muted, previous);
-        }
+        _hints = hints.ToList();
+        SetNeedsDraw();
     }
 
-    private Label AddPart(string text, Terminal.Gui.Drawing.Color color, View? after)
+    protected override bool OnDrawingContent(DrawContext? context)
     {
-        var label = new Label
+        var shown = _hints.ToList();
+        while (TotalWidth(shown) > Viewport.Width && shown.FindLastIndex(h => h.Optional) is var index and >= 0)
+            shown.RemoveAt(index);
+
+        this.DrawSegments(0, 0, Segments(shown), Viewport.Width);
+        return true;
+    }
+
+    private static int TotalWidth(IReadOnlyList<Hint> hints) => Segments(hints).Sum(s => s.Text.Length);
+
+    private static IEnumerable<Segment> Segments(IReadOnlyList<Hint> hints)
+    {
+        for (var i = 0; i < hints.Count; i++)
         {
-            Text = text,
-            X = after is null ? 0 : Pos.Right(after),
-            Y = 0,
-        };
-        label.SetScheme(Theme.Text(color));
-        Add(label);
-        return label;
+            if (i > 0)
+                yield return new Segment($" {Theme.SymbolSeparator} ", Theme.Muted);
+            yield return new Segment(hints[i].Key, Theme.Fg);
+            yield return new Segment(" " + hints[i].Description, Theme.Muted);
+        }
     }
 }

@@ -86,6 +86,30 @@ public sealed class GitService
         return await _git.RunAsync(RepoRoot, args, ct);
     }
 
+    /// <summary>Аргументы отмены изменений рабочей копии: файлы возвращаются к версии из индекса.</summary>
+    public static string[] DiscardWorktreeArguments(IReadOnlyList<FileChange> files) =>
+        ["restore", "--", .. files.Select(f => f.Path)];
+
+    /// <summary>Аргументы полного сброса к HEAD: индекс и рабочая копия. Добавленный файл удаляется.</summary>
+    public static string[] DiscardToHeadArguments(IReadOnlyList<FileChange> files) =>
+        ["restore", "--source=HEAD", "--staged", "--worktree", "--", .. files.SelectMany(Paths)];
+
+    /// <summary>Аргументы удаления untracked-файлов с диска.</summary>
+    public static string[] DeleteUntrackedArguments(IReadOnlyList<FileChange> files) =>
+        ["clean", "--force", "--", .. files.Select(f => f.Path)];
+
+    /// <summary>Отменяет изменения рабочей копии, staged-изменения сохраняются. Необратимо.</summary>
+    public Task<GitResult> DiscardWorktreeAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, DiscardWorktreeArguments(files), ct);
+
+    /// <summary>Сбрасывает файлы к HEAD: и индекс, и рабочую копию. Необратимо.</summary>
+    public Task<GitResult> DiscardToHeadAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, DiscardToHeadArguments(files), ct);
+
+    /// <summary>Удаляет untracked-файлы с диска. Необратимо.</summary>
+    public Task<GitResult> DeleteUntrackedAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, DeleteUntrackedArguments(files), ct);
+
     public Task<GitResult> StageAllAsync(CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["add", "--all"], ct);
 

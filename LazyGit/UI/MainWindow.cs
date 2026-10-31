@@ -20,7 +20,9 @@ public enum MainResult
 
 /// <summary>
 /// Главный экран репозитория: шапка, слева панели файлов, веток и коммитов, справа diff.
-/// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить. В файлах: space — stage/unstage файла, a — всех файлов.
+/// 1 / 2 / 3 и tab — переход между панелями.
+/// В файлах: space — stage/unstage файла или папки, a — всех файлов, d — сбросить изменения.
+/// В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить.
 /// «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
@@ -146,7 +148,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         var hints = new List<Hint>();
         if (_commits.HasFocus)
         {
-            hints.Add(new Hint("↑↓", "выбор коммита"));
+            hints.Add(new Hint("↑↓", "выбор коммита", Optional: true));
         }
         else if (_branches.HasFocus)
         {
@@ -158,16 +160,16 @@ public sealed class MainWindow : Runnable<MainResult?>
         else
         {
             hints.Add(new Hint("space", "stage"));
-            hints.Add(new Hint("a", "все"));
+            hints.Add(new Hint("a", "все", Optional: true));
+            hints.Add(new Hint("d", "сбросить"));
         }
 
         // Остальные клавиши (ctrl+d/u, r, f) — в справке: на 80 колонок всё не помещается.
         hints.Add(new Hint("c", "коммит"));
-        hints.Add(new Hint("p", "pull"));
-        hints.Add(new Hint("P", "push"));
-        hints.Add(new Hint("tab", "панель"));
+        hints.Add(new Hint("p/P", "pull/push", Optional: true));
+        hints.Add(new Hint("tab", "панель", Optional: true));
         if (!_auth.IsAuthorized)
-            hints.Add(new Hint("ctrl+g", "войти"));
+            hints.Add(new Hint("ctrl+g", "войти", Optional: true));
         hints.Add(new Hint("?", "справка"));
         hints.Add(new Hint("esc", "назад"));
         hints.Add(new Hint("q", "выход"));
@@ -313,6 +315,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key == Key.D && _files.HasFocus)
+        {
+            _ = DiscardSelectedAsync();
+            return true;
+        }
+
         if (key == Key.A && _files.HasFocus)
         {
             _ = ToggleAllAsync();
@@ -451,7 +459,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     private bool Confirm(string question, string[] args, string warning, string confirmText)
     {
-        using var dialog = new ConfirmDialog(question, "git " + string.Join(' ', args), warning, confirmText);
+        using var dialog = new ConfirmDialog(question, CommandText.Format(args), warning, confirmText);
         App!.Run(dialog);
         return dialog.Result == true;
     }
@@ -477,6 +485,69 @@ public sealed class MainWindow : Runnable<MainResult?>
             FileSection.Conflicts => RunAsync(ct => _git.StageAsync(files, ct), $"{name}: конфликт отмечен как решённый"),
             _ => RunAsync(ct => _git.StageAsync(files, ct), $"{name} добавлен в индекс"),
         };
+    }
+
+    /// <summary>
+    /// Отменяет изменения выбранного файла или папки после подтверждения. Что именно делается, зависит от раздела:
+    /// «Изменения» — файл возвращается к версии из индекса, Staged — к HEAD (и индекс, и рабочая копия),
+    /// новые файлы удаляются с диска. Конфликты так не сбрасываются.
+    /// </summary>
+    private Task DiscardSelectedAsync()
+    {
+        if (_busy)
+            return Task.CompletedTask;
+
+        var (section, files, name) = _files.SelectedRow switch
+        {
+            FileEntryRow f => (f.Section, (IReadOnlyList<FileChange>)[f.File], f.File.Path),
+            DirectoryRow d => (d.Section, d.Files.Select(e => e.File).ToList(), $"{d.Path}/ ({FilesWord(d.Files.Count)})"),
+            _ => (default(FileSection), [], ""),
+        };
+        if (files.Count == 0)
+            return Task.CompletedTask;
+
+        var isFolder = _files.SelectedRow is DirectoryRow;
+        var where = isFolder ? $"в папке {name}" : $"в {name}";
+
+        if (section == FileSection.Conflicts)
+        {
+            ShowStatus($"{Theme.SymbolError} Конфликт так не сбросить: реши его в файле и добавь в индекс (space)", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        if (section == FileSection.Staged && _repoStatus?.HeadHash is null)
+        {
+            ShowStatus($"{Theme.SymbolError} Коммитов ещё нет: убери файл из индекса (space), затем удали его как новый (d)", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        var (args, question, warning, confirmText, action) = section switch
+        {
+            FileSection.Untracked => (
+                GitService.DeleteUntrackedArguments(files),
+                isFolder ? $"Удалить новые файлы в папке {name}?" : $"Удалить {name}?",
+                "Новые файлы ещё не в git: они будут удалены с диска, вернуть их будет нельзя.",
+                "Удалить",
+                (Func<CancellationToken, Task<GitResult>>)(ct => _git.DeleteUntrackedAsync(files, ct))),
+            FileSection.Staged => (
+                GitService.DiscardToHeadArguments(files),
+                $"Сбросить все изменения {where}?",
+                "Файлы вернутся к последнему коммиту: и staged, и несохранённые в индексе изменения пропадут. Это нельзя отменить.",
+                "Сбросить",
+                ct => _git.DiscardToHeadAsync(files, ct)),
+            _ => (
+                GitService.DiscardWorktreeArguments(files),
+                $"Сбросить изменения {where}?",
+                "Изменения, не добавленные в индекс, пропадут. Staged-часть останется. Это нельзя отменить.",
+                "Сбросить",
+                ct => _git.DiscardWorktreeAsync(files, ct)),
+        };
+
+        if (!Confirm(question, args, warning, confirmText))
+            return Task.CompletedTask;
+
+        var done = section == FileSection.Untracked ? $"Удалено: {name}" : $"Изменения сброшены: {name}";
+        return RunAsync(action, done);
     }
 
     /// <summary>Если есть изменения вне индекса — добавляет всё, иначе убирает всё из индекса.</summary>
@@ -627,7 +698,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
 
         var remote = remotes[0];
-        var command = "git " + string.Join(' ', GitService.PushSetUpstreamArguments(remote, branch));
+        var command = CommandText.Format(GitService.PushSetUpstreamArguments(remote, branch));
         if (_pushUpstreamOffer != branch)
         {
             _pushUpstreamOffer = branch;

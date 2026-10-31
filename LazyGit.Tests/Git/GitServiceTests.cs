@@ -275,6 +275,53 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DiscardWorktreeAsync_KeepsStagedPart()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        _repo.Write("a.txt", "staged");
+        await _repo.RunAsync("add", "a.txt");
+        _repo.Write("a.txt", "worktree");
+
+        var result = await _service.DiscardWorktreeAsync([await SingleFileAsync()]);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Equal("staged", File.ReadAllText(Path.Combine(_repo.Path, "a.txt")));
+        Assert.Equal((ChangeKind.Modified, ChangeKind.Unmodified), ((await SingleFileAsync()).Staged, (await SingleFileAsync()).Unstaged));
+    }
+
+    [Fact]
+    public async Task DiscardToHeadAsync_StagedNewAndModified_BackToHead()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        _repo.Write("a.txt", "2");
+        _repo.Write("new file.txt", "x");
+        await _repo.RunAsync("add", "-A");
+
+        var result = await _service.DiscardToHeadAsync((await _service.GetStatusAsync()).Files);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Empty((await _service.GetStatusAsync()).Files);
+        Assert.Equal("1", File.ReadAllText(Path.Combine(_repo.Path, "a.txt")));
+        Assert.False(File.Exists(Path.Combine(_repo.Path, "new file.txt")));
+    }
+
+    [Fact]
+    public async Task DeleteUntrackedAsync_RemovesFileFromDisk()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        _repo.Write("dir/new.txt", "x");
+
+        var result = await _service.DeleteUntrackedAsync([await SingleFileAsync()]);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.False(File.Exists(Path.Combine(_repo.Path, "dir", "new.txt")));
+        Assert.Empty((await _service.GetStatusAsync()).Files);
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");

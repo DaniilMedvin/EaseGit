@@ -137,6 +137,7 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("space", "stage / unstage файла", "c", "коммит"));
             lines.Add(Keys("enter", "свернуть папку", "← →", "свернуть / развернуть"));
             lines.Add(Keys("a", "stage / unstage всех", "ctrl+d/u", "листать diff"));
+            lines.Add(Keys("d", "сбросить изменения", "", ""));
             lines.Add(Keys("↑↓  j k", "выбор строки", "Home/End", "первая / последняя"));
             lines.Add(Keys("1  2  3", "файлы / ветки / коммиты", "tab", "следующая панель"));
             lines.Add(Keys("space", "checkout ветки", "n", "новая ветка"));
