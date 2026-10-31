@@ -4,8 +4,16 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 
 namespace LazyGit.UI.Widgets;
 
-/// <summary>Цветной фрагмент строки.</summary>
-public readonly record struct Segment(string Text, Color Color, TextStyle Style = TextStyle.None);
+/// <summary>Цветной фрагмент строки. <paramref name="Background"/> переопределяет фон строки.</summary>
+public readonly record struct Segment(string Text, Color Color, TextStyle Style = TextStyle.None, Color? Background = null)
+{
+    /// <summary>Плашка: текст цвета фона терминала на цветном фоне.</summary>
+    public static Segment Badge(string text, Color color) => new($" {text} ", Theme.Backdrop, TextStyle.Bold, color);
+
+    /// <summary>Мягкая плашка: цветной текст на приглушённом фоне того же цвета.</summary>
+    public static Segment Pill(string text, Color color, TextStyle style = TextStyle.None) =>
+        new($" {text} ", color, style, Theme.Tint(color));
+}
 
 public static class TextDrawing
 {
@@ -26,7 +34,7 @@ public static class TextDrawing
             if (used + text.Length > maxWidth)
                 text = text[..Math.Max(0, maxWidth - used - 1)] + Theme.SymbolEllipsis;
 
-            view.SetAttribute(new Attribute(segment.Color, bg, segment.Style));
+            view.SetAttribute(new Attribute(segment.Color, segment.Background ?? bg, segment.Style));
             view.AddStr(x + used, y, text);
             used += text.Length;
         }

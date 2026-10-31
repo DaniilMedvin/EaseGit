@@ -8,7 +8,8 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 namespace LazyGit.UI.Panels;
 
 /// <summary>
-/// Панель изменённых файлов, сгруппированных по разделам (конфликты, staged, изменения, untracked).
+/// Панель изменённых файлов, сгруппированных по разделам (конфликты, staged, изменения, новые файлы).
+/// Вид изменения показывается плашкой с буквой (M, A, D, R, U, !), заголовок раздела — мягкой плашкой.
 /// Навигация: ↑↓ / j k, Home / End, PageUp / PageDown. Заголовки разделов не выбираются.
 /// </summary>
 public sealed class FilesPanel : View
@@ -104,11 +105,11 @@ public sealed class FilesPanel : View
             FileSection.Conflicts => ("Конфликты", Theme.Error),
             FileSection.Staged => ("Staged", Theme.Success),
             FileSection.Unstaged => ("Изменения", Theme.Warning),
-            _ => ("Untracked", Theme.Muted),
+            _ => ("Новые файлы", Theme.Cyan),
         };
         this.DrawSegments(1, line,
         [
-            new Segment(title, color, TextStyle.Bold),
+            Segment.Pill(title, color, TextStyle.Bold),
             new Segment($" {header.Count}", Theme.Dim),
         ], Viewport.Width - 1);
     }
@@ -122,16 +123,16 @@ public sealed class FilesPanel : View
             AddStr(0, line, new string(' ', Viewport.Width));
         }
 
-        var (symbol, color) = Theme.ForChange(row.Kind);
+        var (letter, color) = Theme.ForChange(row.Kind);
         var path = row.File.OriginalPath is { } original && row.Section == FileSection.Staged
             ? $"{original} → {row.File.Path}"
             : row.File.Path;
 
         this.DrawSegments(1, line,
         [
-            new Segment(selected ? Theme.SymbolSelection : " ", Theme.Accent, TextStyle.Bold),
-            new Segment($" {symbol} ", color),
-            new Segment(path, selected ? Theme.Fg : color),
+            new Segment(selected ? Theme.SymbolSelection + " " : "  ", Theme.Accent, TextStyle.Bold),
+            Segment.Badge(letter, color),
+            new Segment(" " + path, selected ? Theme.Fg : color),
         ], Viewport.Width - 1, background);
     }
 

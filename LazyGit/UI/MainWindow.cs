@@ -303,7 +303,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         var loading = new CancellationTokenSource();
         _diffLoading = loading;
         var staged = row.Section == FileSection.Staged;
-        _diffTitle.Text = $" Diff · {row.File.Path}{(staged ? " · staged" : "")} ";
+        var tag = staged ? " · staged" : row.File.IsUntracked ? " · новый файл" : "";
+        _diffTitle.Text = $" Diff · {row.File.Path}{tag} ";
 
         try
         {

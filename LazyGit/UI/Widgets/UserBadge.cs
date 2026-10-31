@@ -4,7 +4,7 @@ using Terminal.Gui.Views;
 
 namespace LazyGit.UI.Widgets;
 
-/// <summary>Пользователь в правом верхнем углу: «● login» или «○ Не авторизован».</summary>
+/// <summary>Пользователь в правом верхнем углу мягкой плашкой: «● login» или «○ Не авторизован».</summary>
 public sealed class UserBadge : Label
 {
     public UserBadge(AuthStatus status)
@@ -13,13 +13,16 @@ public sealed class UserBadge : Label
         Y = 1;
         if (status.IsAuthorized)
         {
-            Text = $"{Theme.SymbolCurrent} {status.Login}";
-            SetScheme(Theme.Text(Theme.Success));
+            Text = $" {Theme.SymbolCurrent} {status.Login} ";
+            SetScheme(Pill(Theme.Success));
         }
         else
         {
-            Text = $"{Theme.SymbolEmpty} Не авторизован";
-            SetScheme(Theme.Text(Theme.Warning));
+            Text = $" {Theme.SymbolEmpty} Не авторизован ";
+            SetScheme(Pill(Theme.Warning));
         }
     }
+
+    private static Terminal.Gui.Drawing.Scheme Pill(Terminal.Gui.Drawing.Color color) =>
+        new(new Terminal.Gui.Drawing.Attribute(color, Theme.Tint(color)));
 }

@@ -92,19 +92,26 @@ public static class Theme
     public static readonly Color SyntaxDisabled = new("#767676");
     public static readonly Color SyntaxPunctuation = new("#B4B4B4");
 
-    /// <summary>Значок и цвет вида изменения файла.</summary>
-    public static (string Symbol, Color Color) ForChange(Models.ChangeKind kind) => kind switch
+    /// <summary>
+    /// Буква и цвет плашки вида изменения, как в VS Code и Rider:
+    /// M — изменён, A — добавлен, D — удалён, R — переименован, C — скопирован, T — сменился тип,
+    /// U — новый (untracked), ! — конфликт.
+    /// </summary>
+    public static (string Letter, Color Color) ForChange(Models.ChangeKind kind) => kind switch
     {
-        Models.ChangeKind.Added => ("✚", Success),
-        Models.ChangeKind.Modified => ("●", Warning),
-        Models.ChangeKind.Deleted => ("✖", Error),
-        Models.ChangeKind.Renamed => ("➜", Info),
-        Models.ChangeKind.Copied => ("➜", Info),
-        Models.ChangeKind.TypeChanged => ("●", Warning),
+        Models.ChangeKind.Added => ("A", Success),
+        Models.ChangeKind.Modified => ("M", Warning),
+        Models.ChangeKind.Deleted => ("D", Error),
+        Models.ChangeKind.Renamed => ("R", Info),
+        Models.ChangeKind.Copied => ("C", Info),
+        Models.ChangeKind.TypeChanged => ("T", Warning),
         Models.ChangeKind.Unmerged => ("!", Error),
-        Models.ChangeKind.Untracked => ("?", Muted),
+        Models.ChangeKind.Untracked => ("U", Cyan),
         _ => (" ", Muted),
     };
+
+    /// <summary>Приглушённый фон плашки цвета <paramref name="color"/>.</summary>
+    public static Color Tint(Color color) => Blend(Backdrop, color, 0.22);
 
     /// <summary>Линейная интерполяция цвета: t = 0 → a, t = 1 → b.</summary>
     public static Color Blend(Color a, Color b, double t)
