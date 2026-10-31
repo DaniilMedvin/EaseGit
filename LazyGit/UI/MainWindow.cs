@@ -24,6 +24,7 @@ public enum MainResult
 /// 1 / 2 / 3 и tab — переход между панелями.
 /// В файлах: space — stage/unstage файла или папки, a — всех файлов, d — сбросить изменения.
 /// В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить.
+/// На конфликтном файле: o — оставить нашу версию, t — их, b — обе. A — прервать merge / cherry-pick / rebase.
 /// s — спрятать изменения в stash; в панели stash: space — pop, a — apply, d — удалить.
 /// ~ — Command Log, «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
@@ -58,6 +59,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private RepoWatcher? _watcher;
     private bool _refreshPending;
     private RepoStatus? _repoStatus;
+    private RepoOperation _repoOperation;
 
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
@@ -117,8 +119,12 @@ public sealed class MainWindow : Runnable<MainResult?>
         // Справа — контекст панели в фокусе, поэтому выбор в остальных панелях его не меняет.
         _files.SelectionChanged += (_, _) =>
         {
-            if (FocusedScope == CommandScope.Files)
-                _ = LoadDiffAsync();
+            if (FocusedScope != CommandScope.Files)
+                return;
+
+            _ = LoadDiffAsync();
+            // Подсказки o / t видны только на конфликтном файле.
+            UpdateHints();
         };
         _branches.SelectionChanged += (_, _) =>
         {
@@ -271,6 +277,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("files.stageAll", "Stage / unstage всех", CommandScope.Files, CommandKey.Of("a", Key.A),
             () => _ = ToggleAllAsync(), "все", hintOptional: true,
             preview: () => _files.Entries.Any(r => r.Section != FileSection.Staged) ? "git add --all" : "git reset --quiet", keywords: "добавить всё индекс");
+        Add("files.ours", "Оставить нашу версию", CommandScope.Files, CommandKey.Of("o", Key.O),
+            () => _ = ResolveConflictAsync(ours: true), "наша", available: IsConflictSelected,
+            preview: () => ConflictPreview("--ours"), keywords: "конфликт ours наш мой");
+        Add("files.theirs", "Оставить их версию", CommandScope.Files, CommandKey.Of("t", Key.T),
+            () => _ = ResolveConflictAsync(ours: false), "их", available: IsConflictSelected,
+            preview: () => ConflictPreview("--theirs"), keywords: "конфликт theirs их чужой");
+        Add("files.both", "Оставить обе версии", CommandScope.Files, CommandKey.Of("b", Key.B),
+            () => _ = ResolveBothAsync(), "оба", available: IsConflictSelected,
+            preview: () => SelectedConflictFiles() is { Count: > 0 } f
+                ? CommandText.Format(["merge-file", "--union", .. f.Select(x => x.Path)]) + " && git add …"
+                : null,
+            keywords: "конфликт оба обе union объединить вместе");
         Add("files.discard", "Сбросить изменения", CommandScope.Files, CommandKey.Of("d", Key.D),
             () => _ = DiscardSelectedAsync(), "сбросить", dangerous: true, keywords: "откатить отменить удалить ресет");
 
@@ -291,6 +309,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("stash.drop", "Удалить stash", CommandScope.Stash, CommandKey.Of("d", Key.D),
             () => _ = DropStashAsync(), "удалить", dangerous: true, preview: () => StashPreview("drop"), keywords: "стэш drop");
 
+        Add("operation.abort", "Прервать merge / cherry-pick / rebase", CommandScope.Global, CommandKey.Of("A", Key.A.WithShift),
+            () => _ = AbortOperationAsync(), "прервать", dangerous: true,
+            available: () => _repoOperation != RepoOperation.None,
+            preview: () => _repoOperation == RepoOperation.None ? null : CommandText.Format(GitService.AbortArguments(_repoOperation)),
+            keywords: "abort отменить merge конфликт");
         Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
@@ -429,6 +452,67 @@ public sealed class MainWindow : Runnable<MainResult?>
         _stashTitle.Visible = visible;
         _stash.Height = height;
         _commits.Height = Dim.Fill(2 + height);
+    }
+
+    private bool IsConflictSelected() =>
+        _files.SelectedRow is FileEntryRow { Section: FileSection.Conflicts }
+            or DirectoryRow { Section: FileSection.Conflicts };
+
+    private IReadOnlyList<FileChange> SelectedConflictFiles() => _files.SelectedRow switch
+    {
+        FileEntryRow { Section: FileSection.Conflicts } f => [f.File],
+        DirectoryRow { Section: FileSection.Conflicts } d => d.Files.Select(e => e.File).ToList(),
+        _ => [],
+    };
+
+    private string? ConflictPreview(string side)
+    {
+        var files = SelectedConflictFiles();
+        return files.Count == 0 ? null : CommandText.Format(["checkout", side, "--", .. files.Select(f => f.Path)]) + " && git add …";
+    }
+
+    /// <summary>
+    /// Решает конфликт выбранного файла или папки целиком в пользу нашей или их версии.
+    /// При rebase «наша» — ветка, на которую переносятся коммиты, «их» — переносимые коммиты.
+    /// </summary>
+    private Task ResolveConflictAsync(bool ours)
+    {
+        var files = SelectedConflictFiles();
+        if (files.Count == 0)
+            return Task.CompletedTask;
+
+        var name = files.Count == 1 ? files[0].Path : FilesWord(files.Count);
+        var side = ours ? "наша версия" : "их версия";
+        return RunAsync(ct => _git.ResolveConflictAsync(files, ours, ct),
+            $"{name}: оставлена {side}. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}");
+    }
+
+    /// <summary>Решает конфликт, оставляя обе версии подряд: сначала наши строки, затем их.</summary>
+    private Task ResolveBothAsync()
+    {
+        var files = SelectedConflictFiles();
+        if (files.Count == 0)
+            return Task.CompletedTask;
+
+        var name = files.Count == 1 ? files[0].Path : FilesWord(files.Count);
+        return RunAsync(ct => _git.ResolveBothAsync(files, ct),
+            $"{name}: оставлены обе версии — проверь порядок строк. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}");
+    }
+
+    /// <summary>Прерывает незавершённую операцию после подтверждения: возвращает состояние до её начала.</summary>
+    private Task AbortOperationAsync()
+    {
+        if (_busy || _repoOperation == RepoOperation.None)
+            return Task.CompletedTask;
+
+        var operation = _repoOperation;
+        var name = RepoHeader.OperationName(operation);
+        if (!Confirm($"Прервать {name}?", GitService.AbortArguments(operation),
+                $"Ветка вернётся к состоянию до {name}. Всё, что уже сделано при разрешении конфликтов, пропадёт.",
+                "Прервать"))
+            return Task.CompletedTask;
+
+        return RunAsync(ct => _git.AbortAsync(operation, ct), $"{char.ToUpper(name[0])}{name[1..]} прерван, всё как до него");
     }
 
     private void FocusPanel(int step)
@@ -920,18 +1004,22 @@ public sealed class MainWindow : Runnable<MainResult?>
             var branchesTask = _git.GetBranchesAsync();
             var logTask = _git.GetLogAsync();
             var stashTask = _git.GetStashesAsync();
+            var operationTask = _git.GetOperationAsync();
             var status = await statusTask;
             var branches = await branchesTask;
             var log = await logTask;
             var stashes = await stashTask;
+            var operation = await operationTask;
             App?.Invoke(() =>
             {
                 _repoStatus = status;
-                _header.SetStatus(status);
+                _repoOperation = operation;
+                _header.SetStatus(status, operation);
                 _files.SetStatus(status);
                 _branches.SetItems(branches);
                 _commits.SetItems(log);
                 SetStashes(stashes);
+                UpdateHints();
             });
             return true;
         }

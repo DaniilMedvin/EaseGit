@@ -14,6 +14,7 @@ public sealed class GitService
 
     private readonly GitRunner _git;
     private readonly CommandLog? _log;
+    private string? _gitDir;
 
     /// <param name="log">Журнал, куда пишутся изменяющие команды; null — не вести.</param>
     public GitService(GitRunner git, string repoRoot, CommandLog? log = null)
@@ -249,6 +250,112 @@ public sealed class GitService
         var output = await RunCheckedAsync(
             ["stash", "show", "--patch", "--include-untracked", "--no-color", "--no-ext-diff", stash.Ref], ct);
         return new CommitDiff(stash.Message, DiffParser.Parse(output));
+    }
+
+    /// <summary>
+    /// Незавершённая операция по служебным файлам в .git: MERGE_HEAD, CHERRY_PICK_HEAD, REVERT_HEAD, rebase-merge/.
+    /// Папка .git определяется через git, поэтому работает и в worktree.
+    /// </summary>
+    public async Task<RepoOperation> GetOperationAsync(CancellationToken ct = default)
+    {
+        _gitDir ??= (await RunCheckedAsync(["rev-parse", "--absolute-git-dir"], ct)).Trim();
+        if (Directory.Exists(Path.Combine(_gitDir, "rebase-merge")) || Directory.Exists(Path.Combine(_gitDir, "rebase-apply")))
+            return RepoOperation.Rebase;
+        if (File.Exists(Path.Combine(_gitDir, "MERGE_HEAD")))
+            return RepoOperation.Merge;
+        if (File.Exists(Path.Combine(_gitDir, "CHERRY_PICK_HEAD")))
+            return RepoOperation.CherryPick;
+        if (File.Exists(Path.Combine(_gitDir, "REVERT_HEAD")))
+            return RepoOperation.Revert;
+        return RepoOperation.None;
+    }
+
+    /// <summary>Аргументы прерывания операции: возвращают состояние до её начала.</summary>
+    public static string[] AbortArguments(RepoOperation operation) => operation switch
+    {
+        RepoOperation.Merge => ["merge", "--abort"],
+        RepoOperation.CherryPick => ["cherry-pick", "--abort"],
+        RepoOperation.Revert => ["revert", "--abort"],
+        RepoOperation.Rebase => ["rebase", "--abort"],
+        _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Нечего прерывать"),
+    };
+
+    public Task<GitResult> AbortAsync(RepoOperation operation, CancellationToken ct = default) =>
+        RunActionAsync(AbortArguments(operation), ct);
+
+    /// <summary>
+    /// Решает конфликт, оставляя целиком нашу (<paramref name="ours"/>) или их версию файлов, и добавляет их в индекс.
+    /// Вернуть конфликт: git checkout -m -- путь.
+    /// </summary>
+    public async Task<GitResult> ResolveConflictAsync(IReadOnlyList<FileChange> files, bool ours, CancellationToken ct = default)
+    {
+        var paths = files.Select(f => f.Path).ToList();
+        var checkout = await RunActionAsync(["checkout", ours ? "--ours" : "--theirs", "--", .. paths], ct);
+        return checkout.Success ? await RunActionAsync(["add", "--", .. paths], ct) : checkout;
+    }
+
+    /// <summary>
+    /// Решает конфликт, оставляя обе версии: сначала наши строки, затем их (git merge-file --union), и добавляет в индекс.
+    /// Версии берутся из индекса побайтово (checkout-index --temp), так что кодировка и переводы строк сохраняются.
+    /// Если одна сторона файл удалила или файл бинарный, объединить нельзя — git вернёт ошибку.
+    /// </summary>
+    public async Task<GitResult> ResolveBothAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default)
+    {
+        GitResult? last = null;
+        foreach (var file in files)
+        {
+            var temps = new List<string>();
+            try
+            {
+                var theirs = await ExtractStageAsync(file.Path, stage: 3, ct);
+                if (theirs.Path is null)
+                    return theirs.Result;
+                temps.Add(theirs.Path);
+
+                // Без общей базы (файл добавлен в обеих ветках) объединяем относительно пустого файла.
+                var @base = await ExtractStageAsync(file.Path, stage: 1, ct);
+                var basePath = @base.Path ?? CreateEmptyTemp();
+                temps.Add(basePath);
+
+                var ours = await RunActionAsync(["checkout", "--ours", "--", file.Path], ct);
+                if (!ours.Success)
+                    return ours;
+
+                var union = await RunActionAsync(["merge-file", "--union", file.Path, basePath, theirs.Path], ct);
+                if (!union.Success)
+                    return union;
+
+                last = await RunActionAsync(["add", "--", file.Path], ct);
+                if (!last.Success)
+                    return last;
+            }
+            finally
+            {
+                foreach (var temp in temps)
+                    File.Delete(temp);
+            }
+        }
+
+        return last ?? new GitResult("git merge-file --union", 0, "", "");
+    }
+
+    /// <summary>Выгружает версию файла из индекса (1 — база, 2 — наша, 3 — их) во временный файл в корне репозитория.</summary>
+    private async Task<(string? Path, GitResult Result)> ExtractStageAsync(string path, int stage, CancellationToken ct)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["checkout-index", $"--stage={stage}", "--temp", "--", path], ct);
+        if (!result.Success)
+            return (null, result);
+
+        // Вывод: «.merge_file_AbC123\tпуть».
+        var name = result.StdOut.Split('\t')[0].Trim();
+        return (Path.Combine(RepoRoot, name), result);
+    }
+
+    private string CreateEmptyTemp()
+    {
+        var path = Path.Combine(RepoRoot, $".merge_file_empty_{Guid.NewGuid():N}");
+        File.WriteAllBytes(path, []);
+        return path;
     }
 
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>

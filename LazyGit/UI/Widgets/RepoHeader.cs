@@ -15,6 +15,7 @@ public sealed class RepoHeader : View
     private readonly string _repoPath;
     private readonly AuthStatus _auth;
     private RepoStatus? _status;
+    private RepoOperation _operation;
 
     public RepoHeader(string repoRoot, AuthStatus auth)
     {
@@ -27,11 +28,22 @@ public sealed class RepoHeader : View
         SetScheme(Theme.Text(Theme.Dim));
     }
 
-    public void SetStatus(RepoStatus status)
+    public void SetStatus(RepoStatus status, RepoOperation operation = RepoOperation.None)
     {
         _status = status;
+        _operation = operation;
         SetNeedsDraw();
     }
+
+    /// <summary>Название операции для плашки: «merge», «cherry-pick».</summary>
+    public static string OperationName(RepoOperation operation) => operation switch
+    {
+        RepoOperation.Merge => "merge",
+        RepoOperation.CherryPick => "cherry-pick",
+        RepoOperation.Revert => "revert",
+        RepoOperation.Rebase => "rebase",
+        _ => "",
+    };
 
     protected override bool OnDrawingContent(DrawContext? context)
     {
@@ -42,7 +54,15 @@ public sealed class RepoHeader : View
 
         var segments = new List<Segment> { new(" " + _repoName, Theme.Fg, TextStyle.Bold) };
         if (_status is not null)
+        {
             segments.AddRange(StatusSegments(_status));
+            if (_operation != RepoOperation.None)
+            {
+                segments.Add(new Segment("   ", Theme.Fg));
+                segments.Add(Segment.Pill($"{Theme.SymbolWarning} идёт {OperationName(_operation)}", Theme.Warning, TextStyle.Bold));
+            }
+        }
+
         segments.Add(new Segment("   " + _repoPath, Theme.Dim));
 
         this.DrawSegments(0, 0, segments, Math.Max(0, userX - 2));
