@@ -1,3 +1,4 @@
+using LazyGit.Commands;
 using LazyGit.Models;
 using LazyGit.UI.Widgets;
 using Terminal.Gui.Drawing;
@@ -18,9 +19,10 @@ public sealed class HelpDialog : Runnable<bool?>
     private readonly HelpContent _content;
 
     /// <param name="maxHeight">Высота экрана: окно не выше неё.</param>
-    public HelpDialog(int maxHeight)
+    /// <param name="commands">Команды экрана: из них строится раздел клавиш.</param>
+    public HelpDialog(int maxHeight, IReadOnlyList<AppCommand> commands)
     {
-        var content = new HelpContent { X = 0, Y = 0, Width = Dim.Fill() };
+        var content = new HelpContent(commands) { X = 0, Y = 0, Width = Dim.Fill() };
         _content = content;
         var visibleLines = Math.Clamp(maxHeight - 3, 1, content.LineCount);
         var scrollable = visibleLines < content.LineCount;
@@ -75,13 +77,14 @@ public sealed class HelpDialog : Runnable<bool?>
     /// <summary>Содержимое справки: строки из цветных фрагментов.</summary>
     private sealed class HelpContent : View
     {
-        private const int KeyColumn = 10;
+        private const int KeyColumn = 11;
         private const int SecondColumn = 36;
 
-        private readonly List<Segment[]> _lines = BuildLines();
+        private readonly List<Segment[]> _lines;
 
-        public HelpContent()
+        public HelpContent(IReadOnlyList<AppCommand> commands)
         {
+            _lines = BuildLines(commands);
             CanFocus = false;
         }
 
@@ -108,7 +111,7 @@ public sealed class HelpDialog : Runnable<bool?>
             return true;
         }
 
-        private static List<Segment[]> BuildLines()
+        private static List<Segment[]> BuildLines(IReadOnlyList<AppCommand> commands)
         {
             var lines = new List<Segment[]>();
 
@@ -133,21 +136,31 @@ public sealed class HelpDialog : Runnable<bool?>
                 Segment.Pill($"{Theme.SymbolEmpty} Не авторизован", Theme.Warning), new(" ctrl+g — войти", Theme.Muted)]);
             lines.Add([]);
 
-            lines.Add(Heading("Клавиши"));
-            lines.Add(Keys("space", "stage / unstage файла", "c", "коммит"));
-            lines.Add(Keys("enter", "свернуть папку", "← →", "свернуть / развернуть"));
-            lines.Add(Keys("a", "stage / unstage всех", "ctrl+d/u", "листать diff"));
-            lines.Add(Keys("d", "сбросить изменения", "", ""));
+            lines.Add(Heading("Навигация"));
             lines.Add(Keys("↑↓  j k", "выбор строки", "Home/End", "первая / последняя"));
-            lines.Add(Keys("1  2  3", "файлы / ветки / коммиты", "tab", "следующая панель"));
-            lines.Add(Keys("space", "checkout ветки", "n", "новая ветка"));
-            lines.Add(Keys("M", "merge в текущую", "D", "удалить ветку"));
-            lines.Add(Keys("p", "pull", "P", "push / push -u"));
-            lines.Add(Keys("f", "fetch", "esc", "отменить push/pull/fetch"));
-            lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
-            lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
-            lines.Add(Keys("?  F1", "эта справка", ",", "настройки (маскот)"));
-            lines.Add(Keys("~", "Command Log: команды git", "", ""));
+            lines.Add(Keys("enter", "свернуть папку", "← →", "свернуть / развернуть"));
+            lines.Add(Keys("esc", "отменить push/pull", "", ""));
+
+            foreach (var (scope, title) in new[]
+                     {
+                         (CommandScope.Files, "Файлы"),
+                         (CommandScope.Branches, "Ветки"),
+                         (CommandScope.Global, "Везде"),
+                     })
+            {
+                var inScope = commands.Where(c => c.Scope == scope).ToList();
+                if (inScope.Count == 0)
+                    continue;
+
+                lines.Add([]);
+                lines.Add(Heading(title));
+                for (var i = 0; i < inScope.Count; i += 2)
+                {
+                    var second = i + 1 < inScope.Count ? inScope[i + 1] : null;
+                    lines.Add(Keys(inScope[i].Key.Label, inScope[i].Title, second?.Key.Label ?? "", second?.Title ?? ""));
+                }
+            }
+
             return lines;
         }
 

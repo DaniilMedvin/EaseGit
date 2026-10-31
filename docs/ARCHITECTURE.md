@@ -45,15 +45,16 @@ LazyGit/
 ├── State/
 │   └── AppState.cs            хранит RepoStatus, событие Changed, RefreshAsync()
 ├── Commands/
-│   ├── IAppCommand.cs
-│   ├── CommandRegistry.cs     все команды; отсюда строятся подсказки, ? и палитра
-│   └── Files/StageFileCommand.cs, ...
+│   ├── AppCommand.cs          описание действия: клавиша, панель, подсказка, превью
+│   ├── CommandKey.cs          клавиша команды: подпись и сравнение (в т.ч. символы ? , ~ :)
+│   ├── CommandRegistry.cs     все команды; отсюда строятся клавиши, подсказки, ? и палитра
+│   └── CommandSearch.cs       нечёткий поиск для палитры
 └── UI/
     ├── Theme.cs               цвета и символы из DESIGN.md
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
     ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
-    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, SettingsDialog, ErrorDialog, CommandPalette
+    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, SettingsDialog, CommandPalette, ErrorDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git
@@ -91,33 +92,42 @@ public sealed record GitResult(string Command, int ExitCode, string StdOut, stri
 - Событие `Changed` → панели перерисовываются.
 
 ### Commands
-Каждое действие пользователя — объект:
+Каждое действие пользователя описано один раз — `AppCommand`:
 
 ```csharp
-public interface IAppCommand
+public sealed class AppCommand
 {
-    string Id { get; }                 // "files.stage"
-    string Title { get; }              // "Stage файла"
-    Key Key { get; }                   // Key.Space
-    string Scope { get; }              // "files" | "branches" | "global"
-    bool IsDangerous { get; }          // true → ConfirmDialog
-    bool CanExecute(AppContext ctx);
-    string Preview(AppContext ctx);    // "git add -- Program.cs" — показываем пользователю
-    Task ExecuteAsync(AppContext ctx, CancellationToken ct);
+    public required string Id { get; init; }          // "files.stage"
+    public required string Title { get; init; }       // "Stage / unstage" — справка и палитра
+    public required CommandScope Scope { get; init; } // Global | Files | Branches | Commits
+    public required CommandKey Key { get; init; }     // подпись "space" + как узнать клавишу
+    public required Action Execute { get; init; }
+    public string? Hint { get; init; }                // подпись в строке подсказок или null
+    public bool HintOptional { get; init; }           // убирается первой, если не помещается
+    public Func<bool> IsAvailable { get; init; }      // недоступная не ловит клавишу и скрыта
+    public Func<string?>? Preview { get; init; }      // "git add -- Program.cs" — в палитре
+    public bool IsDangerous { get; init; }            // ⚠ в палитре
+    public string Keywords { get; init; }             // "мерж слить" — поиск в палитре
 }
 ```
 
-Отсюда автоматически получаем: строку подсказок внизу, окно `?`, палитру команд, предпросмотр git-команды и подтверждение опасных действий. Новая функция = новая команда, UI трогать почти не нужно.
+`MainWindow` регистрирует команды в `CommandRegistry` (порядок = порядок в подсказках и справке).
+Из реестра строятся: обработка клавиш (`Find` — сначала панель в фокусе, потом глобальные; так space
+в файлах — stage, а в ветках — checkout), строка подсказок, раздел клавиш в справке и палитра (`ctrl+p` / `:`).
+Новая функция = метод в `MainWindow` + одна строка регистрации.
+
+`Execute` вызывает метод `MainWindow`, а не получает контекст: диалоги, статус и выбор в панелях живут в окне,
+и переносить их в отдельный `AppContext` пока незачем. Подтверждение опасных действий делает сам метод
+(`ConfirmDialog` с `CommandText.Format` его аргументов).
 
 ## Поток данных
 
 ```
-клавиша → Panel → CommandRegistry.Find(scope, key)
-        → (IsDangerous? ConfirmDialog)
-        → command.ExecuteAsync()  ── в фоне, показывается Spinner
-              → GitService → GitRunner → git
-        → AppState.RefreshAsync()
-        → AppState.Changed → Application.Invoke(() => панели перерисовываются)
+клавиша → панель в фокусе (навигация: ↑↓, enter…) → MainWindow.OnKeyDown
+        → CommandRegistry.Find(scope, key) → command.Execute()
+        → метод MainWindow: (опасное? ConfirmDialog) → RunAsync(...)  ── в фоне, спиннер для долгих
+              → GitService → GitRunner → git        (изменяющие команды → CommandLog)
+        → LoadStatusAsync() → App.Invoke(() => панели перерисовываются)
 ```
 
 ## Потоки

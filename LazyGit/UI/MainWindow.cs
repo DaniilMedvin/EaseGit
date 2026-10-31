@@ -1,4 +1,5 @@
 using LazyGit.Auth;
+using LazyGit.Commands;
 using LazyGit.Config;
 using LazyGit.Git;
 using LazyGit.Models;
@@ -30,6 +31,7 @@ public enum MainResult
 public sealed class MainWindow : Runnable<MainResult?>
 {
     private readonly GitService _git;
+    private readonly CommandRegistry _commands = new();
     private readonly ConfigStore _config;
     private readonly AuthStatus _auth;
     private readonly RepoHeader _header;
@@ -149,6 +151,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         _files.HasFocusChanged += (_, _) => OnPanelFocusChanged(_files);
         _branches.HasFocusChanged += (_, _) => OnPanelFocusChanged(_branches);
         _commits.HasFocusChanged += (_, _) => OnPanelFocusChanged(_commits);
+        RegisterCommands();
         _files.SetFocus();
         UpdateHints();
     }
@@ -160,39 +163,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             _ = LoadDiffAsync();
     }
 
-    /// <summary>Подсказки внизу зависят от панели в фокусе.</summary>
-    private void UpdateHints()
-    {
-        var hints = new List<Hint>();
-        if (_commits.HasFocus)
-        {
-            hints.Add(new Hint("↑↓", "выбор коммита", Optional: true));
-        }
-        else if (_branches.HasFocus)
-        {
-            hints.Add(new Hint("space", "checkout"));
-            hints.Add(new Hint("n", "новая"));
-            hints.Add(new Hint("M", "merge"));
-            hints.Add(new Hint("D", "удалить"));
-        }
-        else
-        {
-            hints.Add(new Hint("space", "stage"));
-            hints.Add(new Hint("a", "все", Optional: true));
-            hints.Add(new Hint("d", "сбросить"));
-        }
-
-        // Остальные клавиши (ctrl+d/u, r, f) — в справке: на 80 колонок всё не помещается.
-        hints.Add(new Hint("c", "коммит"));
-        hints.Add(new Hint("p/P", "pull/push", Optional: true));
-        hints.Add(new Hint("tab", "панель", Optional: true));
-        if (!_auth.IsAuthorized)
-            hints.Add(new Hint("ctrl+g", "войти", Optional: true));
-        hints.Add(new Hint("?", "справка"));
-        hints.Add(new Hint("esc", "назад"));
-        hints.Add(new Hint("q", "выход"));
-        _hints.SetHints(hints);
-    }
+    /// <summary>Подсказки внизу — из команд панели в фокусе и глобальных.</summary>
+    private void UpdateHints() =>
+        _hints.SetHints(_commands.Hints(FocusedScope).Select(c => new Hint(c.Key.Label, c.Hint!, c.HintOptional)));
 
     protected override void OnIsRunningChanged(bool newIsRunning)
     {
@@ -232,158 +205,158 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
-        if (key == Key.F)
+        if (_commands.Find(FocusedScope, key) is { } command)
         {
-            _ = FetchAsync();
-            return true;
-        }
-
-        if (key == Key.P)
-        {
-            _ = PullAsync();
-            return true;
-        }
-
-        if (key == Key.P.WithShift)
-        {
-            _ = PushAsync();
-            return true;
-        }
-
-        if (key == Key.Q)
-        {
-            Result = MainResult.Quit;
-            RequestStop();
-            return true;
-        }
-
-        if (key == Key.G.WithCtrl && !_auth.IsAuthorized)
-        {
-            if (!_auth.GhInstalled)
-            {
-                ShowStatus($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", Theme.Error);
-                return true;
-            }
-
-            Result = MainResult.Login;
-            RequestStop();
-            return true;
-        }
-
-        if (key == Key.R)
-        {
-            _ = RefreshAsync();
-            return true;
-        }
-
-        if (key == Key.D1)
-        {
-            _files.SetFocus();
-            return true;
-        }
-
-        if (key == Key.D2)
-        {
-            _branches.SetFocus();
-            return true;
-        }
-
-        if (key == Key.D3)
-        {
-            _commits.SetFocus();
-            return true;
-        }
-
-        if (key == Key.Tab || key == Key.Tab.WithShift)
-        {
-            View[] panels = [_files, _branches, _commits];
-            var current = Array.FindIndex(panels, p => p.HasFocus);
-            var step = key == Key.Tab ? 1 : panels.Length - 1;
-            panels[(Math.Max(current, 0) + step) % panels.Length].SetFocus();
-            return true;
-        }
-
-        if (key == Key.Space && _branches.HasFocus)
-        {
-            _ = SwitchToSelectedAsync();
-            return true;
-        }
-
-        if (key == Key.N && _branches.HasFocus)
-        {
-            OpenNewBranchDialog();
-            return true;
-        }
-
-        if (key == Key.D.WithShift && _branches.HasFocus)
-        {
-            _ = DeleteSelectedBranchAsync();
-            return true;
-        }
-
-        if (key == Key.M.WithShift && _branches.HasFocus)
-        {
-            _ = MergeSelectedAsync();
-            return true;
-        }
-
-        if (key == Key.Space && _files.HasFocus)
-        {
-            _ = ToggleSelectedAsync();
-            return true;
-        }
-
-        if (key == Key.D && _files.HasFocus)
-        {
-            _ = DiscardSelectedAsync();
-            return true;
-        }
-
-        if (key == Key.A && _files.HasFocus)
-        {
-            _ = ToggleAllAsync();
-            return true;
-        }
-
-        if (key == Key.C)
-        {
-            OpenCommitDialog();
-            return true;
-        }
-
-        if (key.AsRune.Value == '~')
-        {
-            SetLogVisible(!_log.Visible);
-            _config.Save(_config.Load() with { ShowCommandLog = _log.Visible });
-            return true;
-        }
-
-        if (key.AsRune.Value == ',')
-        {
-            OpenSettings();
-            return true;
-        }
-
-        if (key.AsRune.Value == '?' || key == Key.F1)
-        {
-            using var help = new HelpDialog(Viewport.Height);
-            App!.Run(help);
-            return true;
-        }
-
-        if (key == Key.D.WithCtrl)
-        {
-            _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2));
-            return true;
-        }
-
-        if (key == Key.U.WithCtrl)
-        {
-            _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2));
+            command.Execute();
             return true;
         }
 
         return base.OnKeyDown(key);
+    }
+
+    private CommandScope FocusedScope =>
+        _branches.HasFocus ? CommandScope.Branches
+        : _commits.HasFocus ? CommandScope.Commits
+        : CommandScope.Files;
+
+    /// <summary>
+    /// Все команды экрана. Порядок — порядок в подсказках внизу и в справке.
+    /// Клавиши панели проверяются раньше глобальных, поэтому space в файлах — stage, а в ветках — checkout.
+    /// </summary>
+    private void RegisterCommands()
+    {
+        void Add(string id, string title, CommandScope scope, CommandKey shortcut, Action execute, string? hint = null,
+            bool hintOptional = false, Func<string?>? preview = null, bool dangerous = false, bool hidden = false,
+            Func<bool>? available = null, string keywords = "") =>
+            _commands.Add(new AppCommand
+            {
+                Id = id,
+                Title = title,
+                Scope = scope,
+                Key = shortcut,
+                Execute = execute,
+                Hint = hint,
+                HintOptional = hintOptional,
+                Preview = preview,
+                IsDangerous = dangerous,
+                HiddenInPalette = hidden,
+                IsAvailable = available ?? (() => true),
+                Keywords = keywords,
+            });
+
+        Add("files.stage", "Stage / unstage", CommandScope.Files, CommandKey.Of("space", Key.Space),
+            () => _ = ToggleSelectedAsync(), "stage", preview: StagePreview, keywords: "добавить в индекс стейдж");
+        Add("files.stageAll", "Stage / unstage всех", CommandScope.Files, CommandKey.Of("a", Key.A),
+            () => _ = ToggleAllAsync(), "все", hintOptional: true,
+            preview: () => _files.Entries.Any(r => r.Section != FileSection.Staged) ? "git add --all" : "git reset --quiet", keywords: "добавить всё индекс");
+        Add("files.discard", "Сбросить изменения", CommandScope.Files, CommandKey.Of("d", Key.D),
+            () => _ = DiscardSelectedAsync(), "сбросить", dangerous: true, keywords: "откатить отменить удалить ресет");
+
+        Add("branches.checkout", "Checkout ветки", CommandScope.Branches, CommandKey.Of("space", Key.Space),
+            () => _ = SwitchToSelectedAsync(), "checkout", preview: () => BranchPreview(b => ["switch", "--no-guess", b.Name]), keywords: "переключить чекаут ветка");
+        Add("branches.new", "Новая ветка", CommandScope.Branches, CommandKey.Of("n", Key.N),
+            OpenNewBranchDialog, "новая", preview: () => "git switch --create <имя>", keywords: "создать бранч");
+        Add("branches.merge", "Merge в текущую", CommandScope.Branches, CommandKey.Of("M", Key.M.WithShift),
+            () => _ = MergeSelectedAsync(), "merge", preview: () => BranchPreview(b => ["merge", "--no-edit", b.Name]), keywords: "мерж слить влить");
+        Add("branches.delete", "Удалить ветку", CommandScope.Branches, CommandKey.Of("D", Key.D.WithShift),
+            () => _ = DeleteSelectedBranchAsync(), "удалить", dangerous: true,
+            preview: () => BranchPreview(b => GitService.DeleteBranchArguments(b, force: false)), keywords: "удалить бранч");
+
+        Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
+            OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
+        Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
+            () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
+        Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
+            () => _ = PushAsync(), "push", hintOptional: true, preview: () => "git push", keywords: "пуш отправить опубликовать upstream");
+        Add("sync.fetch", "Fetch", CommandScope.Global, CommandKey.Of("f", Key.F),
+            () => _ = FetchAsync(), preview: () => "git fetch --all --prune", keywords: "фетч обновить сервер");
+
+        Add("nav.next", "Следующая панель", CommandScope.Global, CommandKey.Of("tab", Key.Tab),
+            () => FocusPanel(+1), "панель", hintOptional: true, hidden: true);
+        Add("nav.previous", "Предыдущая панель", CommandScope.Global, CommandKey.Of("shift+tab", Key.Tab.WithShift),
+            () => FocusPanel(-1), hidden: true);
+        Add("nav.files", "Панель файлов", CommandScope.Global, CommandKey.Of("1", Key.D1), () => _files.SetFocus(), hidden: true);
+        Add("nav.branches", "Панель веток", CommandScope.Global, CommandKey.Of("2", Key.D2), () => _branches.SetFocus(), hidden: true);
+        Add("nav.commits", "Панель коммитов", CommandScope.Global, CommandKey.Of("3", Key.D3), () => _commits.SetFocus(), hidden: true);
+        Add("view.diffDown", "Листать diff вниз", CommandScope.Global, CommandKey.Of("ctrl+d", Key.D.WithCtrl),
+            () => _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
+        Add("view.diffUp", "Листать diff вверх", CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
+            () => _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
+        Add("view.refresh", "Обновить", CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
+        Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
+
+        Add("app.palette", "Палитра команд", CommandScope.Global,
+            CommandKey.Any("ctrl+p / :", CommandKey.Of("ctrl+p", Key.P.WithCtrl), CommandKey.Char(':')), OpenPalette, hidden: true);
+        Add("app.settings", "Настройки", CommandScope.Global, CommandKey.Char(','), OpenSettings, keywords: "настройки маскот параметры");
+        Add("app.login", "Войти в GitHub", CommandScope.Global, CommandKey.Of("ctrl+g", Key.G.WithCtrl),
+            Login, "войти", hintOptional: true, available: () => !_auth.IsAuthorized);
+        Add("app.help", "Справка (также F1)", CommandScope.Global,
+            CommandKey.Any("?", CommandKey.Char('?'), CommandKey.Of("F1", Key.F1)), OpenHelp, "справка");
+        Add("app.back", "Назад к выбору репо", CommandScope.Global, CommandKey.Of("esc", Key.Esc), RequestStop, "назад");
+        Add("app.quit", "Выход", CommandScope.Global, CommandKey.Of("q", Key.Q), () =>
+        {
+            Result = MainResult.Quit;
+            RequestStop();
+        }, "выход");
+    }
+
+    private void FocusPanel(int step)
+    {
+        View[] panels = [_files, _branches, _commits];
+        var current = Math.Max(0, Array.FindIndex(panels, p => p.HasFocus));
+        panels[(current + step + panels.Length) % panels.Length].SetFocus();
+    }
+
+    private void ToggleCommandLog()
+    {
+        SetLogVisible(!_log.Visible);
+        _config.Save(_config.Load() with { ShowCommandLog = _log.Visible });
+    }
+
+    private void Login()
+    {
+        if (!_auth.GhInstalled)
+        {
+            ShowStatus($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", Theme.Error);
+            return;
+        }
+
+        Result = MainResult.Login;
+        RequestStop();
+    }
+
+    private void OpenHelp()
+    {
+        using var help = new HelpDialog(Viewport.Height, _commands.All.Where(c => c.IsAvailable()).ToList());
+        App!.Run(help);
+    }
+
+    /// <summary>Палитра команд: выбранная команда выполняется после закрытия окна.</summary>
+    private void OpenPalette()
+    {
+        var commands = _commands.All.Where(c => !c.HiddenInPalette && c.IsAvailable()).ToList();
+        using var palette = new CommandPalette(commands);
+        App!.Run(palette);
+        palette.Result?.Execute();
+    }
+
+    private string? BranchPreview(Func<Branch, string[]> args) =>
+        _branches.Selected is { } branch ? CommandText.Format(args(branch)) : null;
+
+    private string? StagePreview()
+    {
+        var (section, files) = _files.SelectedRow switch
+        {
+            FileEntryRow f => (f.Section, (IReadOnlyList<FileChange>)[f.File]),
+            DirectoryRow d => (d.Section, d.Files.Select(e => e.File).ToList()),
+            _ => (default(FileSection), []),
+        };
+        if (files.Count == 0)
+            return null;
+
+        return section == FileSection.Staged
+            ? CommandText.Format(["restore", "--staged", "--", .. files.Select(f => f.Path)])
+            : CommandText.Format(["add", "--", .. files.Select(f => f.Path)]);
     }
 
     /// <summary>Показывает или прячет Command Log; diff занимает освободившееся место.</summary>
