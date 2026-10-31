@@ -1,46 +1,31 @@
-using LazyGit.Git;
 using LazyGit.Git.Parsers;
 using LazyGit.Models;
 
 namespace LazyGit.Tests.Git.Parsers;
 
-/// <summary>Разбор реального вывода git во временном репозитории.</summary>
+/// <summary>Разбор реального вывода git status во временном репозитории.</summary>
 public sealed class StatusParserIntegrationTests : IAsyncLifetime
 {
-    private readonly GitRunner _git = new();
-    private readonly string _repo = Directory.CreateTempSubdirectory("lazygit-tests-").FullName;
+    private readonly TempRepository _repo = new();
 
-    public async Task InitializeAsync()
-    {
-        await Git("init", "-b", "main");
-        await Git("config", "user.name", "Test");
-        await Git("config", "user.email", "test@example.com");
-        // Глобальные настройки пользователя не должны влиять на тест.
-        await Git("config", "commit.gpgsign", "false");
-    }
+    public Task InitializeAsync() => _repo.InitializeAsync();
 
-    public Task DisposeAsync()
-    {
-        Directory.Delete(_repo, recursive: true);
-        return Task.CompletedTask;
-    }
+    public Task DisposeAsync() => _repo.DisposeAsync();
 
     [Fact]
     public async Task Parse_RealRepository_ReturnsAllChangeKinds()
     {
-        Write("modified.txt", "1");
-        Write("old name.txt", "2");
-        await Git("add", "-A");
-        await Git("commit", "-m", "init");
+        _repo.Write("modified.txt", "1");
+        _repo.Write("old name.txt", "2");
+        await _repo.CommitAsync("init");
 
-        Write("modified.txt", "1\n2");
-        await Git("add", "modified.txt");
-        Write("modified.txt", "1\n2\n3");
-        await Git("mv", "old name.txt", "новое имя.txt");
-        Write("untracked файл.cs", "x");
+        _repo.Write("modified.txt", "1\n2");
+        await _repo.RunAsync("add", "modified.txt");
+        _repo.Write("modified.txt", "1\n2\n3");
+        await _repo.RunAsync("mv", "old name.txt", "новое имя.txt");
+        _repo.Write("untracked файл.cs", "x");
 
-        var result = await _git.RunAsync(_repo, StatusParser.Arguments);
-        var status = StatusParser.Parse(result.StdOut);
+        var status = StatusParser.Parse((await _repo.RunAsync(StatusParser.Arguments)).StdOut);
 
         Assert.Equal("main", status.Branch);
         Assert.NotNull(status.HeadHash);
@@ -54,13 +39,5 @@ public sealed class StatusParserIntegrationTests : IAsyncLifetime
         Assert.Equal("old name.txt", renamed.OriginalPath);
 
         Assert.True(status.Files.Single(f => f.Path == "untracked файл.cs").IsUntracked);
-    }
-
-    private void Write(string path, string content) => File.WriteAllText(Path.Combine(_repo, path), content);
-
-    private async Task Git(params string[] args)
-    {
-        var result = await _git.RunAsync(_repo, args);
-        Assert.True(result.Success, result.StdErr);
     }
 }

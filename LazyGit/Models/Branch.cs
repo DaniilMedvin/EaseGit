@@ -6,4 +6,5 @@ namespace LazyGit.Models;
 /// <param name="Upstream">Upstream-ветка или null.</param>
 /// <param name="Ahead">Количество коммитов, которых нет в upstream.</param>
 /// <param name="Behind">Количество коммитов upstream, которых нет локально.</param>
-public sealed record Branch(string Name, bool IsCurrent, string? Upstream, int Ahead, int Behind);
+/// <param name="IsUpstreamGone">Upstream-ветка удалена на удалённом репозитории.</param>
+public sealed record Branch(string Name, bool IsCurrent, string? Upstream, int Ahead, int Behind, bool IsUpstreamGone = false);
