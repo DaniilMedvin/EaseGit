@@ -165,7 +165,8 @@ public sealed class FilesPanel : View
         this.DrawSegments(1, line,
         [
             Marker(selected),
-            new Segment(Indent(row.Depth) + symbol + " ", Theme.Muted),
+            new Segment(Indent(row.Depth), Theme.Dim),
+            new Segment(symbol + " ", Theme.Muted),
             new Segment(row.Name + "/", Theme.Fg, TextStyle.Bold),
             new Segment(count, Theme.Dim),
         ], Viewport.Width - 1, background);
@@ -179,7 +180,7 @@ public sealed class FilesPanel : View
         this.DrawSegments(1, line,
         [
             Marker(selected),
-            new Segment(Indent(row.Depth), Theme.Fg),
+            new Segment(Indent(row.Depth), Theme.Dim),
             Segment.Badge(letter, color),
             new Segment(" " + DisplayName(row), selected ? Theme.Fg : color),
         ], Viewport.Width - 1, background);
@@ -209,7 +210,8 @@ public sealed class FilesPanel : View
     private static Segment Marker(bool selected) =>
         new(selected ? Theme.SymbolSelection + " " : "  ", Theme.Accent, TextStyle.Bold);
 
-    private static string Indent(int depth) => new(' ', depth * 2);
+    /// <summary>Отступ вложенной строки: на каждый уровень направляющая «│» под стрелкой родительской папки.</summary>
+    private static string Indent(int depth) => string.Concat(Enumerable.Repeat(Theme.SymbolTreeGuide + "  ", depth));
 
     private bool SetCollapsed(DirectoryRow directory, bool collapsed)
     {
