@@ -22,22 +22,10 @@ class Program
             var initialPath = args.FirstOrDefault() ?? config.LastRepoPath ?? Environment.CurrentDirectory;
 
             var outcome = RunUi(status, config, configStore, git, initialPath);
-            switch (outcome)
-            {
-                case UiOutcome.Quit:
-                    return 0;
+            if (outcome is UiOutcome.Quit)
+                return 0;
 
-                case UiOutcome.Login:
-                    RunLogin(auth);
-                    continue;
-
-                case UiOutcome.OpenRepo(var repoPath):
-                    configStore.Save(configStore.Load() with { LastRepoPath = repoPath });
-                    // TODO(этап 2): главный экран репозитория.
-                    Console.WriteLine($"✓ Репозиторий: {repoPath}");
-                    Console.WriteLine("  Главный экран появится на этапе 2.");
-                    return 0;
-            }
+            RunLogin(auth);
         }
     }
 
@@ -45,7 +33,6 @@ class Program
     {
         public sealed record Quit : UiOutcome;
         public sealed record Login : UiOutcome;
-        public sealed record OpenRepo(string Path) : UiOutcome;
     }
 
     private static UiOutcome RunUi(AuthStatus status, AppConfig config, ConfigStore configStore, GitRunner git, string initialPath)
@@ -68,14 +55,29 @@ class Program
             }
         }
 
-        using var startWindow = new StartWindow(git, status, initialPath);
-        app.Run(startWindow);
-        return startWindow.Result switch
+        // Esc на главном экране возвращает к стартовому.
+        var path = initialPath;
+        while (true)
         {
-            StartAction.Login => new UiOutcome.Login(),
-            StartAction.OpenRepo => new UiOutcome.OpenRepo(startWindow.RepoPath!),
-            _ => new UiOutcome.Quit(),
-        };
+            using var startWindow = new StartWindow(git, status, path);
+            app.Run(startWindow);
+            switch (startWindow.Result)
+            {
+                case StartAction.Login:
+                    return new UiOutcome.Login();
+                case StartAction.OpenRepo:
+                    path = startWindow.RepoPath!;
+                    configStore.Save(configStore.Load() with { LastRepoPath = path });
+                    break;
+                default:
+                    return new UiOutcome.Quit();
+            }
+
+            using var mainWindow = new MainWindow(new GitService(git, path), status);
+            app.Run(mainWindow);
+            if (mainWindow.Result is MainResult.Quit)
+                return new UiOutcome.Quit();
+        }
     }
 
     private static void RunLogin(GhAuthService auth)

@@ -30,6 +30,11 @@ public static class Theme
     public const string SymbolError = "✗";
     public const string SymbolWarning = "⚠";
     public const string SymbolSeparator = "·";
+    public const string SymbolSelection = "❯";
+    public const string SymbolBranch = "⎇";
+    public const string SymbolAhead = "↑";
+    public const string SymbolBehind = "↓";
+    public const string SymbolEllipsis = "…";
     public static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     public static Scheme Text(Color fg, TextStyle style = TextStyle.None) => new(new Attribute(fg, Color.None, style));
@@ -47,6 +52,20 @@ public static class Theme
         Focus = new Attribute(Backdrop, Accent, TextStyle.Bold),
         HotNormal = new Attribute(Muted, Color.None),
         HotFocus = new Attribute(Backdrop, Accent, TextStyle.Bold),
+    };
+
+    /// <summary>Значок и цвет вида изменения файла.</summary>
+    public static (string Symbol, Color Color) ForChange(Models.ChangeKind kind) => kind switch
+    {
+        Models.ChangeKind.Added => ("✚", Success),
+        Models.ChangeKind.Modified => ("●", Warning),
+        Models.ChangeKind.Deleted => ("✖", Error),
+        Models.ChangeKind.Renamed => ("➜", Info),
+        Models.ChangeKind.Copied => ("➜", Info),
+        Models.ChangeKind.TypeChanged => ("●", Warning),
+        Models.ChangeKind.Unmerged => ("!", Error),
+        Models.ChangeKind.Untracked => ("?", Muted),
+        _ => (" ", Muted),
     };
 
     /// <summary>Линейная интерполяция цвета: t = 0 → a, t = 1 → b.</summary>
