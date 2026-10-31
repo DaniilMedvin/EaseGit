@@ -4,10 +4,23 @@ using Terminal.Gui.Drawing;
 
 namespace LazyGit.UI.Panels;
 
-/// <summary>Лог текущей ветки, новые коммиты сверху: короткий хеш, заголовок и давность справа.</summary>
+/// <summary>
+/// Лог текущей ветки, новые коммиты сверху: короткий хеш, заголовок и давность справа.
+/// Если вершина лога сменилась (коммит, merge, checkout), выбирается новый верхний коммит.
+/// </summary>
 public sealed class CommitsPanel : ListPanel<Commit>
 {
+    private string? _top;
+
     protected override string EmptyText => "Коммитов пока нет";
+
+    protected override bool KeepSelection(IReadOnlyList<Commit> items)
+    {
+        var top = items.Count > 0 ? items[0].Hash : null;
+        var unchanged = top == _top;
+        _top = top;
+        return unchanged;
+    }
 
     protected override string KeyOf(Commit item) => item.Hash;
 

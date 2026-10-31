@@ -123,6 +123,27 @@ public sealed class GitService
     public Task<GitResult> CreateBranchAsync(string name, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["switch", "--create", name], ct);
 
+    /// <summary>
+    /// Аргументы удаления ветки: без <paramref name="force"/> git откажет, если в ветке есть невлитые коммиты.
+    /// Отдельный метод, чтобы показать команду в подтверждении до выполнения.
+    /// </summary>
+    public static string[] DeleteBranchArguments(Branch branch, bool force) =>
+        ["branch", force ? "-D" : "-d", branch.Name];
+
+    public Task<GitResult> DeleteBranchAsync(Branch branch, bool force, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, DeleteBranchArguments(branch, force), ct);
+
+    /// <summary>Сколько коммитов ветки нет в текущей (HEAD): они пропадут при принудительном удалении.</summary>
+    public async Task<int> CountUnmergedAsync(Branch branch, CancellationToken ct = default)
+    {
+        var output = await RunCheckedAsync(["rev-list", "--count", $"HEAD..{branch.Name}"], ct);
+        return int.TryParse(output.Trim(), out var count) ? count : 0;
+    }
+
+    /// <summary>Вливает ветку в текущую. При конфликте git возвращает 1, а список конфликтов пишет в stdout.</summary>
+    public Task<GitResult> MergeAsync(Branch branch, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["merge", "--no-edit", branch.Name], ct);
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);

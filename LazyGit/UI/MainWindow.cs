@@ -19,7 +19,7 @@ public enum MainResult
 
 /// <summary>
 /// Главный экран репозитория: шапка, слева панели файлов, веток и коммитов, справа diff.
-/// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка. В файлах: space — stage/unstage файла, a — всех файлов.
+/// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить. В файлах: space — stage/unstage файла, a — всех файлов.
 /// c — коммит, r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
@@ -143,6 +143,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             hints.Add(new Hint("space", "checkout"));
             hints.Add(new Hint("n", "новая"));
+            hints.Add(new Hint("M", "merge"));
+            hints.Add(new Hint("D", "удалить"));
         }
         else
         {
@@ -257,6 +259,18 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key == Key.D.WithShift && _branches.HasFocus)
+        {
+            _ = DeleteSelectedBranchAsync();
+            return true;
+        }
+
+        if (key == Key.M.WithShift && _branches.HasFocus)
+        {
+            _ = MergeSelectedAsync();
+            return true;
+        }
+
         if (key == Key.Space && _files.HasFocus)
         {
             _ = ToggleSelectedAsync();
@@ -329,6 +343,66 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     /// <summary>
+    /// Удаляет выбранную ветку после подтверждения. Если в ней есть невлитые коммиты, git откажет —
+    /// тогда второе подтверждение предлагает удалить принудительно и говорит, сколько коммитов пропадёт.
+    /// </summary>
+    private async Task DeleteSelectedBranchAsync()
+    {
+        if (_busy || _branches.Selected is not { } branch)
+            return;
+
+        if (branch.IsCurrent)
+        {
+            ShowStatus($"{Theme.SymbolError} Нельзя удалить текущую ветку. Переключись на другую (space) и повтори", Theme.Error);
+            return;
+        }
+
+        if (!Confirm($"Удалить ветку {branch.Name}?", GitService.DeleteBranchArguments(branch, force: false),
+                "Если в ветке есть коммиты, которых нет в текущей, git откажет и предложит удалить принудительно.",
+                "Удалить"))
+            return;
+
+        var result = await RunAsync(ct => _git.DeleteBranchAsync(branch, force: false, ct), $"Ветка {branch.Name} удалена");
+        if (result is null || result.Success || !result.StdErr.Contains("is not fully merged"))
+            return;
+
+        var unmerged = await _git.CountUnmergedAsync(branch);
+        App?.Invoke(() =>
+        {
+            if (Confirm($"Ветка {branch.Name} не влита. Удалить всё равно?", GitService.DeleteBranchArguments(branch, force: true),
+                    $"Коммитов, которых нет в текущей ветке: {unmerged}. Они пропадут, вернуть их можно только через git reflog.",
+                    "Удалить всё равно"))
+                _ = RunAsync(ct => _git.DeleteBranchAsync(branch, force: true, ct), $"Ветка {branch.Name} удалена");
+        });
+    }
+
+    /// <summary>Вливает выбранную ветку в текущую.</summary>
+    private Task MergeSelectedAsync()
+    {
+        if (_branches.Selected is not { } branch)
+            return Task.CompletedTask;
+
+        if (branch.IsCurrent)
+        {
+            ShowStatus($"{Theme.SymbolError} Это текущая ветка. Выбери ветку, которую нужно влить в {branch.Name}", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        var target = _repoStatus?.Branch ?? "HEAD";
+        return RunAsync(ct => _git.MergeAsync(branch, ct), result => Task.FromResult(
+            result.StdOut.Contains("Already up to date") ? $"{target} уже содержит все коммиты {branch.Name}"
+            : result.StdOut.Contains("Fast-forward") ? $"{branch.Name} влита в {target} (fast-forward)"
+            : $"{branch.Name} влита в {target}, создан merge-коммит"));
+    }
+
+    private bool Confirm(string question, string[] args, string warning, string confirmText)
+    {
+        using var dialog = new ConfirmDialog(question, "git " + string.Join(' ', args), warning, confirmText);
+        App!.Run(dialog);
+        return dialog.Result == true;
+    }
+
+    /// <summary>
     /// Stage для файла или папки из «Изменений», Untracked и конфликтов, unstage — из Staged.
     /// Для папки действие применяется ко всем её файлам в этом разделе.
     /// </summary>
@@ -381,35 +455,39 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (dialog.Result is not { } message)
             return;
 
-        _ = RunAsync(ct => _git.CommitAsync(message, ct), async () =>
+        _ = RunAsync(ct => _git.CommitAsync(message, ct), async _ =>
         {
             var hash = await _git.GetShortHeadAsync();
             return $"Коммит {hash} создан: {message}";
         });
     }
 
-    private Task RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage) =>
-        RunAsync(action, () => Task.FromResult(successMessage));
+    private Task<GitResult?> RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage) =>
+        RunAsync(action, _ => Task.FromResult(successMessage));
 
-    /// <summary>Выполняет изменяющую команду, показывает результат и обновляет экран. Одновременно — одна команда.</summary>
-    private async Task RunAsync(Func<CancellationToken, Task<GitResult>> action, Func<Task<string>> successMessage)
+    /// <summary>
+    /// Выполняет изменяющую команду, показывает результат и обновляет экран. Одновременно — одна команда.
+    /// Возвращает результат git или null, если другая команда ещё выполняется.
+    /// </summary>
+    private async Task<GitResult?> RunAsync(Func<CancellationToken, Task<GitResult>> action, Func<GitResult, Task<string>> successMessage)
     {
         if (_busy)
-            return;
+            return null;
 
         _busy = true;
         try
         {
             var result = await action(CancellationToken.None);
-            var success = result.Success ? await successMessage() : null;
+            var success = result.Success ? await successMessage(result) : null;
             await LoadStatusAsync();
             App?.Invoke(() =>
             {
                 if (success is not null)
                     ShowStatus($"{Theme.SymbolSuccess} {success}", Theme.Success, autoHide: true);
                 else
-                    ShowStatus($"{Theme.SymbolError} {ExplainError(result.StdErr)}", Theme.Error);
+                    ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(result)}", Theme.Error);
             });
+            return result;
         }
         finally
         {
@@ -477,32 +555,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
         catch (GitCommandException ex)
         {
-            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}", Theme.Error));
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.FirstLine(ex.Result.StdErr)}", Theme.Error));
             return false;
         }
-    }
-
-    /// <summary>Понятный текст для известных ошибок git, иначе — первая строка stderr.</summary>
-    private static string ExplainError(string stderr)
-    {
-        if (stderr.Contains("Author identity unknown") || stderr.Contains("Please tell me who you are"))
-            return "Git не знает имя автора. Выполни: git config --global user.name \"Имя\" и user.email \"почта\"";
-        if (stderr.Contains("would be overwritten by checkout"))
-            return "Нельзя переключиться: незакоммиченные изменения конфликтуют с веткой. Сделай коммит или stash";
-        if (stderr.Contains("you need to resolve your current index first"))
-            return "Нельзя переключиться: есть неразрешённые конфликты. Разреши их и добавь файлы в индекс";
-        if (stderr.Contains("is already used by worktree") || stderr.Contains("is already checked out at"))
-            return "Эта ветка уже открыта в другом worktree";
-        if (stderr.Contains("a branch named") && stderr.Contains("already exists"))
-            return "Ветка с таким именем уже существует";
-        return FirstLine(stderr);
-    }
-
-    private static string FirstLine(string text)
-    {
-        var trimmed = text.Trim();
-        var newline = trimmed.IndexOf('\n');
-        return newline < 0 ? trimmed : trimmed[..newline];
     }
 
     /// <summary>
@@ -609,7 +664,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
         catch (GitCommandException ex)
         {
-            App?.Invoke(() => _diff.SetMessage($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}"));
+            App?.Invoke(() => _diff.SetMessage($"{Theme.SymbolError} {GitErrors.FirstLine(ex.Result.StdErr)}"));
         }
     }
 

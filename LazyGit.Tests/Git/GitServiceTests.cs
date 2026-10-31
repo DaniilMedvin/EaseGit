@@ -213,6 +213,68 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task DeleteBranchAsync_Unmerged_RefusesUntilForced()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("switch", "-c", "work");
+        _repo.Write("b.txt", "2");
+        await _repo.CommitAsync("work 1");
+        _repo.Write("b.txt", "3");
+        await _repo.CommitAsync("work 2");
+        await _repo.RunAsync("switch", "main");
+        var work = (await _service.GetBranchesAsync()).Single(b => b.Name == "work");
+
+        var unmerged = await _service.CountUnmergedAsync(work);
+        var safe = await _service.DeleteBranchAsync(work, force: false);
+        var forced = await _service.DeleteBranchAsync(work, force: true);
+
+        Assert.Equal(2, unmerged);
+        Assert.False(safe.Success);
+        Assert.Contains("is not fully merged", safe.StdErr);
+        Assert.True(forced.Success, forced.StdErr);
+        Assert.DoesNotContain(await _service.GetBranchesAsync(), b => b.Name == "work");
+    }
+
+    [Fact]
+    public async Task MergeAsync_BranchAhead_FastForwards()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("switch", "-c", "work");
+        _repo.Write("b.txt", "2");
+        await _repo.CommitAsync("work");
+        await _repo.RunAsync("switch", "main");
+        var work = (await _service.GetBranchesAsync()).Single(b => b.Name == "work");
+
+        var result = await _service.MergeAsync(work);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Contains("Fast-forward", result.StdOut);
+        Assert.Equal("work", (await _service.GetLogAsync())[0].Subject);
+    }
+
+    [Fact]
+    public async Task MergeAsync_Conflict_ReportsConflictInStdout()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("switch", "-c", "work");
+        _repo.Write("a.txt", "theirs");
+        await _repo.CommitAsync("theirs");
+        await _repo.RunAsync("switch", "main");
+        _repo.Write("a.txt", "ours");
+        await _repo.CommitAsync("ours");
+        var work = (await _service.GetBranchesAsync()).Single(b => b.Name == "work");
+
+        var result = await _service.MergeAsync(work);
+
+        Assert.False(result.Success);
+        Assert.Contains("CONFLICT", result.StdOut);
+        Assert.True((await SingleFileAsync()).IsConflicted);
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");

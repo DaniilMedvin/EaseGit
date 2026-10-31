@@ -46,6 +46,7 @@ LazyGit/
 │   └── Files/StageFileCommand.cs, ...
 └── UI/
     ├── Theme.cs               цвета и символы из DESIGN.md
+    ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
     ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
     ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, ErrorDialog, CommandPalette

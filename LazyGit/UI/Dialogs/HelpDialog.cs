@@ -105,6 +105,7 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("↑↓  j k", "выбор строки", "Home/End", "первая / последняя"));
             lines.Add(Keys("1  2  3", "файлы / ветки / коммиты", "tab", "следующая панель"));
             lines.Add(Keys("space", "checkout ветки", "n", "новая ветка"));
+            lines.Add(Keys("M", "merge в текущую", "D", "удалить ветку"));
             lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
             lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
             lines.Add(Keys("?  F1", "эта справка", "", ""));
