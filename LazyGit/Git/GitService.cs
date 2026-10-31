@@ -30,6 +30,13 @@ public sealed class GitService
         return root is null ? null : new GitService(git, root);
     }
 
+    /// <summary>Создаёт репозиторий в папке <paramref name="path"/>; несуществующая папка создаётся.</summary>
+    public static async Task<GitResult> InitAsync(GitRunner git, string path, CancellationToken ct = default)
+    {
+        Directory.CreateDirectory(path);
+        return await git.RunAsync(path, ["init"], ct);
+    }
+
     public async Task<RepoStatus> GetStatusAsync(CancellationToken ct = default) =>
         StatusParser.Parse(await RunCheckedAsync(StatusParser.Arguments, ct));
 

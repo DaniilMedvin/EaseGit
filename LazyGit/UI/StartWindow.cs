@@ -26,6 +26,9 @@ public sealed class StartWindow : Runnable<StartAction?>
     private readonly Waves _waves = new() { X = 0, Y = Pos.AnchorEnd(6) };
     private bool _busy;
 
+    // Путь, для которого ждём повторного ctrl+n, чтобы выполнить git init.
+    private string? _pendingInitPath;
+
     public StartWindow(GitRunner git, AuthStatus auth, string initialPath)
     {
         _git = git;
@@ -66,6 +69,7 @@ public sealed class StartWindow : Runnable<StartAction?>
             Width = Dim.Fill(1),
         };
         _path.SetScheme(Theme.Input);
+        _path.TextChanged += (_, _) => _pendingInitPath = null;
         _path.Accepting += (_, e) =>
         {
             e.Handled = true;
@@ -82,7 +86,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         };
 
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
-        var hintList = new List<Hint> { new("enter", "открыть"), new("ctrl+o", "выбрать папку") };
+        var hintList = new List<Hint> { new("enter", "открыть"), new("ctrl+o", "выбрать папку"), new("ctrl+n", "git init") };
         if (!auth.IsAuthorized)
             hintList.Add(new Hint("ctrl+g", "войти в GitHub"));
         hintList.Add(new Hint("esc", "выход"));
@@ -99,6 +103,12 @@ public sealed class StartWindow : Runnable<StartAction?>
         if (key == Key.O.WithCtrl)
         {
             _ = PickFolderAsync();
+            return true;
+        }
+
+        if (key == Key.N.WithCtrl)
+        {
+            _ = InitRepoAsync();
             return true;
         }
 
@@ -152,7 +162,7 @@ public sealed class StartWindow : Runnable<StartAction?>
                 if (root is null)
                 {
                     ShowStatus(Directory.Exists(path)
-                        ? $"{Theme.SymbolError} Не git-репозиторий. Выбери другую папку или сделай git init"
+                        ? $"{Theme.SymbolError} Не git-репозиторий. ctrl+n — создать его здесь"
                         : $"{Theme.SymbolError} Папка не найдена: {path}", Theme.Error);
                     return;
                 }
@@ -163,6 +173,66 @@ public sealed class StartWindow : Runnable<StartAction?>
             });
         }
         catch (InvalidOperationException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {ex.Message}", Theme.Error));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>
+    /// git init в папке из поля ввода. Первое нажатие ctrl+n просит подтверждения, второе создаёт репозиторий
+    /// и открывает его.
+    /// </summary>
+    private async Task InitRepoAsync()
+    {
+        if (_busy)
+            return;
+
+        var path = ExpandHome(_path.Text.Trim());
+        if (path.Length == 0)
+        {
+            ShowStatus($"{Theme.SymbolError} Введи путь к папке для нового репозитория", Theme.Error);
+            return;
+        }
+
+        path = Path.GetFullPath(path);
+        _busy = true;
+        try
+        {
+            var existing = await _git.FindRepoRootAsync(path);
+            if (existing is not null)
+            {
+                App?.Invoke(() => ShowStatus($"{Theme.SymbolWarning} Уже репозиторий: {existing}. enter — открыть", Theme.Warning));
+                return;
+            }
+
+            if (_pendingInitPath != path)
+            {
+                _pendingInitPath = path;
+                var note = Directory.Exists(path) ? "" : " (папка будет создана)";
+                App?.Invoke(() => ShowStatus($"{Theme.SymbolWarning} ctrl+n ещё раз — создать репозиторий в {path}{note}", Theme.Warning));
+                return;
+            }
+
+            _pendingInitPath = null;
+            var result = await GitService.InitAsync(_git, path);
+            App?.Invoke(() =>
+            {
+                if (!result.Success)
+                {
+                    ShowStatus($"{Theme.SymbolError} {result.StdErr.Trim()}", Theme.Error);
+                    return;
+                }
+
+                RepoPath = path;
+                Result = StartAction.OpenRepo;
+                RequestStop();
+            });
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {ex.Message}", Theme.Error));
         }

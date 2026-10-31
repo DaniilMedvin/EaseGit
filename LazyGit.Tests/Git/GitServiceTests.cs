@@ -42,6 +42,24 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task InitAsync_MissingDirectory_CreatesRepository()
+    {
+        var dir = Path.Combine(Directory.CreateTempSubdirectory("lazygit-init-").FullName, "новый репозиторий");
+        try
+        {
+            var result = await GitService.InitAsync(_repo.Git, dir);
+
+            Assert.True(result.Success, result.StdErr);
+            Assert.True(Directory.Exists(Path.Combine(dir, ".git")));
+            Assert.NotNull(await GitService.OpenAsync(_repo.Git, dir));
+        }
+        finally
+        {
+            Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task EmptyRepository_StatusAndLogWork()
     {
         var status = await _service.GetStatusAsync();

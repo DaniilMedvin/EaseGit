@@ -52,7 +52,7 @@ public sealed class Starfield : AnimatedView
         var occupied = OccupiedAreas();
         DrawStars(occupied);
         _meteor?.Draw(this, occupied);
-        _logo.Draw(this, Seconds, occupied);
+        _logo.Draw(this, occupied);
         return true;
     }
 
