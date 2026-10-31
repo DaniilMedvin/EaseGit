@@ -162,12 +162,12 @@ public sealed class CommitDialog : Runnable<string?>
             _ => Theme.Dim,
         }));
 
-        var message = Message;
-        var bodyStart = message.IndexOf("\n\n", StringComparison.Ordinal);
-        var bodyLines = bodyStart < 0 ? 0 : message[(bodyStart + 2)..].Split('\n').Length;
+        // Строки тела считаются и без заголовка: подставляем временный заголовок.
+        var withBody = CommitMessage.Compose(null, "_", _body.Text);
+        var bodyLines = withBody.Length > 1 ? withBody[3..].Split('\n').Length : 0;
         _bodyLabel.Text = bodyLines > 0
-            ? $"Тело · {LinesWord(bodyLines)}"
-            : "Тело — что и зачем, например «- add …» (необязательно)";
+            ? $"Тело коммита · {LinesWord(bodyLines)}"
+            : "Тело коммита (необязательно)";
         _bodyLabel.SetScheme(Theme.Text(Theme.Muted));
 
         var tips = CommitMessage.Check(_types.Selected, _subject.Text).Concat(CommitMessage.CheckBody(_body.Text)).ToList();

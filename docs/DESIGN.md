@@ -140,7 +140,7 @@ C# подсвечивается через Roslyn (синтаксическое 
 │ feat: update binary image                                      25/72 │
 │ ⚠ Строка 2 тела длиннее 72 символов — перенеси её                    │
 │                                                                      │
-│ Тело · 2 строки                                                      │
+│ Тело коммита · 2 строки                                              │
 │ │ - replace img.bin with a new version                               │
 │ │ - keep the old file name and format for compatibility with         │
 │ │ existing scripts                                                   │
