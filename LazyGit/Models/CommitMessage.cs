@@ -33,6 +33,39 @@ public static partial class CommitMessage
         return $"{type}: {subject}";
     }
 
+    /// <summary>
+    /// Полное сообщение: заголовок, пустая строка и тело. Пустые строки в конце тела и пробелы
+    /// в конце строк убираются; пустое тело не добавляется.
+    /// </summary>
+    public static string Compose(string? type, string subject, string body)
+    {
+        var title = Compose(type, subject);
+        var lines = body.ReplaceLineEndings("\n").Split('\n').Select(l => l.TrimEnd()).ToList();
+        while (lines.Count > 0 && lines[^1].Length == 0)
+            lines.RemoveAt(lines.Count - 1);
+        while (lines.Count > 0 && lines[0].Length == 0)
+            lines.RemoveAt(0);
+
+        return lines.Count == 0 || title.Length == 0 ? title : $"{title}\n\n{string.Join('\n', lines)}";
+    }
+
+    /// <summary>Подсказки по телу коммита.</summary>
+    public static IReadOnlyList<CommitTip> CheckBody(string body)
+    {
+        var tips = new List<CommitTip>();
+        var lines = body.ReplaceLineEndings("\n").Split('\n');
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (lines[i].TrimEnd().Length > MaxLength)
+            {
+                tips.Add(new CommitTip($"Строка {i + 1} тела длиннее {MaxLength} символов — перенеси её", TipSeverity.Warning));
+                break;
+            }
+        }
+
+        return tips;
+    }
+
     public static bool HasTypePrefix(string subject) => TypePrefixRegex().IsMatch(subject);
 
     /// <summary>Подсказки по заголовку, самые важные первыми.</summary>

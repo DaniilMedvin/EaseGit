@@ -8,26 +8,30 @@ using Terminal.Gui.Views;
 namespace LazyGit.UI.Dialogs;
 
 /// <summary>
-/// Окно ввода сообщения коммита в стиле поля ввода Claude CLI: тип по tab, поле «>», предпросмотр
-/// итогового заголовка со счётчиком символов и подсказки по Conventional Commits.
+/// Окно ввода сообщения коммита в стиле поля ввода Claude CLI: тип по tab, заголовок «>»,
+/// необязательное тело, предпросмотр заголовка со счётчиком и подсказки по Conventional Commits.
 /// Result — итоговое сообщение или null (Esc).
 /// </summary>
 public sealed class CommitDialog : Runnable<string?>
 {
     private const int DialogWidth = 72;
+    private const int BodyHeight = 6;
 
     private readonly ClipboardTextField _subject;
+    private readonly ClipboardTextView _body;
     private readonly TypeSelector _types;
     private readonly Label _preview;
     private readonly Label _counter;
     private readonly Label _tip;
+    private readonly Label _bodyLabel;
+    private readonly HintBar _hints;
 
     public CommitDialog(int stagedCount)
     {
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
-        Height = 11;
+        Height = BodyHeight + 13;
         SetScheme(Theme.Base);
 
         var box = new View
@@ -35,7 +39,7 @@ public sealed class CommitDialog : Runnable<string?>
             X = 0,
             Y = 0,
             Width = Dim.Fill(),
-            Height = 10,
+            Height = BodyHeight + 12,
             BorderStyle = LineStyle.Rounded,
             CanFocus = true,
         };
@@ -56,21 +60,41 @@ public sealed class CommitDialog : Runnable<string?>
             e.Handled = true;
             Submit();
         };
+        _subject.HasFocusChanged += (_, _) => UpdateFocusHints();
 
         _preview = new Label { X = 0, Y = 4, Width = Dim.Fill(8) };
         _counter = new Label { X = Pos.AnchorEnd(), Y = 4 };
         _tip = new Label { X = 0, Y = 5, Width = Dim.Fill() };
 
-        var staged = new Label { Text = $"Staged: {FilesWord(stagedCount)}", X = 0, Y = 7 };
+        _bodyLabel = new Label { X = 0, Y = 7, Width = Dim.Fill() };
+
+        var bar = new Label { X = 0, Y = 8, Width = 2, Height = BodyHeight, Text = string.Join('\n', Enumerable.Repeat("│", BodyHeight)) };
+        bar.SetScheme(Theme.Text(Theme.Dim));
+
+        _body = new ClipboardTextView
+        {
+            X = 2,
+            Y = 8,
+            Width = Dim.Fill(),
+            Height = BodyHeight,
+            TabKeyAddsTab = false,
+            // Перенос только на экране: текст коммита не меняется, длинные строки отмечает подсказка.
+            WordWrap = true,
+        };
+        _body.SetScheme(Theme.Input);
+        _body.ContentsChanged += (_, _) => UpdatePreview();
+        _body.HasFocusChanged += (_, _) => UpdateFocusHints();
+
+        var staged = new Label { Text = $"Staged: {FilesWord(stagedCount)}", X = 0, Y = BodyHeight + 9 };
         staged.SetScheme(Theme.Text(Theme.Muted));
 
-        var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("enter", "коммит"), new Hint("tab", "тип"), new Hint("ctrl+c/x/v", "буфер"), new Hint("esc", "отмена")]);
+        _hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
 
-        box.Add(_types, prompt, _subject, _preview, _counter, _tip, staged);
-        Add(box, BoxTitle.For(box, "Коммит", Theme.Accent), hints);
+        box.Add(_types, prompt, _subject, _preview, _counter, _tip, _bodyLabel, bar, _body, staged);
+        Add(box, BoxTitle.For(box, "Коммит", Theme.Accent), _hints);
         UpdatePreview();
         _subject.SetFocus();
+        UpdateFocusHints();
     }
 
     protected override bool OnKeyDown(Key key)
@@ -87,38 +111,88 @@ public sealed class CommitDialog : Runnable<string?>
             return true;
         }
 
+        if (key == Key.S.WithCtrl)
+        {
+            Submit();
+            return true;
+        }
+
+        if (_subject.HasFocus && (key == Key.CursorDown || key == Key.J.WithCtrl))
+        {
+            _body.SetFocus();
+            return true;
+        }
+
+        // ↑ на первой строке тела возвращает к заголовку.
+        if (_body.HasFocus && key == Key.CursorUp && _body.CurrentRow == 0)
+        {
+            _subject.SetFocus();
+            return true;
+        }
+
         return base.OnKeyDown(key);
     }
 
+    private string Message => CommitMessage.Compose(_types.Selected, _subject.Text, _body.Text);
+
     private void Submit()
     {
-        var message = CommitMessage.Compose(_types.Selected, _subject.Text);
-        if (message.Length == 0)
+        if (CommitMessage.Compose(_types.Selected, _subject.Text).Length == 0)
         {
-            ShowTip(new CommitTip("Введи сообщение коммита", TipSeverity.Error));
+            ShowTip(new CommitTip("Введи заголовок коммита", TipSeverity.Error));
+            _subject.SetFocus();
             return;
         }
 
-        Result = message;
+        Result = Message;
         RequestStop();
     }
 
     private void UpdatePreview()
     {
-        var message = CommitMessage.Compose(_types.Selected, _subject.Text);
-        _preview.Text = message.Length == 0 ? "" : message;
+        var title = CommitMessage.Compose(_types.Selected, _subject.Text);
+        _preview.Text = title;
         _preview.SetScheme(Theme.Text(Theme.Muted, TextStyle.Italic));
 
-        _counter.Text = $"{message.Length}/{CommitMessage.MaxLength}";
-        _counter.SetScheme(Theme.Text(message.Length switch
+        _counter.Text = $"{title.Length}/{CommitMessage.MaxLength}";
+        _counter.SetScheme(Theme.Text(title.Length switch
         {
             > CommitMessage.MaxLength => Theme.Error,
             > CommitMessage.RecommendedLength => Theme.Warning,
             _ => Theme.Dim,
         }));
 
-        var tips = CommitMessage.Check(_types.Selected, _subject.Text);
+        var message = Message;
+        var bodyStart = message.IndexOf("\n\n", StringComparison.Ordinal);
+        var bodyLines = bodyStart < 0 ? 0 : message[(bodyStart + 2)..].Split('\n').Length;
+        _bodyLabel.Text = bodyLines > 0
+            ? $"Тело · {LinesWord(bodyLines)}"
+            : "Тело — что и зачем, например «- add …» (необязательно)";
+        _bodyLabel.SetScheme(Theme.Text(Theme.Muted));
+
+        var tips = CommitMessage.Check(_types.Selected, _subject.Text).Concat(CommitMessage.CheckBody(_body.Text)).ToList();
         ShowTip(tips.Count > 0 ? tips[0] : null);
+    }
+
+    private void UpdateFocusHints()
+    {
+        _hints.SetHints(_body.HasFocus
+            ?
+            [
+                new Hint("ctrl+s", "коммит"),
+                new Hint("enter", "строка"),
+                new Hint("↑", "заголовок"),
+                new Hint("tab", "тип"),
+                new Hint("esc", "отмена"),
+            ]
+            :
+            [
+                new Hint("enter", "коммит"),
+                new Hint("↓", "тело"),
+                new Hint("tab", "тип"),
+                new Hint("ctrl+c/x/v", "буфер"),
+                new Hint("esc", "отмена"),
+            ]);
     }
 
     private void ShowTip(CommitTip? tip)
@@ -139,13 +213,17 @@ public sealed class CommitDialog : Runnable<string?>
         _tip.SetScheme(Theme.Text(color));
     }
 
-    private static string FilesWord(int count)
+    private static string FilesWord(int count) => Plural(count, "файл", "файла", "файлов");
+
+    private static string LinesWord(int count) => Plural(count, "строка", "строки", "строк");
+
+    private static string Plural(int count, string one, string few, string many)
     {
         var mod10 = count % 10;
         var mod100 = count % 100;
-        var word = mod10 == 1 && mod100 != 11 ? "файл"
-            : mod10 is >= 2 and <= 4 && mod100 is < 12 or > 14 ? "файла"
-            : "файлов";
+        var word = mod10 == 1 && mod100 != 11 ? one
+            : mod10 is >= 2 and <= 4 && mod100 is < 12 or > 14 ? few
+            : many;
         return $"{count} {word}";
     }
 

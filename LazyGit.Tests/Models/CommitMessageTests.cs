@@ -17,6 +17,52 @@ public class CommitMessageTests
     }
 
     [Fact]
+    public void Compose_WithBody_SeparatesWithBlankLine()
+    {
+        var message = CommitMessage.Compose("feat", "add body", "- first\n- second");
+
+        Assert.Equal("feat: add body\n\n- first\n- second", message);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    [InlineData("\n\n  \n")]
+    public void Compose_EmptyBody_ReturnsTitleOnly(string body)
+    {
+        Assert.Equal("fix: x", CommitMessage.Compose("fix", "x", body));
+    }
+
+    [Fact]
+    public void Compose_Body_TrimsTrailingSpacesAndOuterBlankLines()
+    {
+        var message = CommitMessage.Compose(null, "title", "\n\n- a   \r\n\n- b\n\n");
+
+        Assert.Equal("title\n\n- a\n\n- b", message);
+    }
+
+    [Fact]
+    public void Compose_EmptySubjectWithBody_ReturnsEmpty()
+    {
+        Assert.Equal("", CommitMessage.Compose("feat", " ", "- body"));
+    }
+
+    [Fact]
+    public void CheckBody_LongLine_WarnsWithLineNumber()
+    {
+        var tip = Assert.Single(CommitMessage.CheckBody("- short\n- " + new string('x', 80)));
+
+        Assert.Equal(TipSeverity.Warning, tip.Severity);
+        Assert.Contains("Строка 2", tip.Text);
+    }
+
+    [Fact]
+    public void CheckBody_ShortLines_HasNoTips()
+    {
+        Assert.Empty(CommitMessage.CheckBody("- a\n- b"));
+    }
+
+    [Fact]
     public void Check_GoodSubject_HasNoTips()
     {
         Assert.Empty(CommitMessage.Check("feat", "add diff panel"));
