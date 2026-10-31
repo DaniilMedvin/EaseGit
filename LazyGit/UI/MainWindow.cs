@@ -1,5 +1,6 @@
 using LazyGit.Auth;
 using LazyGit.Git;
+using LazyGit.Models;
 using LazyGit.UI.Dialogs;
 using LazyGit.UI.Panels;
 using LazyGit.UI.Widgets;
@@ -239,29 +240,37 @@ public sealed class MainWindow : Runnable<MainResult?>
         return base.OnKeyDown(key);
     }
 
-    /// <summary>Stage для файла из «Изменений», Untracked и конфликтов, unstage — для файла из Staged.</summary>
+    /// <summary>
+    /// Stage для файла или папки из «Изменений», Untracked и конфликтов, unstage — из Staged.
+    /// Для папки действие применяется ко всем её файлам в этом разделе.
+    /// </summary>
     private Task ToggleSelectedAsync()
     {
-        if (_files.SelectedFile is not { } row)
+        var (section, files, name) = _files.SelectedRow switch
+        {
+            FileEntryRow f => (f.Section, (IReadOnlyList<FileChange>)[f.File], f.File.Path),
+            DirectoryRow d => (d.Section, d.Files.Select(e => e.File).ToList(), $"{d.Path}/"),
+            _ => (default(FileSection), [], ""),
+        };
+        if (files.Count == 0)
             return Task.CompletedTask;
 
-        var file = row.File;
-        return row.Section switch
+        return section switch
         {
-            FileSection.Staged => RunAsync(ct => _git.UnstageAsync(file, ct), $"{file.Path} убран из индекса"),
-            FileSection.Conflicts => RunAsync(ct => _git.StageAsync(file, ct), $"{file.Path}: конфликт отмечен как решённый"),
-            _ => RunAsync(ct => _git.StageAsync(file, ct), $"{file.Path} добавлен в индекс"),
+            FileSection.Staged => RunAsync(ct => _git.UnstageAsync(files, ct), $"{name} убран из индекса"),
+            FileSection.Conflicts => RunAsync(ct => _git.StageAsync(files, ct), $"{name}: конфликт отмечен как решённый"),
+            _ => RunAsync(ct => _git.StageAsync(files, ct), $"{name} добавлен в индекс"),
         };
     }
 
     /// <summary>Если есть изменения вне индекса — добавляет всё, иначе убирает всё из индекса.</summary>
     private Task ToggleAllAsync()
     {
-        var hasUnstaged = _files.Rows.OfType<FileEntryRow>().Any(r => r.Section != FileSection.Staged);
+        var hasUnstaged = _files.Entries.Any(r => r.Section != FileSection.Staged);
         if (hasUnstaged)
             return RunAsync(ct => _git.StageAllAsync(ct), "Все изменения добавлены в индекс");
 
-        return _files.Rows.Count > 0
+        return _files.Entries.Count > 0
             ? RunAsync(ct => _git.UnstageAllAsync(ct), "Все изменения убраны из индекса")
             : Task.CompletedTask;
     }
@@ -272,7 +281,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy)
             return;
 
-        var stagedCount = _files.Rows.OfType<FileEntryRow>().Count(r => r.Section == FileSection.Staged);
+        var stagedCount = _files.Entries.Count(r => r.Section == FileSection.Staged);
         if (stagedCount == 0)
         {
             ShowStatus($"{Theme.SymbolError} Нечего коммитить: добавь файлы в индекс клавишей space или a", Theme.Error);
@@ -400,6 +409,16 @@ public sealed class MainWindow : Runnable<MainResult?>
     private async Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        if (_files.SelectedDirectory is { } directory)
+        {
+            _diffKey = null;
+            _diffTitle.Text = $" Diff · {directory.Path}/ ";
+            var files = directory.Files.Count;
+            var action = directory.Collapsed ? "развернуть" : "свернуть";
+            _diff.SetMessage($"Папка: {FilesWord(files)}. space — stage всей папки, enter — {action}");
+            return;
+        }
+
         if (_files.SelectedFile is not { } row)
         {
             _diffKey = null;
@@ -437,6 +456,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             App?.Invoke(() => _diff.SetMessage($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}"));
         }
     }
+
+    private static string FilesWord(int count) => TextDrawing.Plural(count, "файл", "файла", "файлов");
 
     /// <summary>Показывает сообщение над подсказками. С autoHide сообщение исчезает через 3 секунды.</summary>
     private void ShowStatus(string text, Color color, bool autoHide = false)

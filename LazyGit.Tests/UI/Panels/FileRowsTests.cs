@@ -60,6 +60,78 @@ public class FileRowsTests
         Assert.Equal(["a.txt", "b.txt"], rows.OfType<FileEntryRow>().Select(r => r.File.Path));
     }
 
+    private static FileChange Modified(string path) => File(path, ChangeKind.Unmodified, ChangeKind.Modified);
+
+    /// <summary>Строки без заголовков разделов в виде «отступ + имя», у папок — «/» в конце.</summary>
+    private static string[] Tree(IEnumerable<FileRow> rows) => rows
+        .Select(r => r switch
+        {
+            DirectoryRow d => new string(' ', d.Depth * 2) + d.Name + "/",
+            FileEntryRow f => new string(' ', f.Depth * 2) + f.Name,
+            _ => null,
+        })
+        .OfType<string>()
+        .ToArray();
+
+    [Fact]
+    public void Build_NestedFiles_DirectoriesFirstWithIndent()
+    {
+        var rows = FileRows.Build(Status(
+            Modified("readme.md"),
+            Modified("src/b.cs"),
+            Modified("src/ui/view.cs"),
+            Modified("src/a.cs")));
+
+        Assert.Equal(["src/", "  ui/", "    view.cs", "  a.cs", "  b.cs", "readme.md"], Tree(rows));
+    }
+
+    [Fact]
+    public void Build_SingleNestedDirectory_MergedIntoOneRow()
+    {
+        var rows = FileRows.Build(Status(
+            Modified("LazyGit/UI/Panels/A.cs"),
+            Modified("LazyGit/UI/Panels/B.cs")));
+
+        Assert.Equal(["LazyGit/UI/Panels/", "  A.cs", "  B.cs"], Tree(rows));
+        Assert.Equal("LazyGit/UI/Panels", rows.OfType<DirectoryRow>().Single().Path);
+    }
+
+    [Fact]
+    public void Build_CollapsedDirectory_HidesContentsButKeepsFiles()
+    {
+        var status = Status(Modified("src/a.cs"), Modified("src/ui/b.cs"), Modified("c.txt"));
+
+        var rows = FileRows.Build(status, new HashSet<(FileSection, string)> { (FileSection.Unstaged, "src") });
+
+        Assert.Equal(["src/", "c.txt"], Tree(rows));
+        var directory = rows.OfType<DirectoryRow>().Single();
+        Assert.True(directory.Collapsed);
+        Assert.Equal(["src/a.cs", "src/ui/b.cs"], directory.Files.Select(f => f.File.Path));
+    }
+
+    [Fact]
+    public void Build_SameDirectoryInTwoSections_CollapsedSeparately()
+    {
+        var status = Status(File("src/a.cs", ChangeKind.Modified, ChangeKind.Modified));
+
+        var rows = FileRows.Build(status, new HashSet<(FileSection, string)> { (FileSection.Staged, "src") });
+
+        Assert.Equal(["src/", "src/", "  a.cs"], Tree(rows));
+    }
+
+    [Fact]
+    public void Entries_IncludesFilesFromAllSectionsFlat()
+    {
+        var entries = FileRows.Entries(Status(
+            Modified("src/ui/b.cs"),
+            File("new/c.txt", ChangeKind.Unmodified, ChangeKind.Untracked)));
+
+        Assert.Equal(
+            [(FileSection.Unstaged, "src/ui/b.cs"), (FileSection.Untracked, "new/c.txt")],
+            entries.Select(e => (e.Section, e.File.Path)));
+        Assert.All(entries, e => Assert.Equal(0, e.Depth));
+    }
+
     [Theory]
     [InlineData(FileSection.Staged, ChangeKind.Added)]
     [InlineData(FileSection.Unstaged, ChangeKind.Modified)]

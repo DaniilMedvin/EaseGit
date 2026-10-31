@@ -24,7 +24,12 @@ public sealed class TempRepository : IAsyncLifetime
         return Task.CompletedTask;
     }
 
-    public void Write(string file, string content) => File.WriteAllText(System.IO.Path.Combine(Path, file), content);
+    public void Write(string file, string content)
+    {
+        var path = System.IO.Path.Combine(Path, file);
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, content);
+    }
 
     /// <summary>Выполняет git-команду и проверяет, что она завершилась успешно.</summary>
     public async Task<GitResult> RunAsync(params string[] args)

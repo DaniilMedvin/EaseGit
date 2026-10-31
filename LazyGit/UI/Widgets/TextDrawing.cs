@@ -42,6 +42,17 @@ public static class TextDrawing
         return used;
     }
 
+    /// <summary>Число со словом в нужной форме: «1 файл», «3 файла», «11 файлов».</summary>
+    public static string Plural(int count, string one, string few, string many)
+    {
+        var mod10 = count % 10;
+        var mod100 = count % 100;
+        var word = mod10 == 1 && mod100 != 11 ? one
+            : mod10 is >= 2 and <= 4 && mod100 is < 12 or > 14 ? few
+            : many;
+        return $"{count} {word}";
+    }
+
     /// <summary>Сокращает домашний каталог до «~».</summary>
     public static string ShortenHome(string path)
     {

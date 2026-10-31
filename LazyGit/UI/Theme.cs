@@ -39,6 +39,8 @@ public static class Theme
     public const string SymbolAhead = "↑";
     public const string SymbolBehind = "↓";
     public const string SymbolEllipsis = "…";
+    public const string SymbolExpanded = "▾";
+    public const string SymbolCollapsed = "▸";
     public static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     public static Scheme Text(Color fg, TextStyle style = TextStyle.None) => new(new Attribute(fg, Color.None, style));

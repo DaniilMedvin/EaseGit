@@ -139,6 +139,25 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task StageAndUnstage_SeveralFiles_MovesAllAtOnce()
+    {
+        _repo.Write("dir/a.txt", "1");
+        _repo.Write("dir/sub/b.txt", "2");
+        await _repo.CommitAsync("init");
+        _repo.Write("dir/a.txt", "3");
+        _repo.Write("dir/sub/b.txt", "4");
+
+        await _service.StageAsync((await _service.GetStatusAsync()).Files);
+        var staged = (await _service.GetStatusAsync()).Files;
+        await _service.UnstageAsync(staged);
+        var unstaged = (await _service.GetStatusAsync()).Files;
+
+        Assert.Equal(2, staged.Count);
+        Assert.All(staged, f => Assert.Equal((ChangeKind.Modified, ChangeKind.Unmodified), (f.Staged, f.Unstaged)));
+        Assert.All(unstaged, f => Assert.Equal((ChangeKind.Unmodified, ChangeKind.Modified), (f.Staged, f.Unstaged)));
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");

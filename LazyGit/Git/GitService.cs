@@ -65,15 +65,24 @@ public sealed class GitService
 
     /// <summary>Добавляет изменения файла в индекс, включая удаление и новые файлы.</summary>
     public Task<GitResult> StageAsync(FileChange file, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["add", "--", .. Paths(file)], ct);
+        StageAsync([file], ct);
+
+    /// <summary>Добавляет изменения нескольких файлов (например, папки) в индекс одной командой.</summary>
+    public Task<GitResult> StageAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["add", "--", .. files.SelectMany(Paths)], ct);
 
     /// <summary>Убирает изменения файла из индекса, рабочая копия не меняется.</summary>
-    public async Task<GitResult> UnstageAsync(FileChange file, CancellationToken ct = default)
+    public Task<GitResult> UnstageAsync(FileChange file, CancellationToken ct = default) =>
+        UnstageAsync([file], ct);
+
+    /// <summary>Убирает изменения нескольких файлов из индекса одной командой.</summary>
+    public async Task<GitResult> UnstageAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default)
     {
+        var paths = files.SelectMany(Paths);
         // Без коммитов restore --staged не работает: сравнивать индекс не с чем.
         string[] args = await HasCommitsAsync(ct)
-            ? ["restore", "--staged", "--", .. Paths(file)]
-            : ["rm", "--cached", "--quiet", "--", .. Paths(file)];
+            ? ["restore", "--staged", "--", .. paths]
+            : ["rm", "--cached", "--quiet", "--", .. paths];
         return await _git.RunAsync(RepoRoot, args, ct);
     }
 

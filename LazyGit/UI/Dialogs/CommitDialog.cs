@@ -213,19 +213,9 @@ public sealed class CommitDialog : Runnable<string?>
         _tip.SetScheme(Theme.Text(color));
     }
 
-    private static string FilesWord(int count) => Plural(count, "файл", "файла", "файлов");
+    private static string FilesWord(int count) => TextDrawing.Plural(count, "файл", "файла", "файлов");
 
-    private static string LinesWord(int count) => Plural(count, "строка", "строки", "строк");
-
-    private static string Plural(int count, string one, string few, string many)
-    {
-        var mod10 = count % 10;
-        var mod100 = count % 100;
-        var word = mod10 == 1 && mod100 != 11 ? one
-            : mod10 is >= 2 and <= 4 && mod100 is < 12 or > 14 ? few
-            : many;
-        return $"{count} {word}";
-    }
+    private static string LinesWord(int count) => TextDrawing.Plural(count, "строка", "строки", "строк");
 
     /// <summary>Строка выбора типа коммита: выбранный тип выделен фоном акцентного цвета.</summary>
     private sealed class TypeSelector : View
