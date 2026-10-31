@@ -63,7 +63,7 @@
 - [ ] Предупреждения об опасных операциях + undo через reflog
 - [ ] Шаблоны коммитов (Conventional Commits)
 - [ ] Локализация ru/en
-- [x] Окно настроек (`,`): маскот Claude / ChatGPT / Gemini в углу diff
+- [x] Окно настроек (`,`): маскот Clawd / ChatGPT / Gemini в углу diff
 - [ ] Конфиг `~/.config/lazygit-cs/config.json` (тема, клавиши)
 - [ ] Темы: dark / light / пользовательские
 

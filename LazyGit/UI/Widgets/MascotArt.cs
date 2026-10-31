@@ -6,27 +6,28 @@ namespace LazyGit.UI.Widgets;
 
 /// <summary>
 /// Маскоты 11×12 пикселей, рисуются полублоками — 11×6 символов. Узнаваемые упрощённые значки:
-/// Claude — оранжевая звёздочка-лучи, ChatGPT — зелёный «узел» из колец, Gemini — четырёхлучевая звезда с градиентом.
+/// Claude — оранжевый краб Clawd, ChatGPT — зелёный «узел» из колец, Gemini — четырёхлучевая звезда с градиентом.
 /// </summary>
 public static class MascotArt
 {
     public const int Width = 11;
     public const int Rows = 6;
 
+    // Clawd — краб-маскот Claude Code: квадратное тело с глазами-прорезями, клешни по бокам, четыре ножки.
     private static readonly string[] Claude =
     [
-        ".....#.....",
-        ".#...#...#.",
-        "..#..#..#..",
-        "...#.#.#...",
-        "....###....",
-        "###########",
-        "....###....",
-        "...#.#.#...",
-        "..#..#..#..",
-        ".#...#...#.",
-        ".....#.....",
         "...........",
+        "...........",
+        ".#########.",
+        ".#########.",
+        ".##.###.##.",
+        ".##.###.##.",
+        "###########",
+        "###########",
+        ".#########.",
+        ".#########.",
+        ".#.#...#.#.",
+        ".#.#...#.#.",
     ];
 
     private static readonly string[] ChatGpt =
@@ -76,7 +77,7 @@ public static class MascotArt
 
     public static string Name(Mascot mascot) => mascot switch
     {
-        Mascot.Claude => "Claude",
+        Mascot.Claude => "Clawd",
         Mascot.ChatGpt => "ChatGPT",
         Mascot.Gemini => "Gemini",
         _ => "Нет",
