@@ -30,10 +30,11 @@ LazyGit/
 │       ├── BranchParser.cs
 │       └── LogParser.cs
 ├── Models/
-│   ├── FileChange.cs          Path, OldPath?, Kind, IsStaged
+│   ├── ChangeKind.cs          Modified, Added, Deleted, Renamed, Untracked, ...
+│   ├── FileChange.cs          Path, Staged, Unstaged, OriginalPath?
 │   ├── Branch.cs              Name, IsCurrent, Upstream?, Ahead, Behind
-│   ├── Commit.cs              Hash, ShortHash, Author, Date, Subject
-│   └── RepoStatus.cs          Branch, Files, ...
+│   ├── Commit.cs              Hash, ShortHash, AuthorName, AuthorEmail, Date, Subject
+│   └── RepoStatus.cs          Branch?, HeadHash?, Upstream?, Ahead, Behind, Files
 ├── State/
 │   └── AppState.cs            хранит RepoStatus, событие Changed, RefreshAsync()
 ├── Commands/
