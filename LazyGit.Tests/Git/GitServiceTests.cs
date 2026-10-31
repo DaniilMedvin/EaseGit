@@ -322,6 +322,49 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task UndoAsync_LastCommit_ChangesBackInIndex()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("first");
+        _repo.Write("b.txt", "2");
+        await _repo.CommitAsync("second");
+
+        var (plan, _) = UndoPlanner.Plan(await _service.GetLastReflogEntryAsync());
+        var result = await _service.UndoAsync(plan!);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Equal(["first"], (await _service.GetLogAsync()).Select(c => c.Subject));
+        Assert.Equal(ChangeKind.Added, (await SingleFileAsync()).Staged);
+    }
+
+    [Fact]
+    public async Task UndoAsync_Merge_KeepsLocalChanges()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("first");
+        await _repo.RunAsync("switch", "-c", "work");
+        _repo.Write("b.txt", "2");
+        await _repo.CommitAsync("work");
+        await _repo.RunAsync("switch", "main");
+        await _repo.RunAsync("merge", "--no-edit", "work");
+        _repo.Write("a.txt", "local");
+
+        var (plan, _) = UndoPlanner.Plan(await _service.GetLastReflogEntryAsync());
+        var result = await _service.UndoAsync(plan!);
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Equal(["first"], (await _service.GetLogAsync()).Select(c => c.Subject));
+        Assert.Equal("local", File.ReadAllText(Path.Combine(_repo.Path, "a.txt")));
+        Assert.False(File.Exists(Path.Combine(_repo.Path, "b.txt")));
+    }
+
+    [Fact]
+    public async Task GetLastReflogEntryAsync_EmptyRepository_ReturnsNull()
+    {
+        Assert.Null(await _service.GetLastReflogEntryAsync());
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");

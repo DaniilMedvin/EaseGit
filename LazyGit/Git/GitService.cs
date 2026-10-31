@@ -199,6 +199,24 @@ public sealed class GitService
             .ToList();
     }
 
+    /// <summary>Последнее действие из reflog HEAD или null (нет коммитов или reflog выключен).</summary>
+    public async Task<ReflogEntry?> GetLastReflogEntryAsync(CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ReflogParser.Arguments(1), ct);
+        return result.Success ? ReflogParser.Parse(result.StdOut).FirstOrDefault() : null;
+    }
+
+    /// <summary>Есть ли HEAD уже в upstream текущей ветки (коммит отправлен). Без upstream — false.</summary>
+    public async Task<bool> IsHeadPushedAsync(CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["merge-base", "--is-ancestor", "HEAD", "@{upstream}"], ct);
+        return result.Success;
+    }
+
+    /// <summary>Выполняет план отмены последнего действия.</summary>
+    public Task<GitResult> UndoAsync(UndoPlan plan, CancellationToken ct = default) =>
+        RunActionAsync(plan.Args, ct);
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         RunActionAsync(["commit", "--file=-", "--cleanup=strip"], ct, input: message);

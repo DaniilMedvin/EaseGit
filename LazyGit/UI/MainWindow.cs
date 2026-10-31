@@ -282,6 +282,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
         Add("view.diffUp", "Листать diff вверх", CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
             () => _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
+        Add("history.undo", "Отменить последнее действие", CommandScope.Global, CommandKey.Of("z", Key.Z),
+            () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
         Add("view.refresh", "Обновить", CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
 
@@ -298,6 +300,39 @@ public sealed class MainWindow : Runnable<MainResult?>
             Result = MainResult.Quit;
             RequestStop();
         }, "выход");
+    }
+
+    /// <summary>
+    /// Отменяет последнее действие по reflog: коммит, merge, pull, checkout. Переписывание истории — через подтверждение;
+    /// если коммит уже отправлен, предупреждает, что понадобится force push.
+    /// </summary>
+    private async Task UndoAsync()
+    {
+        if (_busy)
+            return;
+
+        var last = await _git.GetLastReflogEntryAsync();
+        var (plan, reason) = UndoPlanner.Plan(last);
+        if (plan is null)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {reason}", Theme.Error));
+            return;
+        }
+
+        var pushed = plan.RewritesHistory && await _git.IsHeadPushedAsync();
+        App?.Invoke(() =>
+        {
+            if (plan.RewritesHistory)
+            {
+                var warning = pushed
+                    ? $"{Theme.SymbolWarning} Это уже отправлено в {_repoStatus?.Upstream}: после отмены история разойдётся, и для push понадобится --force-with-lease."
+                    : "Ветка вернётся к предыдущему состоянию из reflog. Повторить действие можно заново, а найти прежний коммит — в git reflog.";
+                if (!Confirm(plan.Question, plan.Args, warning, "Отменить"))
+                    return;
+            }
+
+            _ = RunAsync(ct => _git.UndoAsync(plan, ct), plan.Done);
+        });
     }
 
     private void FocusPanel(int step)

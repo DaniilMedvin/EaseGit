@@ -26,10 +26,12 @@ LazyGit/
 │   ├── GitResult.cs           record: ExitCode, StdOut, StdErr, Command
 │   ├── GitService.cs          GetStatusAsync(), StageAsync(), CommitAsync(), ...
 │   ├── CommandLog.cs          журнал изменяющих команд (GitService пишет, CommandLogPanel показывает)
+│   ├── UndoPlanner.cs         отмена последнего действия по записи reflog → UndoPlan
 │   ├── RepoWatcher.cs         FileSystemWatcher: изменения файлов и .git → одно событие Changed
 │   └── Parsers/
 │       ├── StatusParser.cs
 │       ├── BranchParser.cs
+│       ├── ReflogParser.cs
 │       ├── LogParser.cs
 │       ├── DiffParser.cs
 │       └── CommitDiffParser.cs    git show: сообщение коммита + diff
