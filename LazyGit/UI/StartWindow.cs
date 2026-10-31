@@ -20,7 +20,7 @@ public sealed class StartWindow : Runnable<StartAction?>
 {
     private readonly GitRunner _git;
     private readonly AuthStatus _auth;
-    private readonly TextField _path;
+    private readonly ClipboardTextField _path;
     private readonly Label _status;
     private readonly Starfield _stars = new() { Height = Dim.Fill(6) };
     private readonly Waves _waves = new() { X = 0, Y = Pos.AnchorEnd(6) };
@@ -61,7 +61,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         var prompt = new Label { Text = " > ", X = 0, Y = 0 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
 
-        _path = new TextField
+        _path = new ClipboardTextField
         {
             Text = initialPath,
             X = Pos.Right(prompt),

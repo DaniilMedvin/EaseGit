@@ -16,7 +16,7 @@ public sealed class CommitDialog : Runnable<string?>
 {
     private const int DialogWidth = 72;
 
-    private readonly TextField _subject;
+    private readonly ClipboardTextField _subject;
     private readonly TypeSelector _types;
     private readonly Label _preview;
     private readonly Label _counter;
@@ -48,7 +48,7 @@ public sealed class CommitDialog : Runnable<string?>
         var prompt = new Label { Text = "> ", X = 0, Y = 2 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
 
-        _subject = new TextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill() };
+        _subject = new ClipboardTextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill() };
         _subject.SetScheme(Theme.Input);
         _subject.TextChanged += (_, _) => UpdatePreview();
         _subject.Accepting += (_, e) =>
@@ -65,7 +65,7 @@ public sealed class CommitDialog : Runnable<string?>
         staged.SetScheme(Theme.Text(Theme.Muted));
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("enter", "коммит"), new Hint("tab", "тип"), new Hint("esc", "отмена")]);
+        hints.SetHints([new Hint("enter", "коммит"), new Hint("tab", "тип"), new Hint("ctrl+c/x/v", "буфер"), new Hint("esc", "отмена")]);
 
         box.Add(_types, prompt, _subject, _preview, _counter, _tip, staged);
         Add(box, BoxTitle.For(box, "Коммит", Theme.Accent), hints);
