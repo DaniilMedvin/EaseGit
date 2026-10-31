@@ -3,12 +3,13 @@ using LazyGit.Models;
 namespace LazyGit.Git.Parsers;
 
 /// <summary>
-/// Разбор вывода <c>git status --porcelain=v2 --branch -z</c>.
+/// Разбор вывода <c>git status --porcelain=v2 --branch --untracked-files=all -z</c>.
 /// Формат: https://git-scm.com/docs/git-status#_porcelain_format_version_2
 /// </summary>
 public static class StatusParser
 {
-    public static readonly string[] Arguments = ["status", "--porcelain=v2", "--branch", "-z"];
+    // --untracked-files=all: файлы новых папок перечисляются по одному, а не одной строкой «папка/».
+    public static readonly string[] Arguments = ["status", "--porcelain=v2", "--branch", "--untracked-files=all", "-z"];
 
     public static RepoStatus Parse(string output)
     {

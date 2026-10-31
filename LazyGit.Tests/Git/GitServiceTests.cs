@@ -162,5 +162,48 @@ public sealed class GitServiceTests : IAsyncLifetime
         Assert.All(afterUnstage, f => Assert.True(f.IsUntracked));
     }
 
+    [Fact]
+    public async Task GetDiffAsync_StagedAndUnstaged_ReturnsSeparateChanges()
+    {
+        _repo.Write("a.txt", "1\n");
+        await _repo.CommitAsync("init");
+        _repo.Write("a.txt", "1\n2\n");
+        await _repo.RunAsync("add", "a.txt");
+        _repo.Write("a.txt", "1\n2\n3\n");
+        var file = await SingleFileAsync();
+
+        var staged = await _service.GetDiffAsync(file, staged: true);
+        var unstaged = await _service.GetDiffAsync(file, staged: false);
+
+        Assert.Equal(["2"], staged.Where(l => l.Kind == DiffLineKind.Added).Select(l => l.Text));
+        Assert.Equal(["3"], unstaged.Where(l => l.Kind == DiffLineKind.Added).Select(l => l.Text));
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_UntrackedFile_ShowsWholeContentAsAdded()
+    {
+        Directory.CreateDirectory(Path.Combine(_repo.Path, "новая папка"));
+        _repo.Write("новая папка/файл.cs", "namespace X;\n\nclass Y { }\n");
+        var file = await SingleFileAsync();
+
+        var diff = await _service.GetDiffAsync(file, staged: false);
+
+        Assert.Equal("новая папка/файл.cs", file.Path);
+        Assert.Equal(["namespace X;", "", "class Y { }"], diff.Where(l => l.Kind == DiffLineKind.Added).Select(l => l.Text));
+    }
+
+    [Fact]
+    public async Task GetDiffAsync_StagedRename_ShowsRenameHeader()
+    {
+        _repo.Write("old.txt", "1\n");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("mv", "old.txt", "new.txt");
+
+        var diff = await _service.GetDiffAsync(await SingleFileAsync(), staged: true);
+
+        Assert.Contains(diff, l => l.Text == "rename from old.txt");
+        Assert.Contains(diff, l => l.Text == "rename to new.txt");
+    }
+
     private async Task<FileChange> SingleFileAsync() => Assert.Single((await _service.GetStatusAsync()).Files);
 }

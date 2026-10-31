@@ -24,11 +24,12 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly GitService _git;
     private readonly RepoHeader _header;
     private readonly FilesPanel _files;
-    private readonly View _diff;
-    private readonly Label _diffPlaceholder;
+    private readonly DiffPanel _diff;
+    private readonly Label _diffTitle;
     private readonly Label _status;
     private bool _busy;
     private object? _statusTimeout;
+    private CancellationTokenSource? _diffLoading;
 
     public MainWindow(GitService git, AuthStatus auth)
     {
@@ -46,20 +47,16 @@ public sealed class MainWindow : Runnable<MainResult?>
             Width = Dim.Percent(35),
             Height = Dim.Fill(2),
         };
-        _files.SelectionChanged += (_, _) => UpdateDiffPlaceholder();
+        _files.SelectionChanged += (_, _) => _ = LoadDiffAsync();
 
-        _diff = new View
+        _diff = new DiffPanel
         {
             X = Pos.Right(_files),
             Y = Pos.Top(_files),
             Width = Dim.Fill(),
             Height = Dim.Height(_files),
-            BorderStyle = LineStyle.Rounded,
         };
-        _diff.SetScheme(Theme.Text(Theme.Dim));
-        _diffPlaceholder = new Label { X = 1, Y = 0, Width = Dim.Fill(1) };
-        _diffPlaceholder.SetScheme(Theme.Text(Theme.Muted));
-        _diff.Add(_diffPlaceholder);
+        _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
 
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
 
@@ -69,6 +66,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             new Hint("↑↓", "навигация"),
             new Hint("space", "stage/unstage"),
             new Hint("a", "все"),
+            new Hint("ctrl+d/u", "прокрутка diff"),
             new Hint("r", "обновить"),
             new Hint("esc", "назад"),
             new Hint("q", "выход"),
@@ -77,7 +75,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
             _files, BoxTitle.For(_files, "[1] Файлы", Theme.Accent),
-            _diff, BoxTitle.For(_diff, "Diff", Theme.Muted),
+            _diff, _diffTitle,
             _status, hints);
         _files.SetFocus();
     }
@@ -113,6 +111,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (key == Key.A)
         {
             _ = ToggleAllAsync();
+            return true;
+        }
+
+        if (key == Key.D.WithCtrl)
+        {
+            _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2));
+            return true;
+        }
+
+        if (key == Key.U.WithCtrl)
+        {
+            _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2));
             return true;
         }
 
@@ -216,12 +226,39 @@ public sealed class MainWindow : Runnable<MainResult?>
         return newline < 0 ? trimmed : trimmed[..newline];
     }
 
-    // TODO(этап 2): настоящий diff выбранного файла.
-    private void UpdateDiffPlaceholder()
+    /// <summary>Загружает diff выбранного файла. Предыдущая незавершённая загрузка отменяется.</summary>
+    private async Task LoadDiffAsync()
     {
-        _diffPlaceholder.Text = _files.SelectedFile is { } row
-            ? $"{row.File.Path}\n\nDiff появится на следующем шаге."
-            : "";
+        _diffLoading?.Cancel();
+        if (_files.SelectedFile is not { } row)
+        {
+            _diffTitle.Text = " Diff ";
+            _diff.SetMessage("");
+            return;
+        }
+
+        var loading = new CancellationTokenSource();
+        _diffLoading = loading;
+        var staged = row.Section == FileSection.Staged;
+        _diffTitle.Text = $" Diff · {row.File.Path}{(staged ? " · staged" : "")} ";
+
+        try
+        {
+            var lines = await _git.GetDiffAsync(row.File, staged, loading.Token);
+            App?.Invoke(() =>
+            {
+                if (!loading.IsCancellationRequested)
+                    _diff.SetDiff(lines);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Выбран другой файл.
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => _diff.SetMessage($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}"));
+        }
     }
 
     /// <summary>Показывает сообщение над подсказками. С autoHide сообщение исчезает через 3 секунды.</summary>

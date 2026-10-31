@@ -76,6 +76,25 @@ public sealed class GitService
     public Task<GitResult> UnstageAllAsync(CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["reset", "--quiet"], ct);
 
+    /// <summary>
+    /// Diff файла: <paramref name="staged"/> — изменения в индексе, иначе — в рабочей копии.
+    /// Для untracked-файла всё содержимое показывается как добавленное.
+    /// </summary>
+    public async Task<IReadOnlyList<DiffLine>> GetDiffAsync(FileChange file, bool staged, CancellationToken ct = default)
+    {
+        if (file.IsUntracked)
+        {
+            // С --no-index git возвращает 1, если файлы различаются, — это не ошибка.
+            var untracked = await _git.RunAsync(RepoRoot, ["diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", file.Path], ct);
+            return untracked.ExitCode is 0 or 1 ? DiffParser.Parse(untracked.StdOut) : throw new GitCommandException(untracked);
+        }
+
+        string[] args = staged
+            ? ["diff", "--no-color", "--no-ext-diff", "--find-renames", "--cached", "--", .. Paths(file)]
+            : ["diff", "--no-color", "--no-ext-diff", "--", file.Path];
+        return DiffParser.Parse(await RunCheckedAsync(args, ct));
+    }
+
     /// <summary>Пути файла. Для переименования — оба, иначе удаление старого пути останется в индексе.</summary>
     private static string[] Paths(FileChange file) =>
         file.OriginalPath is null ? [file.Path] : [file.Path, file.OriginalPath];

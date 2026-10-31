@@ -21,6 +21,10 @@ public static class Theme
     public static readonly Color Warning = new("#FCE094");
     public static readonly Color Info = Cyan;
 
+    /// <summary>Фон добавленных и удалённых строк в diff.</summary>
+    public static readonly Color AddedBg = new("#1D2F25");
+    public static readonly Color RemovedBg = new("#3A2427");
+
     /// <summary>Предполагаемый фон терминала. Используется для приглушения цветов декораций.</summary>
     public static readonly Color Backdrop = new("#14161B");
 
