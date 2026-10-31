@@ -1,5 +1,6 @@
 using LazyGit.Auth;
 using LazyGit.Git;
+using LazyGit.UI.Dialogs;
 using LazyGit.UI.Panels;
 using LazyGit.UI.Widgets;
 using Terminal.Gui.Drawing;
@@ -17,7 +18,7 @@ public enum MainResult
 
 /// <summary>
 /// Главный экран репозитория: шапка, панель файлов слева, diff справа.
-/// space — stage/unstage выбранного файла, a — всех файлов, r — обновить.
+/// space — stage/unstage выбранного файла, a — всех файлов, c — коммит, r — обновить.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
@@ -66,9 +67,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
         var hintList = new List<Hint>
         {
-            new("↑↓", "выбор"),
             new("space", "stage"),
             new("a", "все"),
+            new("c", "коммит"),
             new("ctrl+d/u", "diff"),
             new("r", "обновить"),
         };
@@ -133,6 +134,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key == Key.C)
+        {
+            OpenCommitDialog();
+            return true;
+        }
+
         if (key == Key.D.WithCtrl)
         {
             _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2));
@@ -175,8 +182,36 @@ public sealed class MainWindow : Runnable<MainResult?>
             : Task.CompletedTask;
     }
 
+    /// <summary>Открывает окно коммита, если в индексе есть изменения.</summary>
+    private void OpenCommitDialog()
+    {
+        if (_busy)
+            return;
+
+        var stagedCount = _files.Rows.OfType<FileEntryRow>().Count(r => r.Section == FileSection.Staged);
+        if (stagedCount == 0)
+        {
+            ShowStatus($"{Theme.SymbolError} Нечего коммитить: добавь файлы в индекс клавишей space или a", Theme.Error);
+            return;
+        }
+
+        using var dialog = new CommitDialog(stagedCount);
+        App!.Run(dialog);
+        if (dialog.Result is not { } message)
+            return;
+
+        _ = RunAsync(ct => _git.CommitAsync(message, ct), async () =>
+        {
+            var hash = await _git.GetShortHeadAsync();
+            return $"Коммит {hash} создан: {message}";
+        });
+    }
+
+    private Task RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage) =>
+        RunAsync(action, () => Task.FromResult(successMessage));
+
     /// <summary>Выполняет изменяющую команду, показывает результат и обновляет экран. Одновременно — одна команда.</summary>
-    private async Task RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage)
+    private async Task RunAsync(Func<CancellationToken, Task<GitResult>> action, Func<Task<string>> successMessage)
     {
         if (_busy)
             return;
@@ -185,13 +220,14 @@ public sealed class MainWindow : Runnable<MainResult?>
         try
         {
             var result = await action(CancellationToken.None);
+            var success = result.Success ? await successMessage() : null;
             await LoadStatusAsync();
             App?.Invoke(() =>
             {
-                if (result.Success)
-                    ShowStatus($"{Theme.SymbolSuccess} {successMessage}", Theme.Success, autoHide: true);
+                if (success is not null)
+                    ShowStatus($"{Theme.SymbolSuccess} {success}", Theme.Success, autoHide: true);
                 else
-                    ShowStatus($"{Theme.SymbolError} {FirstLine(result.StdErr)}", Theme.Error);
+                    ShowStatus($"{Theme.SymbolError} {ExplainError(result.StdErr)}", Theme.Error);
             });
         }
         finally
@@ -236,6 +272,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}", Theme.Error));
             return false;
         }
+    }
+
+    /// <summary>Понятный текст для известных ошибок git, иначе — первая строка stderr.</summary>
+    private static string ExplainError(string stderr)
+    {
+        if (stderr.Contains("Author identity unknown") || stderr.Contains("Please tell me who you are"))
+            return "Git не знает имя автора. Выполни: git config --global user.name \"Имя\" и user.email \"почта\"";
+        return FirstLine(stderr);
     }
 
     private static string FirstLine(string text)

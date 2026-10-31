@@ -223,5 +223,31 @@ public sealed class GitServiceTests : IAsyncLifetime
         Assert.Contains(diff, l => l.Text == "rename to new.txt");
     }
 
+    [Fact]
+    public async Task CommitAsync_MessageWithQuotesAndNewlines_IsKeptAsIs()
+    {
+        _repo.Write("a.txt", "1");
+        await _service.StageAllAsync();
+        const string message = "feat: add \"quoted\" text\n\n- body line with 'single' quotes";
+
+        var result = await _service.CommitAsync(message);
+
+        Assert.True(result.Success, result.StdErr);
+        var log = await _repo.RunAsync("log", "-1", "--format=%B");
+        Assert.Equal(message, log.StdOut.Trim());
+        Assert.True((await _service.GetStatusAsync()).IsClean);
+        Assert.Equal(7, (await _service.GetShortHeadAsync())!.Length);
+    }
+
+    [Fact]
+    public async Task CommitAsync_NothingStaged_Fails()
+    {
+        _repo.Write("a.txt", "1");
+
+        var result = await _service.CommitAsync("feat: nothing");
+
+        Assert.False(result.Success);
+    }
+
     private async Task<FileChange> SingleFileAsync() => Assert.Single((await _service.GetStatusAsync()).Files);
 }

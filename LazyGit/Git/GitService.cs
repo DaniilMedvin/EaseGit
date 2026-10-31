@@ -102,6 +102,17 @@ public sealed class GitService
         return DiffParser.Parse(await RunCheckedAsync(args, ct));
     }
 
+    /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
+    public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);
+
+    /// <summary>Короткий хеш HEAD или null в репозитории без коммитов.</summary>
+    public async Task<string?> GetShortHeadAsync(CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["rev-parse", "--short", "HEAD"], ct);
+        return result.Success ? result.StdOut.Trim() : null;
+    }
+
     /// <summary>Пути файла. Для переименования — оба, иначе удаление старого пути останется в индексе.</summary>
     private static string[] Paths(FileChange file) =>
         file.OriginalPath is null ? [file.Path] : [file.Path, file.OriginalPath];

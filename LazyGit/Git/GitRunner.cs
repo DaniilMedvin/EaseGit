@@ -5,11 +5,17 @@ namespace LazyGit.Git;
 
 public sealed class GitRunner
 {
-    public async Task<GitResult> RunAsync(string workingDirectory, IReadOnlyList<string> args, CancellationToken ct = default)
+    /// <summary>Запускает git с аргументами. <paramref name="input"/> передаётся в stdin.</summary>
+    public async Task<GitResult> RunAsync(
+        string workingDirectory,
+        IReadOnlyList<string> args,
+        CancellationToken ct = default,
+        string? input = null)
     {
         var psi = new ProcessStartInfo("git")
         {
             WorkingDirectory = workingDirectory,
+            RedirectStandardInput = input is not null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
@@ -28,6 +34,12 @@ public sealed class GitRunner
         try
         {
             using var process = Process.Start(psi)!;
+            if (input is not null)
+            {
+                await process.StandardInput.WriteAsync(input.AsMemory(), ct);
+                process.StandardInput.Close();
+            }
+
             var stdout = process.StandardOutput.ReadToEndAsync(ct);
             var stderr = process.StandardError.ReadToEndAsync(ct);
             await process.WaitForExitAsync(ct);
