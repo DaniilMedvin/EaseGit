@@ -21,4 +21,20 @@ public static class BoxTitle
         label.SetScheme(Theme.Text(color));
         return label;
     }
+
+    /// <summary>
+    /// Заголовок панели, которая получает фокус: рамка и заголовок цвета accent в фокусе, dim — без него.
+    /// </summary>
+    public static Label ForFocusable(View box, string title)
+    {
+        var label = For(box, title, Theme.Dim);
+        box.SetScheme(Theme.Text(Theme.Dim));
+        box.HasFocusChanged += (_, _) =>
+        {
+            var color = box.HasFocus ? Theme.Accent : Theme.Dim;
+            box.SetScheme(Theme.Text(color));
+            label.SetScheme(Theme.Text(color));
+        };
+        return label;
+    }
 }

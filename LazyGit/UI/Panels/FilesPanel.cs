@@ -22,7 +22,6 @@ public sealed class FilesPanel : View
     {
         CanFocus = true;
         BorderStyle = LineStyle.Rounded;
-        SetScheme(Theme.Text(Theme.Accent));
     }
 
     /// <summary>Строки панели: заголовки разделов и файлы.</summary>

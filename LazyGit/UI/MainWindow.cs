@@ -17,8 +17,9 @@ public enum MainResult
 }
 
 /// <summary>
-/// Главный экран репозитория: шапка, панель файлов слева, diff справа.
-/// space — stage/unstage выбранного файла, a — всех файлов, c — коммит, r — обновить, ? — справка.
+/// Главный экран репозитория: шапка, слева панели файлов и коммитов, справа diff.
+/// 1 / 3 и tab — переход между панелями. В файлах: space — stage/unstage файла, a — всех файлов.
+/// c — коммит, r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
@@ -28,9 +29,11 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly AuthStatus _auth;
     private readonly RepoHeader _header;
     private readonly FilesPanel _files;
+    private readonly CommitsPanel _commits;
     private readonly DiffPanel _diff;
     private readonly Label _diffTitle;
     private readonly Label _status;
+    private readonly HintBar _hints;
     private bool _busy;
     private object? _statusTimeout;
     private CancellationTokenSource? _diffLoading;
@@ -55,42 +58,66 @@ public sealed class MainWindow : Runnable<MainResult?>
             X = 0,
             Y = Pos.Bottom(_header),
             Width = Dim.Percent(35),
-            Height = Dim.Fill(2),
+            Height = Dim.Percent(55),
         };
         _files.SelectionChanged += (_, _) => _ = LoadDiffAsync();
+
+        _commits = new CommitsPanel
+        {
+            X = 0,
+            Y = Pos.Bottom(_files),
+            Width = Dim.Width(_files),
+            Height = Dim.Fill(2),
+        };
 
         _diff = new DiffPanel
         {
             X = Pos.Right(_files),
             Y = Pos.Top(_files),
             Width = Dim.Fill(),
-            Height = Dim.Height(_files),
+            Height = Dim.Fill(2),
         };
         _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
 
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
 
-        var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
-        var hintList = new List<Hint>
-        {
-            new("space", "stage"),
-            new("a", "все"),
-            new("c", "коммит"),
-            new("ctrl+d/u", "diff"),
-            new("r", "обновить"),
-        };
-        if (!auth.IsAuthorized)
-            hintList.Add(new Hint("ctrl+g", "войти"));
-        hintList.Add(new Hint("?", "справка"));
-        hintList.Add(new Hint("q", "выход"));
-        hints.SetHints(hintList);
+        _hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
 
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
-            _files, BoxTitle.For(_files, "[1] Файлы", Theme.Accent),
+            _files, BoxTitle.ForFocusable(_files, "[1] Файлы"),
+            _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
             _diff, _diffTitle,
-            _status, hints);
+            _status, _hints);
+        _files.HasFocusChanged += (_, _) => UpdateHints();
+        _commits.HasFocusChanged += (_, _) => UpdateHints();
         _files.SetFocus();
+        UpdateHints();
+    }
+
+    /// <summary>Подсказки внизу зависят от панели в фокусе.</summary>
+    private void UpdateHints()
+    {
+        var hints = new List<Hint>();
+        if (_commits.HasFocus)
+        {
+            hints.Add(new Hint("↑↓", "коммит"));
+        }
+        else
+        {
+            hints.Add(new Hint("space", "stage"));
+            hints.Add(new Hint("a", "все"));
+        }
+
+        hints.Add(new Hint("c", "коммит"));
+        hints.Add(new Hint("ctrl+d/u", "diff"));
+        hints.Add(new Hint("tab", "панель"));
+        hints.Add(new Hint("r", "обновить"));
+        if (!_auth.IsAuthorized)
+            hints.Add(new Hint("ctrl+g", "войти"));
+        hints.Add(new Hint("?", "справка"));
+        hints.Add(new Hint("q", "выход"));
+        _hints.SetHints(hints);
     }
 
     protected override void OnIsRunningChanged(bool newIsRunning)
@@ -150,13 +177,35 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
-        if (key == Key.Space)
+        if (key == Key.D1)
+        {
+            _files.SetFocus();
+            return true;
+        }
+
+        if (key == Key.D3)
+        {
+            _commits.SetFocus();
+            return true;
+        }
+
+        if (key == Key.Tab || key == Key.Tab.WithShift)
+        {
+            // Панелей пока две, поэтому tab и shift+tab просто переключают между ними.
+            if (_files.HasFocus)
+                _commits.SetFocus();
+            else
+                _files.SetFocus();
+            return true;
+        }
+
+        if (key == Key.Space && _files.HasFocus)
         {
             _ = ToggleSelectedAsync();
             return true;
         }
 
-        if (key == Key.A)
+        if (key == Key.A && _files.HasFocus)
         {
             _ = ToggleAllAsync();
             return true;
@@ -308,16 +357,20 @@ public sealed class MainWindow : Runnable<MainResult?>
         App?.Invoke(() => _ = RefreshAsync(silent: true));
     }
 
-    /// <summary>Перечитывает статус и обновляет шапку и панель файлов. Возвращает false при ошибке.</summary>
+    /// <summary>Перечитывает статус и лог, обновляет шапку и панели. Возвращает false при ошибке.</summary>
     private async Task<bool> LoadStatusAsync()
     {
         try
         {
-            var status = await _git.GetStatusAsync();
+            var statusTask = _git.GetStatusAsync();
+            var logTask = _git.GetLogAsync();
+            var status = await statusTask;
+            var log = await logTask;
             App?.Invoke(() =>
             {
                 _header.SetStatus(status);
                 _files.SetStatus(status);
+                _commits.SetCommits(log);
             });
             return true;
         }

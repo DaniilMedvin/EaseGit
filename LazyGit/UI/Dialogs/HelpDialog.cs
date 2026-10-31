@@ -101,7 +101,8 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Heading("Клавиши"));
             lines.Add(Keys("space", "stage / unstage файла", "c", "коммит"));
             lines.Add(Keys("a", "stage / unstage всех", "ctrl+d/u", "листать diff"));
-            lines.Add(Keys("↑↓  j k", "выбор файла", "Home/End", "первый / последний"));
+            lines.Add(Keys("↑↓  j k", "выбор строки", "Home/End", "первая / последняя"));
+            lines.Add(Keys("1  3", "файлы / коммиты", "tab", "следующая панель"));
             lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
             lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
             lines.Add(Keys("?  F1", "эта справка", "", ""));
