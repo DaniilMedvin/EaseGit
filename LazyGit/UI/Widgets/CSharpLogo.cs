@@ -1,6 +1,5 @@
 using Terminal.Gui.Drawing;
 using Terminal.Gui.ViewBase;
-using Attribute = Terminal.Gui.Drawing.Attribute;
 
 namespace LazyGit.UI.Widgets;
 
@@ -51,7 +50,7 @@ public sealed class CSharpLogo
 
                 var top = PixelColor(col + 0.5, row * 2 + 0.5);
                 var bottom = PixelColor(col + 0.5, row * 2 + 1.5);
-                DrawCell(view, x, y, top, bottom);
+                view.DrawHalfBlock(x, y, top, bottom);
             }
         }
     }
@@ -92,26 +91,5 @@ public sealed class CSharpLogo
         var hx = (int)Math.Floor(dx - HashOffsetX);
         var hy = (int)Math.Floor(dy - HashOffsetY);
         return hy >= 0 && hy < Hash.Length && hx >= 0 && hx < Hash[hy].Length && Hash[hy][hx] == '#';
-    }
-
-    private static void DrawCell(View view, int x, int y, Color? top, Color? bottom)
-    {
-        switch (top, bottom)
-        {
-            case (null, null):
-                return;
-            case ({ } t, null):
-                view.SetAttribute(new Attribute(t, Color.None));
-                view.AddRune(x, y, new System.Text.Rune('▀'));
-                break;
-            case (null, { } b):
-                view.SetAttribute(new Attribute(b, Color.None));
-                view.AddRune(x, y, new System.Text.Rune('▄'));
-                break;
-            case ({ } t, { } b):
-                view.SetAttribute(new Attribute(t, b));
-                view.AddRune(x, y, new System.Text.Rune('▀'));
-                break;
-        }
     }
 }

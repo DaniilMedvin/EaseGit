@@ -32,6 +32,9 @@ LazyGit/
 │       ├── LogParser.cs
 │       ├── DiffParser.cs
 │       └── CommitDiffParser.cs    git show: сообщение коммита + diff
+├── Config/
+│   ├── AppConfig.cs           настройки: пропуск входа, последний репозиторий, маскот
+│   └── ConfigStore.cs         ~/.config/lazygit-cs/config.json
 ├── Models/
 │   ├── ChangeKind.cs          Modified, Added, Deleted, Renamed, Untracked, ...
 │   ├── FileChange.cs          Path, Staged, Unstaged, OriginalPath?
@@ -49,7 +52,7 @@ LazyGit/
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
     ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
-    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, ErrorDialog, CommandPalette
+    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, SettingsDialog, ErrorDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git

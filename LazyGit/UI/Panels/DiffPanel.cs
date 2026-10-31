@@ -1,3 +1,4 @@
+using LazyGit.Config;
 using LazyGit.Highlighting;
 using LazyGit.Models;
 using LazyGit.UI.Widgets;
@@ -24,6 +25,7 @@ public sealed class DiffPanel : View
     private string? _message;
     private int _scroll;
     private int _numberWidth = 3;
+    private Mascot _mascot;
 
     public DiffPanel()
     {
@@ -137,6 +139,20 @@ public sealed class DiffPanel : View
         SetNeedsDraw();
     }
 
+    /// <summary>
+    /// Маскот в правом нижнем углу. Рисуется, только если diff до него не доходит и панель достаточно широкая,
+    /// поэтому никогда не закрывает текст.
+    /// </summary>
+    public Mascot Mascot
+    {
+        get => _mascot;
+        set
+        {
+            _mascot = value;
+            SetNeedsDraw();
+        }
+    }
+
     /// <summary>Показывает сообщение вместо diff (загрузка, ошибка, нет выбранного файла).</summary>
     public void SetMessage(string message)
     {
@@ -164,13 +180,26 @@ public sealed class DiffPanel : View
         if (_message is not null)
         {
             this.DrawSegments(1, 0, [new Segment(_message, Theme.Muted)], Viewport.Width - 1);
+            DrawMascot(usedRows: 1);
             return true;
         }
 
         for (var row = 0; row < Viewport.Height && _scroll + row < _lines.Count; row++)
             DrawLine(row, _scroll + row);
 
+        DrawMascot(usedRows: Math.Min(Viewport.Height, _lines.Count - _scroll));
         return true;
+    }
+
+    private void DrawMascot(int usedRows)
+    {
+        var x = Viewport.Width - MascotArt.Width - 2;
+        var y = Viewport.Height - MascotArt.Rows;
+        // Пустая строка между текстом и маскотом; на узкой панели место отдаётся diff.
+        if (_mascot == Mascot.None || usedRows >= y || Viewport.Width < MascotArt.Width + 30)
+            return;
+
+        MascotArt.Draw(this, x, y, _mascot);
     }
 
     private void DrawLine(int row, int index)

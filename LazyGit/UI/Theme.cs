@@ -25,6 +25,11 @@ public static class Theme
     public static readonly Color AddedBg = new("#1D2F25");
     public static readonly Color RemovedBg = new("#3A2427");
 
+    /// <summary>Цвета маскотов (Config.Mascot): Claude — оранжевый, ChatGPT — зелёный, Gemini — градиент.</summary>
+    public static readonly Color MascotClaude = new("#D97757");
+    public static readonly Color MascotChatGpt = new("#10A37F");
+    public static readonly Color[] MascotGemini = [new("#4796E3"), new("#9177C7"), new("#CA6673")];
+
     /// <summary>Предполагаемый фон терминала. Используется для приглушения цветов декораций.</summary>
     public static readonly Color Backdrop = new("#14161B");
 

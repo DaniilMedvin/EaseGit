@@ -145,7 +145,7 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("f", "fetch", "esc", "отменить push/pull/fetch"));
             lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
             lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
-            lines.Add(Keys("?  F1", "эта справка", "", ""));
+            lines.Add(Keys("?  F1", "эта справка", ",", "настройки (маскот)"));
             return lines;
         }
 

@@ -1,4 +1,5 @@
 using LazyGit.Auth;
+using LazyGit.Config;
 using LazyGit.Git;
 using LazyGit.Models;
 using LazyGit.UI.Dialogs;
@@ -20,13 +21,14 @@ public enum MainResult
 /// <summary>
 /// Главный экран репозитория: шапка, слева панели файлов, веток и коммитов, справа diff.
 /// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить. В файлах: space — stage/unstage файла, a — всех файлов.
-/// c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
+/// «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
 {
     private readonly GitService _git;
+    private readonly ConfigStore _config;
     private readonly AuthStatus _auth;
     private readonly RepoHeader _header;
     private readonly FilesPanel _files;
@@ -51,9 +53,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
 
-    public MainWindow(GitService git, AuthStatus auth)
+    public MainWindow(GitService git, AuthStatus auth, ConfigStore config)
     {
         _git = git;
+        _config = config;
         _auth = auth;
         Width = Dim.Fill();
         Height = Dim.Fill();
@@ -109,6 +112,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             Height = Dim.Fill(2),
         };
         _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
+        _diff.Mascot = config.Load().Mascot;
 
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
 
@@ -321,6 +325,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key.AsRune.Value == ',')
+        {
+            OpenSettings();
+            return true;
+        }
+
         if (key.AsRune.Value == '?' || key == Key.F1)
         {
             using var help = new HelpDialog(Viewport.Height);
@@ -341,6 +351,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
 
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>Окно настроек; выбор сразу применяется и сохраняется в конфиг.</summary>
+    private void OpenSettings()
+    {
+        using var dialog = new SettingsDialog(_diff.Mascot);
+        App!.Run(dialog);
+        if (dialog.Result is not { } mascot)
+            return;
+
+        _diff.Mascot = mascot;
+        _config.Save(_config.Load() with { Mascot = mascot });
     }
 
     /// <summary>Checkout выбранной ветки.</summary>

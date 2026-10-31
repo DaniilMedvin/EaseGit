@@ -90,7 +90,7 @@ class Program
             }
 
             configStore.Save(configStore.Load() with { LastRepoPath = repoRoot });
-            using var mainWindow = new MainWindow(new GitService(git, repoRoot), status);
+            using var mainWindow = new MainWindow(new GitService(git, repoRoot), status, configStore);
             app.Run(mainWindow);
             switch (mainWindow.Result)
             {

@@ -42,6 +42,31 @@ public static class TextDrawing
         return used;
     }
 
+    /// <summary>
+    /// Ячейка из двух пикселей по вертикали: «▀» цветом верхнего на фоне нижнего.
+    /// null — прозрачный пиксель (фон терминала).
+    /// </summary>
+    public static void DrawHalfBlock(this View view, int x, int y, Color? top, Color? bottom)
+    {
+        switch (top, bottom)
+        {
+            case (null, null):
+                return;
+            case ({ } t, null):
+                view.SetAttribute(new Attribute(t, Color.None));
+                view.AddRune(x, y, new System.Text.Rune('▀'));
+                break;
+            case (null, { } b):
+                view.SetAttribute(new Attribute(b, Color.None));
+                view.AddRune(x, y, new System.Text.Rune('▄'));
+                break;
+            case ({ } t, { } b):
+                view.SetAttribute(new Attribute(t, b));
+                view.AddRune(x, y, new System.Text.Rune('▀'));
+                break;
+        }
+    }
+
     /// <summary>Число со словом в нужной форме: «1 файл», «3 файла», «11 файлов».</summary>
     public static string Plural(int count, string one, string few, string many)
     {

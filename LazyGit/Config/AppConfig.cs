@@ -6,4 +6,7 @@ public sealed record AppConfig
     public bool AuthPromptSkipped { get; init; }
 
     public string? LastRepoPath { get; init; }
+
+    /// <summary>Маскот в углу панели diff, выбирается в окне настроек.</summary>
+    public Mascot Mascot { get; init; }
 }
