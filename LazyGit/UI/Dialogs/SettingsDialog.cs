@@ -21,7 +21,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
-        Height = 12;
+        Height = MascotArt.Rows + 5;
         SetScheme(Theme.Base);
 
         var box = new View
@@ -29,7 +29,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
             X = 0,
             Y = 0,
             Width = Dim.Fill(),
-            Height = 11,
+            Height = MascotArt.Rows + 4,
             BorderStyle = LineStyle.Rounded,
             CanFocus = true,
         };
@@ -39,7 +39,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
         var caption = new Label { Text = "Маскот в углу diff", X = 0, Y = 0 };
         caption.SetScheme(Theme.Text(Theme.Fg, TextStyle.Bold));
 
-        var picker = new MascotPicker(current) { X = 0, Y = 2, Width = Dim.Fill(), Height = MascotArt.Rows + 1 };
+        var picker = new MascotPicker(current) { X = 0, Y = 2, Width = Dim.Fill(), Height = MascotArt.Rows };
         picker.Accepted += (_, mascot) =>
         {
             Result = mascot;
