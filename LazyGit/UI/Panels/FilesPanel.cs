@@ -165,8 +165,8 @@ public sealed class FilesPanel : View
         this.DrawSegments(1, line,
         [
             Marker(selected),
-            new Segment(Indent(row.Depth) + symbol + " ", Theme.Dim),
-            new Segment(row.Name + "/", selected ? Theme.Fg : Theme.Muted),
+            new Segment(Indent(row.Depth) + symbol + " ", Theme.Muted),
+            new Segment(row.Name + "/", Theme.Fg, TextStyle.Bold),
             new Segment(count, Theme.Dim),
         ], Viewport.Width - 1, background);
     }
