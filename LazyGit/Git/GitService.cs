@@ -115,6 +115,14 @@ public sealed class GitService
     public async Task<CommitDiff> GetCommitDiffAsync(Commit commit, CancellationToken ct = default) =>
         CommitDiffParser.Parse(await RunCheckedAsync(CommitDiffParser.Arguments(commit.Hash), ct));
 
+    /// <summary>Переключается на ветку. Незакоммиченные изменения переносятся, если не конфликтуют.</summary>
+    public Task<GitResult> SwitchAsync(Branch branch, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["switch", "--no-guess", branch.Name], ct);
+
+    /// <summary>Создаёт ветку от HEAD и переключается на неё. В репозитории без коммитов — просто меняет имя ветки.</summary>
+    public Task<GitResult> CreateBranchAsync(string name, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["switch", "--create", name], ct);
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);

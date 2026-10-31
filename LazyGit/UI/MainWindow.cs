@@ -18,8 +18,8 @@ public enum MainResult
 }
 
 /// <summary>
-/// Главный экран репозитория: шапка, слева панели файлов и коммитов, справа diff.
-/// 1 / 3 и tab — переход между панелями. В файлах: space — stage/unstage файла, a — всех файлов.
+/// Главный экран репозитория: шапка, слева панели файлов, веток и коммитов, справа diff.
+/// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка. В файлах: space — stage/unstage файла, a — всех файлов.
 /// c — коммит, r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
@@ -30,6 +30,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly AuthStatus _auth;
     private readonly RepoHeader _header;
     private readonly FilesPanel _files;
+    private readonly BranchesPanel _branches;
     private readonly CommitsPanel _commits;
     private readonly DiffPanel _diff;
     private readonly Label _diffTitle;
@@ -40,6 +41,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private CancellationTokenSource? _diffLoading;
     private RepoWatcher? _watcher;
     private bool _refreshPending;
+    private RepoStatus? _repoStatus;
 
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
@@ -59,19 +61,33 @@ public sealed class MainWindow : Runnable<MainResult?>
             X = 0,
             Y = Pos.Bottom(_header),
             Width = Dim.Percent(35),
-            Height = Dim.Percent(55),
+            Height = Dim.Percent(45),
+        };
+
+        _branches = new BranchesPanel
+        {
+            X = 0,
+            Y = Pos.Bottom(_files),
+            Width = Dim.Width(_files),
+            Height = Dim.Percent(20),
         };
 
         _commits = new CommitsPanel
         {
             X = 0,
-            Y = Pos.Bottom(_files),
+            Y = Pos.Bottom(_branches),
             Width = Dim.Width(_files),
             Height = Dim.Fill(2),
         };
+        // Справа — контекст панели в фокусе, поэтому выбор в остальных панелях его не меняет.
         _files.SelectionChanged += (_, _) =>
         {
-            if (!_commits.HasFocus)
+            if (!_branches.HasFocus && !_commits.HasFocus)
+                _ = LoadDiffAsync();
+        };
+        _branches.SelectionChanged += (_, _) =>
+        {
+            if (_branches.HasFocus)
                 _ = LoadDiffAsync();
         };
         _commits.SelectionChanged += (_, _) =>
@@ -96,11 +112,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
             _files, BoxTitle.ForFocusable(_files, "[1] Файлы"),
+            _branches, BoxTitle.ForFocusable(_branches, "[2] Ветки"),
             _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
             _diff, _diffTitle,
             _status, _hints);
-        // Справа — контекст панели в фокусе: diff файла или содержимое коммита.
+        // Справа — контекст панели в фокусе: diff файла, ветка или содержимое коммита.
         _files.HasFocusChanged += (_, _) => OnPanelFocusChanged(_files);
+        _branches.HasFocusChanged += (_, _) => OnPanelFocusChanged(_branches);
         _commits.HasFocusChanged += (_, _) => OnPanelFocusChanged(_commits);
         _files.SetFocus();
         UpdateHints();
@@ -120,6 +138,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_commits.HasFocus)
         {
             hints.Add(new Hint("↑↓", "выбор коммита"));
+        }
+        else if (_branches.HasFocus)
+        {
+            hints.Add(new Hint("space", "checkout"));
+            hints.Add(new Hint("n", "новая"));
         }
         else
         {
@@ -201,6 +224,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key == Key.D2)
+        {
+            _branches.SetFocus();
+            return true;
+        }
+
         if (key == Key.D3)
         {
             _commits.SetFocus();
@@ -209,11 +238,22 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (key == Key.Tab || key == Key.Tab.WithShift)
         {
-            // Панелей пока две, поэтому tab и shift+tab просто переключают между ними.
-            if (_files.HasFocus)
-                _commits.SetFocus();
-            else
-                _files.SetFocus();
+            View[] panels = [_files, _branches, _commits];
+            var current = Array.FindIndex(panels, p => p.HasFocus);
+            var step = key == Key.Tab ? 1 : panels.Length - 1;
+            panels[(Math.Max(current, 0) + step) % panels.Length].SetFocus();
+            return true;
+        }
+
+        if (key == Key.Space && _branches.HasFocus)
+        {
+            _ = SwitchToSelectedAsync();
+            return true;
+        }
+
+        if (key == Key.N && _branches.HasFocus)
+        {
+            OpenNewBranchDialog();
             return true;
         }
 
@@ -255,6 +295,37 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
 
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>Checkout выбранной ветки.</summary>
+    private Task SwitchToSelectedAsync()
+    {
+        if (_branches.Selected is not { } branch)
+            return Task.CompletedTask;
+
+        if (branch.IsCurrent)
+        {
+            ShowStatus($"{Theme.SymbolSuccess} Ты уже на ветке {branch.Name}", Theme.Muted, autoHide: true);
+            return Task.CompletedTask;
+        }
+
+        return RunAsync(ct => _git.SwitchAsync(branch, ct), $"Переключено на {branch.Name}");
+    }
+
+    /// <summary>Создаёт ветку от текущего HEAD и переключается на неё.</summary>
+    private void OpenNewBranchDialog()
+    {
+        if (_busy)
+            return;
+
+        var head = _repoStatus?.HeadHash is { Length: >= 7 } hash ? $" {Theme.SymbolSeparator} {hash[..7]}" : "";
+        var from = (_repoStatus?.Branch ?? "HEAD") + head;
+        using var dialog = new NewBranchDialog(from, _branches.Items.Select(b => b.Name).ToList());
+        App!.Run(dialog);
+        if (dialog.Result is not { } name)
+            return;
+
+        _ = RunAsync(ct => _git.CreateBranchAsync(name, ct), $"Создана ветка {name}, ты на ней");
     }
 
     /// <summary>
@@ -389,14 +460,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         try
         {
             var statusTask = _git.GetStatusAsync();
+            var branchesTask = _git.GetBranchesAsync();
             var logTask = _git.GetLogAsync();
             var status = await statusTask;
+            var branches = await branchesTask;
             var log = await logTask;
             App?.Invoke(() =>
             {
+                _repoStatus = status;
                 _header.SetStatus(status);
                 _files.SetStatus(status);
-                _commits.SetCommits(log);
+                _branches.SetItems(branches);
+                _commits.SetItems(log);
             });
             return true;
         }
@@ -412,6 +487,14 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         if (stderr.Contains("Author identity unknown") || stderr.Contains("Please tell me who you are"))
             return "Git не знает имя автора. Выполни: git config --global user.name \"Имя\" и user.email \"почта\"";
+        if (stderr.Contains("would be overwritten by checkout"))
+            return "Нельзя переключиться: незакоммиченные изменения конфликтуют с веткой. Сделай коммит или stash";
+        if (stderr.Contains("you need to resolve your current index first"))
+            return "Нельзя переключиться: есть неразрешённые конфликты. Разреши их и добавь файлы в индекс";
+        if (stderr.Contains("is already used by worktree") || stderr.Contains("is already checked out at"))
+            return "Эта ветка уже открыта в другом worktree";
+        if (stderr.Contains("a branch named") && stderr.Contains("already exists"))
+            return "Ветка с таким именем уже существует";
         return FirstLine(stderr);
     }
 
@@ -429,12 +512,36 @@ public sealed class MainWindow : Runnable<MainResult?>
     private Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        if (_branches.HasFocus)
+            return ShowBranchInfo();
         return _commits.HasFocus ? LoadCommitDiffAsync() : LoadFileDiffAsync();
+    }
+
+    private Task ShowBranchInfo()
+    {
+        _diffKey = null;
+        if (_branches.Selected is not { } branch)
+        {
+            _diffTitle.Text = " Ветка ";
+            _diff.SetMessage("Веток пока нет: сделай первый коммит");
+            return Task.CompletedTask;
+        }
+
+        _diffTitle.Text = $" Ветка {Theme.SymbolSeparator} {branch.Name} ";
+        var upstream = branch switch
+        {
+            { IsUpstreamGone: true } => $"upstream {branch.Upstream} удалён на сервере",
+            { Upstream: { } name } => $"upstream {name} {Theme.SymbolAhead}{branch.Ahead} {Theme.SymbolBehind}{branch.Behind}",
+            _ => "без upstream",
+        };
+        var action = branch.IsCurrent ? "текущая ветка" : "space — переключиться";
+        _diff.SetMessage($"{Theme.SymbolBranch} {branch.Name} {Theme.SymbolSeparator} {upstream} {Theme.SymbolSeparator} {action}");
+        return Task.CompletedTask;
     }
 
     private Task LoadCommitDiffAsync()
     {
-        if (_commits.SelectedCommit is not { } commit)
+        if (_commits.Selected is not { } commit)
         {
             _diffKey = null;
             _diffTitle.Text = " Коммит ";

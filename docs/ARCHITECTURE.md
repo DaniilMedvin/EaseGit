@@ -47,8 +47,8 @@ LazyGit/
 └── UI/
     ├── Theme.cs               цвета и символы из DESIGN.md
     ├── MainWindow.cs          раскладка
-    ├── Panels/                FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
-    ├── Dialogs/               CommitDialog, ConfirmDialog, ErrorDialog, CommandPalette
+    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
+    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, ErrorDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git

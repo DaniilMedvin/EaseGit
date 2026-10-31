@@ -177,6 +177,42 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task CreateBranchAndSwitch_ChangesCurrentBranch()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+
+        var created = await _service.CreateBranchAsync("feature/новая");
+        var afterCreate = await _service.GetBranchesAsync();
+        var switched = await _service.SwitchAsync(afterCreate.Single(b => b.Name == "main"));
+        var afterSwitch = await _service.GetBranchesAsync();
+
+        Assert.True(created.Success, created.StdErr);
+        Assert.True(switched.Success, switched.StdErr);
+        Assert.Equal("feature/новая", afterCreate.Single(b => b.IsCurrent).Name);
+        Assert.Equal("main", afterSwitch.Single(b => b.IsCurrent).Name);
+    }
+
+    [Fact]
+    public async Task SwitchAsync_ConflictingLocalChanges_FailsWithoutLosingThem()
+    {
+        _repo.Write("a.txt", "1");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("switch", "-c", "other");
+        _repo.Write("a.txt", "other");
+        await _repo.CommitAsync("change on other");
+        await _repo.RunAsync("switch", "main");
+        _repo.Write("a.txt", "local");
+
+        var other = (await _service.GetBranchesAsync()).Single(b => b.Name == "other");
+        var result = await _service.SwitchAsync(other);
+
+        Assert.False(result.Success);
+        Assert.Contains("would be overwritten by checkout", result.StdErr);
+        Assert.Equal("local", File.ReadAllText(Path.Combine(_repo.Path, "a.txt")));
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");
