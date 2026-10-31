@@ -245,10 +245,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         try
         {
             var lines = await _git.GetDiffAsync(row.File, staged, loading.Token);
+            var prepared = await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), loading.Token);
             App?.Invoke(() =>
             {
                 if (!loading.IsCancellationRequested)
-                    _diff.SetDiff(lines);
+                    _diff.SetDiff(prepared);
             });
         }
         catch (OperationCanceledException)

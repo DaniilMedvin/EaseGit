@@ -1,3 +1,4 @@
+using LazyGit.Highlighting;
 using LazyGit.Models;
 using LazyGit.UI.Widgets;
 using Terminal.Gui.Drawing;
@@ -6,15 +7,20 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 
 namespace LazyGit.UI.Panels;
 
+/// <summary>Diff, подготовленный к показу: без служебных строк и с подсветкой синтаксиса.</summary>
+public sealed record PreparedDiff(IReadOnlyList<DiffLine> Lines, IReadOnlyList<HighlightSpan>?[] Highlights);
+
 /// <summary>
 /// Diff выбранного файла: номера строк, «+» и «-» на цветном фоне, заголовки фрагментов.
 /// Служебные строки git (diff --git, index, ---, +++) скрыты, важные показываются коротко по-русски.
+/// Для C# код подсвечивается в стиле тёмной темы Visual Studio.
 /// </summary>
 public sealed class DiffPanel : View
 {
     private const int TabWidth = 4;
 
     private IReadOnlyList<DiffLine> _lines = [];
+    private IReadOnlyList<HighlightSpan>?[] _highlights = [];
     private string? _message;
     private int _scroll;
     private int _numberWidth = 3;
@@ -26,10 +32,21 @@ public sealed class DiffPanel : View
         SetScheme(Theme.Text(Theme.Dim));
     }
 
-    /// <summary>Показывает diff и прокручивает в начало.</summary>
-    public void SetDiff(IReadOnlyList<DiffLine> lines)
+    /// <summary>
+    /// Убирает служебные строки и подсвечивает синтаксис. Подсветка заметно нагружает процессор,
+    /// поэтому метод вызывается вне потока интерфейса.
+    /// </summary>
+    public static PreparedDiff Prepare(IReadOnlyList<DiffLine> lines, string path)
     {
-        _lines = lines.Select(Simplify).OfType<DiffLine>().ToList();
+        var simplified = lines.Select(Simplify).OfType<DiffLine>().ToList();
+        return new PreparedDiff(simplified, DiffHighlighter.Highlight(simplified, path));
+    }
+
+    /// <summary>Показывает diff и прокручивает в начало.</summary>
+    public void SetDiff(PreparedDiff diff)
+    {
+        _lines = diff.Lines;
+        _highlights = diff.Highlights;
         _message = _lines.Count == 0 ? "Нет изменений для показа" : null;
         _scroll = 0;
         var maxNumber = _lines.Select(l => Math.Max(l.OldNumber ?? 0, l.NewNumber ?? 0)).DefaultIfEmpty(0).Max();
@@ -41,6 +58,7 @@ public sealed class DiffPanel : View
     public void SetMessage(string message)
     {
         _lines = [];
+        _highlights = [];
         _message = message;
         _scroll = 0;
         SetNeedsDraw();
@@ -67,12 +85,12 @@ public sealed class DiffPanel : View
         }
 
         for (var row = 0; row < Viewport.Height && _scroll + row < _lines.Count; row++)
-            DrawLine(row, _lines[_scroll + row]);
+            DrawLine(row, _lines[_scroll + row], _highlights[_scroll + row]);
 
         return true;
     }
 
-    private void DrawLine(int row, DiffLine line)
+    private void DrawLine(int row, DiffLine line, IReadOnlyList<HighlightSpan>? highlight)
     {
         var width = Viewport.Width;
         switch (line.Kind)
@@ -104,13 +122,36 @@ public sealed class DiffPanel : View
 
         var old = line.OldNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
         var @new = line.NewNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
-        this.DrawSegments(0, row,
-        [
-            new Segment($"{old} {@new} ", Theme.Dim),
-            new Segment(marker + " ", color, TextStyle.Bold),
-            new Segment(line.Text.Replace("\t", new string(' ', TabWidth)), line.Kind == DiffLineKind.Context ? Theme.Fg : color),
-        ], width, background);
+        var segments = new List<Segment>
+        {
+            new($"{old} {@new} ", Theme.Dim),
+            new(marker + " ", color, TextStyle.Bold),
+        };
+        if (highlight is null)
+            segments.Add(new Segment(ExpandTabs(line.Text), line.Kind == DiffLineKind.Context ? Theme.Fg : color));
+        else
+            segments.AddRange(SyntaxSegments(line.Text, highlight));
+
+        this.DrawSegments(0, row, segments, width, background);
     }
+
+    /// <summary>Разбивает текст строки на цветные фрагменты; промежутки между spans — обычный текст.</summary>
+    private static IEnumerable<Segment> SyntaxSegments(string text, IReadOnlyList<HighlightSpan> spans)
+    {
+        var position = 0;
+        foreach (var span in spans)
+        {
+            if (span.Start > position)
+                yield return new Segment(ExpandTabs(text[position..span.Start]), Theme.SyntaxPlain);
+            yield return new Segment(ExpandTabs(text.Substring(span.Start, span.Length)), Theme.Syntax(span.Class));
+            position = span.End;
+        }
+
+        if (position < text.Length)
+            yield return new Segment(ExpandTabs(text[position..]), Theme.SyntaxPlain);
+    }
+
+    private static string ExpandTabs(string text) => text.Replace("\t", new string(' ', TabWidth));
 
     /// <summary>Скрывает служебные строки и переводит важные. null — строка не показывается.</summary>
     private static DiffLine? Simplify(DiffLine line)

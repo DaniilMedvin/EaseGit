@@ -58,6 +58,40 @@ public static class Theme
         HotFocus = new Attribute(Backdrop, Accent, TextStyle.Bold),
     };
 
+    /// <summary>Цвет подсветки синтаксиса в стиле тёмной темы Visual Studio.</summary>
+    public static Color Syntax(Highlighting.TokenClass cls) => cls switch
+    {
+        Highlighting.TokenClass.Keyword => SyntaxKeyword,
+        Highlighting.TokenClass.ControlKeyword => SyntaxControlKeyword,
+        Highlighting.TokenClass.Class => SyntaxClass,
+        Highlighting.TokenClass.Struct => SyntaxStruct,
+        Highlighting.TokenClass.Interface or Highlighting.TokenClass.Enum or Highlighting.TokenClass.TypeParameter => SyntaxInterface,
+        Highlighting.TokenClass.Method => SyntaxMethod,
+        Highlighting.TokenClass.Variable => SyntaxVariable,
+        Highlighting.TokenClass.String => SyntaxString,
+        Highlighting.TokenClass.Number => SyntaxNumber,
+        Highlighting.TokenClass.Comment => SyntaxComment,
+        Highlighting.TokenClass.Preprocessor => SyntaxPreprocessor,
+        Highlighting.TokenClass.DisabledText => SyntaxDisabled,
+        Highlighting.TokenClass.Punctuation => SyntaxPunctuation,
+        _ => SyntaxPlain,
+    };
+
+    public static readonly Color SyntaxPlain = new("#DCDCDC");
+    public static readonly Color SyntaxKeyword = new("#569CD6");
+    public static readonly Color SyntaxControlKeyword = new("#D8A0DF");
+    public static readonly Color SyntaxClass = new("#4EC9B0");
+    public static readonly Color SyntaxStruct = new("#86C691");
+    public static readonly Color SyntaxInterface = new("#B8D7A3");
+    public static readonly Color SyntaxMethod = new("#DCDCAA");
+    public static readonly Color SyntaxVariable = new("#9CDCFE");
+    public static readonly Color SyntaxString = new("#D69D85");
+    public static readonly Color SyntaxNumber = new("#B5CEA8");
+    public static readonly Color SyntaxComment = new("#57A64A");
+    public static readonly Color SyntaxPreprocessor = new("#9B9B9B");
+    public static readonly Color SyntaxDisabled = new("#767676");
+    public static readonly Color SyntaxPunctuation = new("#B4B4B4");
+
     /// <summary>Значок и цвет вида изменения файла.</summary>
     public static (string Symbol, Color Color) ForChange(Models.ChangeKind kind) => kind switch
     {
