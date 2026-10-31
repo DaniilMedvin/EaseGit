@@ -147,6 +147,7 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
             lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
             lines.Add(Keys("?  F1", "эта справка", ",", "настройки (маскот)"));
+            lines.Add(Keys("~", "Command Log: команды git", "", ""));
             return lines;
         }
 

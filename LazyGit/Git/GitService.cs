@@ -13,11 +13,14 @@ public sealed class GitService
     public const int DefaultLogLimit = 200;
 
     private readonly GitRunner _git;
+    private readonly CommandLog? _log;
 
-    public GitService(GitRunner git, string repoRoot)
+    /// <param name="log">Журнал, куда пишутся изменяющие команды; null — не вести.</param>
+    public GitService(GitRunner git, string repoRoot, CommandLog? log = null)
     {
         _git = git;
         RepoRoot = repoRoot;
+        _log = log;
     }
 
     /// <summary>Абсолютный путь к корню репозитория.</summary>
@@ -69,7 +72,7 @@ public sealed class GitService
 
     /// <summary>Добавляет изменения нескольких файлов (например, папки) в индекс одной командой.</summary>
     public Task<GitResult> StageAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["add", "--", .. files.SelectMany(Paths)], ct);
+        RunActionAsync(["add", "--", .. files.SelectMany(Paths)], ct);
 
     /// <summary>Убирает изменения файла из индекса, рабочая копия не меняется.</summary>
     public Task<GitResult> UnstageAsync(FileChange file, CancellationToken ct = default) =>
@@ -83,7 +86,7 @@ public sealed class GitService
         string[] args = await HasCommitsAsync(ct)
             ? ["restore", "--staged", "--", .. paths]
             : ["rm", "--cached", "--quiet", "--", .. paths];
-        return await _git.RunAsync(RepoRoot, args, ct);
+        return await RunActionAsync(args, ct);
     }
 
     /// <summary>Аргументы отмены изменений рабочей копии: файлы возвращаются к версии из индекса.</summary>
@@ -100,21 +103,21 @@ public sealed class GitService
 
     /// <summary>Отменяет изменения рабочей копии, staged-изменения сохраняются. Необратимо.</summary>
     public Task<GitResult> DiscardWorktreeAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, DiscardWorktreeArguments(files), ct);
+        RunActionAsync(DiscardWorktreeArguments(files), ct);
 
     /// <summary>Сбрасывает файлы к HEAD: и индекс, и рабочую копию. Необратимо.</summary>
     public Task<GitResult> DiscardToHeadAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, DiscardToHeadArguments(files), ct);
+        RunActionAsync(DiscardToHeadArguments(files), ct);
 
     /// <summary>Удаляет untracked-файлы с диска. Необратимо.</summary>
     public Task<GitResult> DeleteUntrackedAsync(IReadOnlyList<FileChange> files, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, DeleteUntrackedArguments(files), ct);
+        RunActionAsync(DeleteUntrackedArguments(files), ct);
 
     public Task<GitResult> StageAllAsync(CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["add", "--all"], ct);
+        RunActionAsync(["add", "--all"], ct);
 
     public Task<GitResult> UnstageAllAsync(CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["reset", "--quiet"], ct);
+        RunActionAsync(["reset", "--quiet"], ct);
 
     /// <summary>
     /// Diff файла: <paramref name="staged"/> — изменения в индексе, иначе — в рабочей копии.
@@ -141,11 +144,11 @@ public sealed class GitService
 
     /// <summary>Переключается на ветку. Незакоммиченные изменения переносятся, если не конфликтуют.</summary>
     public Task<GitResult> SwitchAsync(Branch branch, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["switch", "--no-guess", branch.Name], ct);
+        RunActionAsync(["switch", "--no-guess", branch.Name], ct);
 
     /// <summary>Создаёт ветку от HEAD и переключается на неё. В репозитории без коммитов — просто меняет имя ветки.</summary>
     public Task<GitResult> CreateBranchAsync(string name, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["switch", "--create", name], ct);
+        RunActionAsync(["switch", "--create", name], ct);
 
     /// <summary>
     /// Аргументы удаления ветки: без <paramref name="force"/> git откажет, если в ветке есть невлитые коммиты.
@@ -155,7 +158,7 @@ public sealed class GitService
         ["branch", force ? "-D" : "-d", branch.Name];
 
     public Task<GitResult> DeleteBranchAsync(Branch branch, bool force, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, DeleteBranchArguments(branch, force), ct);
+        RunActionAsync(DeleteBranchArguments(branch, force), ct);
 
     /// <summary>Сколько коммитов ветки нет в текущей (HEAD): они пропадут при принудительном удалении.</summary>
     public async Task<int> CountUnmergedAsync(Branch branch, CancellationToken ct = default)
@@ -166,26 +169,26 @@ public sealed class GitService
 
     /// <summary>Вливает ветку в текущую. При конфликте git возвращает 1, а список конфликтов пишет в stdout.</summary>
     public Task<GitResult> MergeAsync(Branch branch, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["merge", "--no-edit", branch.Name], ct);
+        RunActionAsync(["merge", "--no-edit", branch.Name], ct);
 
     /// <summary>Скачивает новые коммиты со всех remote и убирает удалённые на сервере ветки. Рабочая копия не меняется.</summary>
     public Task<GitResult> FetchAsync(CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["fetch", "--all", "--prune"], ct);
+        RunActionAsync(["fetch", "--all", "--prune"], ct);
 
     /// <summary>Pull текущей ветки. --no-edit: для merge-коммита git не открывает редактор.</summary>
     public Task<GitResult> PullAsync(CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["pull", "--no-edit"], ct);
+        RunActionAsync(["pull", "--no-edit"], ct);
 
     /// <summary>Push текущей ветки в её upstream.</summary>
     public Task<GitResult> PushAsync(CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["push"], ct);
+        RunActionAsync(["push"], ct);
 
     /// <summary>Аргументы первого push ветки: публикует её на remote и настраивает upstream.</summary>
     public static string[] PushSetUpstreamArguments(string remote, string branch) =>
         ["push", "--set-upstream", remote, branch];
 
     public Task<GitResult> PushSetUpstreamAsync(string remote, string branch, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, PushSetUpstreamArguments(remote, branch), ct);
+        RunActionAsync(PushSetUpstreamArguments(remote, branch), ct);
 
     /// <summary>Имена remote: origin первым, если он есть.</summary>
     public async Task<IReadOnlyList<string>> GetRemotesAsync(CancellationToken ct = default)
@@ -198,7 +201,7 @@ public sealed class GitService
 
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
-        _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);
+        RunActionAsync(["commit", "--file=-", "--cleanup=strip"], ct, input: message);
 
     /// <summary>Короткий хеш HEAD или null в репозитории без коммитов.</summary>
     public async Task<string?> GetShortHeadAsync(CancellationToken ct = default)
@@ -210,6 +213,24 @@ public sealed class GitService
     /// <summary>Пути файла. Для переименования — оба, иначе удаление старого пути останется в индексе.</summary>
     private static string[] Paths(FileChange file) =>
         file.OriginalPath is null ? [file.Path] : [file.Path, file.OriginalPath];
+
+    /// <summary>Выполняет изменяющую команду и записывает её в журнал, в том числе отменённую.</summary>
+    private async Task<GitResult> RunActionAsync(IReadOnlyList<string> args, CancellationToken ct, string? input = null)
+    {
+        var started = DateTimeOffset.Now;
+        try
+        {
+            var result = await _git.RunAsync(RepoRoot, args, ct, input);
+            var output = (result.StdErr.Trim() + "\n" + result.StdOut.Trim()).Trim();
+            _log?.Add(new CommandLogEntry(started, args, result.ExitCode, DateTimeOffset.Now - started, output));
+            return result;
+        }
+        catch (OperationCanceledException)
+        {
+            _log?.Add(new CommandLogEntry(started, args, null, DateTimeOffset.Now - started, ""));
+            throw;
+        }
+    }
 
     private async Task<string> RunCheckedAsync(IReadOnlyList<string> args, CancellationToken ct)
     {

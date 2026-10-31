@@ -25,6 +25,7 @@ LazyGit/
 │   ├── GitRunner.cs           запуск процесса git → GitResult
 │   ├── GitResult.cs           record: ExitCode, StdOut, StdErr, Command
 │   ├── GitService.cs          GetStatusAsync(), StageAsync(), CommitAsync(), ...
+│   ├── CommandLog.cs          журнал изменяющих команд (GitService пишет, CommandLogPanel показывает)
 │   ├── RepoWatcher.cs         FileSystemWatcher: изменения файлов и .git → одно событие Changed
 │   └── Parsers/
 │       ├── StatusParser.cs
@@ -66,7 +67,7 @@ LazyGit.Tests/
 - Всегда добавляет `-c core.quotepath=false -c color.ui=never`.
 - Окружение: `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0` (git не должен ждать ввода).
 - Принимает `CancellationToken`: по `esc` процесс убивается.
-- Каждый вызов пишется в `CommandLog`.
+- В `CommandLog` пишет не `GitRunner`, а `GitService` — только изменяющие команды (stage, commit, push…), чтобы автообновление не засоряло журнал.
 
 ```csharp
 public sealed record GitResult(string Command, int ExitCode, string StdOut, string StdErr)

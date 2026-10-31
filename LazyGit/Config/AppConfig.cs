@@ -9,4 +9,7 @@ public sealed record AppConfig
 
     /// <summary>Маскот в углу панели diff, выбирается в окне настроек.</summary>
     public Mascot Mascot { get; init; }
+
+    /// <summary>Панель Command Log под diff открыта (переключается клавишей ~).</summary>
+    public bool ShowCommandLog { get; init; }
 }

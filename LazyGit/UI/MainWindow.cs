@@ -23,7 +23,7 @@ public enum MainResult
 /// 1 / 2 / 3 и tab — переход между панелями.
 /// В файлах: space — stage/unstage файла или папки, a — всех файлов, d — сбросить изменения.
 /// В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить.
-/// «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
+/// ~ — Command Log, «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
@@ -37,6 +37,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly BranchesPanel _branches;
     private readonly CommitsPanel _commits;
     private readonly DiffPanel _diff;
+    private readonly CommandLogPanel _log;
+    private readonly Label _logTitle;
     private readonly Label _diffTitle;
     private readonly Label _status;
     private readonly HintBar _hints;
@@ -55,7 +57,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
 
-    public MainWindow(GitService git, AuthStatus auth, ConfigStore config)
+    private const int LogHeight = 8;
+
+    /// <param name="log">Журнал, в который <paramref name="git"/> пишет команды; показывается панелью по ~.</param>
+    public MainWindow(GitService git, AuthStatus auth, ConfigStore config, CommandLog log)
     {
         _git = git;
         _config = config;
@@ -116,6 +121,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
         _diff.Mascot = config.Load().Mascot;
 
+        _log = new CommandLogPanel
+        {
+            X = Pos.Right(_files),
+            Y = Pos.Bottom(_diff),
+            Width = Dim.Fill(),
+            Height = LogHeight,
+        };
+        _logTitle = BoxTitle.For(_log, "Command Log", Theme.Muted);
+        _log.SetEntries(log.Entries);
+        log.Changed += (_, _) => App?.Invoke(() => _log.SetEntries(log.Entries));
+        SetLogVisible(config.Load().ShowCommandLog);
+
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
 
         _hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
@@ -126,6 +143,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             _branches, BoxTitle.ForFocusable(_branches, "[2] Ветки"),
             _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
             _diff, _diffTitle,
+            _log, _logTitle,
             _status, _hints);
         // Справа — контекст панели в фокусе: diff файла, ветка или содержимое коммита.
         _files.HasFocusChanged += (_, _) => OnPanelFocusChanged(_files);
@@ -333,6 +351,13 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key.AsRune.Value == '~')
+        {
+            SetLogVisible(!_log.Visible);
+            _config.Save(_config.Load() with { ShowCommandLog = _log.Visible });
+            return true;
+        }
+
         if (key.AsRune.Value == ',')
         {
             OpenSettings();
@@ -359,6 +384,14 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
 
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>Показывает или прячет Command Log; diff занимает освободившееся место.</summary>
+    private void SetLogVisible(bool visible)
+    {
+        _log.Visible = visible;
+        _logTitle.Visible = visible;
+        _diff.Height = Dim.Fill(visible ? 2 + LogHeight : 2);
     }
 
     /// <summary>Окно настроек; выбор сразу применяется и сохраняется в конфиг.</summary>
