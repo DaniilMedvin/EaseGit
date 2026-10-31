@@ -20,7 +20,7 @@ public enum MainResult
 /// <summary>
 /// Главный экран репозитория: шапка, слева панели файлов, веток и коммитов, справа diff.
 /// 1 / 2 / 3 и tab — переход между панелями. В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить. В файлах: space — stage/unstage файла, a — всех файлов.
-/// c — коммит, r — обновить, ? — справка.
+/// c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
@@ -38,6 +38,11 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly HintBar _hints;
     private bool _busy;
     private object? _statusTimeout;
+    private object? _spinnerTimeout;
+    private CancellationTokenSource? _operation;
+
+    // Ветка, для которой показано «Нажми P ещё раз, чтобы выполнить push -u»: повторный P публикует её.
+    private string? _pushUpstreamOffer;
     private CancellationTokenSource? _diffLoading;
     private RepoWatcher? _watcher;
     private bool _refreshPending;
@@ -152,13 +157,15 @@ public sealed class MainWindow : Runnable<MainResult?>
             hints.Add(new Hint("a", "все"));
         }
 
+        // Остальные клавиши (ctrl+d/u, r, f) — в справке: на 80 колонок всё не помещается.
         hints.Add(new Hint("c", "коммит"));
-        hints.Add(new Hint("ctrl+d/u", "diff"));
+        hints.Add(new Hint("p", "pull"));
+        hints.Add(new Hint("P", "push"));
         hints.Add(new Hint("tab", "панель"));
-        hints.Add(new Hint("r", "обновить"));
         if (!_auth.IsAuthorized)
             hints.Add(new Hint("ctrl+g", "войти"));
         hints.Add(new Hint("?", "справка"));
+        hints.Add(new Hint("esc", "назад"));
         hints.Add(new Hint("q", "выход"));
         _hints.SetHints(hints);
     }
@@ -194,6 +201,31 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     protected override bool OnKeyDown(Key key)
     {
+        // Во время push/pull/fetch esc отменяет операцию, а не уходит со страницы.
+        if (key == Key.Esc && _operation is { } operation)
+        {
+            operation.Cancel();
+            return true;
+        }
+
+        if (key == Key.F)
+        {
+            _ = FetchAsync();
+            return true;
+        }
+
+        if (key == Key.P)
+        {
+            _ = PullAsync();
+            return true;
+        }
+
+        if (key == Key.P.WithShift)
+        {
+            _ = PushAsync();
+            return true;
+        }
+
         if (key == Key.Q)
         {
             Result = MainResult.Quit;
@@ -291,7 +323,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (key.AsRune.Value == '?' || key == Key.F1)
         {
-            using var help = new HelpDialog();
+            using var help = new HelpDialog(Viewport.Height);
             App!.Run(help);
             return true;
         }
@@ -462,22 +494,31 @@ public sealed class MainWindow : Runnable<MainResult?>
         });
     }
 
-    private Task<GitResult?> RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage) =>
-        RunAsync(action, _ => Task.FromResult(successMessage));
+    private Task<GitResult?> RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage, string? progress = null) =>
+        RunAsync(action, _ => Task.FromResult(successMessage), progress);
 
     /// <summary>
     /// Выполняет изменяющую команду, показывает результат и обновляет экран. Одновременно — одна команда.
-    /// Возвращает результат git или null, если другая команда ещё выполняется.
+    /// С <paramref name="progress"/> во время работы крутится спиннер с этим текстом, а esc отменяет команду.
+    /// Возвращает результат git или null, если команда не выполнилась (занято другой или отменена).
     /// </summary>
-    private async Task<GitResult?> RunAsync(Func<CancellationToken, Task<GitResult>> action, Func<GitResult, Task<string>> successMessage)
+    private async Task<GitResult?> RunAsync(
+        Func<CancellationToken, Task<GitResult>> action, Func<GitResult, Task<string>> successMessage, string? progress = null)
     {
         if (_busy)
             return null;
 
         _busy = true;
+        using var operation = new CancellationTokenSource();
+        if (progress is not null)
+        {
+            _operation = operation;
+            App?.Invoke(() => StartSpinner(progress));
+        }
+
         try
         {
-            var result = await action(CancellationToken.None);
+            var result = await action(operation.Token);
             var success = result.Success ? await successMessage(result) : null;
             await LoadStatusAsync();
             App?.Invoke(() =>
@@ -489,11 +530,117 @@ public sealed class MainWindow : Runnable<MainResult?>
             });
             return result;
         }
+        catch (OperationCanceledException)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} Отменено: {progress?.TrimEnd('…')}", Theme.Error));
+            await LoadStatusAsync();
+            return null;
+        }
         finally
         {
+            _operation = null;
+            App?.Invoke(StopSpinner);
             _busy = false;
             RunPendingRefresh();
         }
+    }
+
+    /// <summary>Скачивает новые коммиты и сообщает, есть ли что забрать.</summary>
+    private Task FetchAsync() =>
+        RunAsync(ct => _git.FetchAsync(ct), async _ =>
+        {
+            var status = await _git.GetStatusAsync();
+            return status.Behind > 0
+                ? $"На сервере {TextDrawing.Plural(status.Behind, "новый коммит", "новых коммита", "новых коммитов")}. Нажми p, чтобы забрать"
+                : "Fetch выполнен, новых коммитов нет";
+        }, "Получение изменений с сервера…");
+
+    private Task PullAsync()
+    {
+        var upstream = _repoStatus?.Upstream ?? "upstream";
+        return RunAsync(ct => _git.PullAsync(ct), result => Task.FromResult(
+            result.StdOut.Contains("Already up to date") ? $"Уже актуально: в {upstream} нет новых коммитов"
+            : result.StdOut.Contains("Fast-forward") ? $"Pull из {upstream} выполнен (fast-forward)"
+            : $"Pull из {upstream} выполнен, изменения слиты"), $"Pull из {upstream}…");
+    }
+
+    /// <summary>
+    /// Push текущей ветки. Если upstream нет, первое нажатие объясняет, что будет сделано,
+    /// второе — публикует ветку командой push -u.
+    /// </summary>
+    private async Task PushAsync()
+    {
+        if (_busy || _repoStatus is not { } status)
+            return;
+
+        if (status.IsDetached || status.Branch is not { } branch)
+        {
+            ShowStatus($"{Theme.SymbolError} HEAD не на ветке (detached). Создай ветку (n в панели веток) и сделай push", Theme.Error);
+            return;
+        }
+
+        if (status.Upstream is { } upstream)
+        {
+            _pushUpstreamOffer = null;
+            var count = status.Ahead > 0 ? TextDrawing.Plural(status.Ahead, "коммит", "коммита", "коммитов") + " " : "";
+            await RunAsync(ct => _git.PushAsync(ct), $"Отправлено {count}в {upstream}", $"Отправка в {upstream}…");
+            return;
+        }
+
+        IReadOnlyList<string> remotes;
+        try
+        {
+            remotes = await _git.GetRemotesAsync();
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}", Theme.Error));
+            return;
+        }
+
+        if (remotes.Count == 0)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} Remote не настроен. Добавь его: git remote add origin <адрес>", Theme.Error));
+            return;
+        }
+
+        var remote = remotes[0];
+        var command = "git " + string.Join(' ', GitService.PushSetUpstreamArguments(remote, branch));
+        if (_pushUpstreamOffer != branch)
+        {
+            _pushUpstreamOffer = branch;
+            App?.Invoke(() => ShowStatus(
+                $"{Theme.SymbolWarning} Нет upstream для {branch}. Нажми P ещё раз, чтобы выполнить {command}", Theme.Warning));
+            return;
+        }
+
+        _pushUpstreamOffer = null;
+        await RunAsync(ct => _git.PushSetUpstreamAsync(remote, branch, ct),
+            $"Ветка {branch} опубликована в {remote}, upstream настроен", $"Публикация {branch} в {remote}…");
+    }
+
+    /// <summary>Спиннер в строке статуса: «⠹ Отправка в origin/main…  esc отмена».</summary>
+    private void StartSpinner(string text)
+    {
+        ShowStatus("", Theme.Muted);
+        var frame = 0;
+        void Draw() => _status.Text = $"{Theme.SpinnerFrames[frame % Theme.SpinnerFrames.Length]} {text}  esc отмена";
+        Draw();
+        _spinnerTimeout = App?.AddTimeout(TimeSpan.FromMilliseconds(80), () =>
+        {
+            frame++;
+            Draw();
+            return true;
+        });
+    }
+
+    private void StopSpinner()
+    {
+        if (_spinnerTimeout is null)
+            return;
+
+        App?.RemoveTimeout(_spinnerTimeout);
+        _spinnerTimeout = null;
     }
 
     /// <summary>
@@ -673,6 +820,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     /// <summary>Показывает сообщение над подсказками. С autoHide сообщение исчезает через 3 секунды.</summary>
     private void ShowStatus(string text, Color color, bool autoHide = false)
     {
+        StopSpinner();
         if (_statusTimeout is not null)
         {
             App?.RemoveTimeout(_statusTimeout);

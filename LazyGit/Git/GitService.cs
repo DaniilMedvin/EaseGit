@@ -144,6 +144,34 @@ public sealed class GitService
     public Task<GitResult> MergeAsync(Branch branch, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["merge", "--no-edit", branch.Name], ct);
 
+    /// <summary>Скачивает новые коммиты со всех remote и убирает удалённые на сервере ветки. Рабочая копия не меняется.</summary>
+    public Task<GitResult> FetchAsync(CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["fetch", "--all", "--prune"], ct);
+
+    /// <summary>Pull текущей ветки. --no-edit: для merge-коммита git не открывает редактор.</summary>
+    public Task<GitResult> PullAsync(CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["pull", "--no-edit"], ct);
+
+    /// <summary>Push текущей ветки в её upstream.</summary>
+    public Task<GitResult> PushAsync(CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, ["push"], ct);
+
+    /// <summary>Аргументы первого push ветки: публикует её на remote и настраивает upstream.</summary>
+    public static string[] PushSetUpstreamArguments(string remote, string branch) =>
+        ["push", "--set-upstream", remote, branch];
+
+    public Task<GitResult> PushSetUpstreamAsync(string remote, string branch, CancellationToken ct = default) =>
+        _git.RunAsync(RepoRoot, PushSetUpstreamArguments(remote, branch), ct);
+
+    /// <summary>Имена remote: origin первым, если он есть.</summary>
+    public async Task<IReadOnlyList<string>> GetRemotesAsync(CancellationToken ct = default)
+    {
+        var output = await RunCheckedAsync(["remote"], ct);
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .OrderBy(r => r == "origin" ? 0 : 1)
+            .ToList();
+    }
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);

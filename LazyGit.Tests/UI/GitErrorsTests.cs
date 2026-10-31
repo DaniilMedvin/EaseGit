@@ -15,6 +15,14 @@ public class GitErrorsTests
     [InlineData("fatal: You have not concluded your merge (MERGE_HEAD exists).", "merge не завершён")]
     [InlineData("fatal: refusing to merge unrelated histories", "нет общей истории")]
     [InlineData("error: cannot delete branch 'x' used by worktree at '/tmp/w'", "другом worktree")]
+    [InlineData(" ! [rejected]        main -> main (fetch first)", "Push отклонён")]
+    [InlineData(" ! [remote rejected] main -> main (protected branch hook declined)", "Сервер отклонил push")]
+    [InlineData("fatal: Need to specify how to reconcile divergent branches.", "разошлись")]
+    [InlineData("There is no tracking information for the current branch.", "нет upstream")]
+    [InlineData("fatal: could not read Username for 'https://github.com': terminal prompts disabled", "Нет доступа")]
+    [InlineData("git@github.com: Permission denied (publickey).", "Нет доступа")]
+    [InlineData("fatal: unable to access 'https://x/': Could not resolve host: x", "Не удалось подключиться")]
+    [InlineData("fatal: No configured push destination.", "Remote не настроен")]
     public void Explain_KnownError_ReturnsFriendlyText(string stderr, string expected)
     {
         Assert.Contains(expected, GitErrors.Explain(Failed(stderr)));

@@ -7,35 +7,46 @@ using Terminal.Gui.Views;
 
 namespace LazyGit.UI.Dialogs;
 
-/// <summary>Справка главного экрана: плашки, разделы, шапка и клавиши. Закрывается по ? или Esc.</summary>
+/// <summary>
+/// Справка главного экрана: плашки, разделы, шапка и клавиши. Закрывается по ? или Esc.
+/// Если не помещается по высоте, листается ↑↓ / j k / PageUp / PageDown.
+/// </summary>
 public sealed class HelpDialog : Runnable<bool?>
 {
     private const int DialogWidth = 78;
 
-    public HelpDialog()
+    private readonly HelpContent _content;
+
+    /// <param name="maxHeight">Высота экрана: окно не выше неё.</param>
+    public HelpDialog(int maxHeight)
     {
         var content = new HelpContent { X = 0, Y = 0, Width = Dim.Fill() };
+        _content = content;
+        var visibleLines = Math.Clamp(maxHeight - 3, 1, content.LineCount);
+        var scrollable = visibleLines < content.LineCount;
         var box = new View
         {
             X = 0,
             Y = 0,
             Width = Dim.Fill(),
-            Height = content.LineCount + 2,
+            Height = visibleLines + 2,
             BorderStyle = LineStyle.Rounded,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));
         box.Padding!.Thickness = new Thickness(1, 0, 1, 0);
-        content.Height = content.LineCount;
+        content.Height = visibleLines;
         box.Add(content);
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("esc / ?", "закрыть")]);
+        hints.SetHints(scrollable
+            ? [new Hint("↑↓", "листать"), new Hint("esc / ?", "закрыть")]
+            : [new Hint("esc / ?", "закрыть")]);
 
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
-        Height = content.LineCount + 3;
+        Height = visibleLines + 3;
         SetScheme(Theme.Base);
         Add(box, BoxTitle.For(box, "Справка", Theme.Accent), hints);
     }
@@ -47,6 +58,16 @@ public sealed class HelpDialog : Runnable<bool?>
             RequestStop();
             return true;
         }
+
+        var page = Math.Max(1, _content.Viewport.Height - 1);
+        if (key == Key.CursorDown || key == Key.J)
+            return _content.ScrollBy(1);
+        if (key == Key.CursorUp || key == Key.K)
+            return _content.ScrollBy(-1);
+        if (key == Key.PageDown || key == Key.Space)
+            return _content.ScrollBy(page);
+        if (key == Key.PageUp)
+            return _content.ScrollBy(-page);
 
         return base.OnKeyDown(key);
     }
@@ -64,12 +85,26 @@ public sealed class HelpDialog : Runnable<bool?>
             CanFocus = false;
         }
 
+        private int _scroll;
+
         public int LineCount => _lines.Count;
+
+        public bool ScrollBy(int delta)
+        {
+            var scroll = Math.Clamp(_scroll + delta, 0, Math.Max(0, _lines.Count - Viewport.Height));
+            if (scroll != _scroll)
+            {
+                _scroll = scroll;
+                SetNeedsDraw();
+            }
+
+            return true;
+        }
 
         protected override bool OnDrawingContent(DrawContext? context)
         {
-            for (var i = 0; i < _lines.Count && i < Viewport.Height; i++)
-                this.DrawSegments(0, i, _lines[i], Viewport.Width);
+            for (var i = 0; _scroll + i < _lines.Count && i < Viewport.Height; i++)
+                this.DrawSegments(0, i, _lines[_scroll + i], Viewport.Width);
             return true;
         }
 
@@ -106,6 +141,8 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("1  2  3", "файлы / ветки / коммиты", "tab", "следующая панель"));
             lines.Add(Keys("space", "checkout ветки", "n", "новая ветка"));
             lines.Add(Keys("M", "merge в текущую", "D", "удалить ветку"));
+            lines.Add(Keys("p", "pull", "P", "push / push -u"));
+            lines.Add(Keys("f", "fetch", "esc", "отменить push/pull/fetch"));
             lines.Add(Keys("r", "обновить", "ctrl+g", "войти в GitHub"));
             lines.Add(Keys("esc", "назад к выбору репо", "q", "выход"));
             lines.Add(Keys("?  F1", "эта справка", "", ""));

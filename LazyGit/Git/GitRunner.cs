@@ -5,7 +5,11 @@ namespace LazyGit.Git;
 
 public sealed class GitRunner
 {
-    /// <summary>Запускает git с аргументами. <paramref name="input"/> передаётся в stdin.</summary>
+    /// <summary>
+    /// Запускает git с аргументами. <paramref name="input"/> передаётся в stdin.
+    /// При отмене <paramref name="ct"/> процесс git убивается вместе с дочерними (ssh, credential helper)
+    /// и бросается <see cref="OperationCanceledException"/>.
+    /// </summary>
     public async Task<GitResult> RunAsync(
         string workingDirectory,
         IReadOnlyList<string> args,
@@ -34,6 +38,17 @@ public sealed class GitRunner
         try
         {
             using var process = Process.Start(psi)!;
+            using var kill = ct.Register(() =>
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Процесс уже завершился.
+                }
+            });
             if (input is not null)
             {
                 await process.StandardInput.WriteAsync(input.AsMemory(), ct);
