@@ -42,6 +42,89 @@ public sealed class DiffPanel : View
         return new PreparedDiff(simplified, DiffHighlighter.Highlight(simplified, path));
     }
 
+    /// <summary>
+    /// Подготовка коммита: строка «хеш · автор · дата», сообщение, затем изменения каждого файла
+    /// под заголовком с путём. Подсветка синтаксиса — по расширению каждого файла.
+    /// </summary>
+    public static PreparedDiff PrepareCommit(Commit commit, CommitDiff diff, DateTimeOffset now)
+    {
+        var lines = new List<DiffLine>();
+        var highlights = new List<IReadOnlyList<HighlightSpan>?>();
+        void Add(DiffLine line)
+        {
+            lines.Add(line);
+            highlights.Add(null);
+        }
+
+        var date = commit.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
+        var age = RelativeTime.Format(commit.Date, now);
+        var ago = age == "сейчас" ? "только что" : $"{age} назад";
+        Add(new DiffLine(DiffLineKind.Header,
+            $"{commit.ShortHash} {Theme.SymbolSeparator} {commit.AuthorName} {Theme.SymbolSeparator} {date} ({ago})"));
+        foreach (var text in diff.Message.Split('\n'))
+            Add(new DiffLine(DiffLineKind.Message, text.TrimEnd('\r')));
+
+        var files = SplitByFile(diff.Lines);
+        foreach (var file in files)
+        {
+            var path = FilePath(file);
+            Add(new DiffLine(DiffLineKind.Message, ""));
+            Add(new DiffLine(DiffLineKind.File, path));
+            var prepared = Prepare(file, path);
+            lines.AddRange(prepared.Lines);
+            highlights.AddRange(prepared.Highlights);
+        }
+
+        if (files.Count == 0)
+        {
+            Add(new DiffLine(DiffLineKind.Message, ""));
+            Add(new DiffLine(DiffLineKind.Header, "В коммите нет изменений файлов"));
+        }
+
+        return new PreparedDiff(lines, highlights.ToArray());
+    }
+
+    /// <summary>Делит diff нескольких файлов на части по строкам «diff --git». Строки до первой отбрасываются.</summary>
+    private static List<List<DiffLine>> SplitByFile(IReadOnlyList<DiffLine> lines)
+    {
+        var files = new List<List<DiffLine>>();
+        foreach (var line in lines)
+        {
+            if (line.Kind == DiffLineKind.Header && line.Text.StartsWith("diff --"))
+                files.Add([]);
+            files.LastOrDefault()?.Add(line);
+        }
+
+        return files;
+    }
+
+    /// <summary>
+    /// Путь файла из служебных строк: «+++ b/…», для переименования — «rename to …»,
+    /// для удалённого — «--- a/…», для бинарного — из «diff --git a/… b/…».
+    /// </summary>
+    private static string FilePath(IReadOnlyList<DiffLine> file)
+    {
+        string? renamed = null, deleted = null;
+        foreach (var line in file.Where(l => l.Kind == DiffLineKind.Header))
+        {
+            // Если в пути есть пробел, git дописывает в строки ---/+++ табуляцию.
+            var text = line.Text.TrimEnd('\t');
+            if (text.StartsWith("+++ b/"))
+                return text[6..];
+            if (text.StartsWith("rename to "))
+                renamed = text["rename to ".Length..];
+            else if (text.StartsWith("--- a/"))
+                deleted = text[6..];
+        }
+
+        if ((renamed ?? deleted) is { } found)
+            return found;
+
+        // «diff --git a/P b/P»: без переименования оба пути одинаковы, поэтому P — половина строки.
+        var header = file[0].Text["diff --git ".Length..];
+        return header.Length > 5 ? header[2..((header.Length - 1) / 2)] : header;
+    }
+
     /// <summary>Показывает diff. Без <paramref name="keepScroll"/> прокручивает в начало.</summary>
     public void SetDiff(PreparedDiff diff, bool keepScroll = false)
     {
@@ -85,16 +168,28 @@ public sealed class DiffPanel : View
         }
 
         for (var row = 0; row < Viewport.Height && _scroll + row < _lines.Count; row++)
-            DrawLine(row, _lines[_scroll + row], _highlights[_scroll + row]);
+            DrawLine(row, _scroll + row);
 
         return true;
     }
 
-    private void DrawLine(int row, DiffLine line, IReadOnlyList<HighlightSpan>? highlight)
+    private void DrawLine(int row, int index)
     {
+        var line = _lines[index];
+        var highlight = _highlights[index];
         var width = Viewport.Width;
         switch (line.Kind)
         {
+            case DiffLineKind.File:
+                SetAttribute(new Attribute(Theme.Fg, Theme.SelectionBg));
+                AddStr(0, row, new string(' ', width));
+                this.DrawSegments(1, row, [new Segment(line.Text, Theme.Fg, TextStyle.Bold)], width - 2, Theme.SelectionBg);
+                return;
+            case DiffLineKind.Message:
+                // Первая строка сообщения — заголовок коммита.
+                var subject = index == 0 || _lines[index - 1].Kind != DiffLineKind.Message;
+                this.DrawSegments(1, row, [new Segment(line.Text, Theme.Fg, subject ? TextStyle.Bold : TextStyle.None)], width - 1);
+                return;
             case DiffLineKind.Header:
             case DiffLineKind.Binary:
                 this.DrawSegments(1, row, [new Segment(line.Text, Theme.Muted, TextStyle.Italic)], width - 1);

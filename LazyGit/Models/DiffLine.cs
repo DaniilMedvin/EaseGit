@@ -16,6 +16,12 @@ public enum DiffLineKind
 
     /// <summary>Binary files ... differ.</summary>
     Binary,
+
+    /// <summary>Заголовок файла в diff из нескольких файлов: Text — путь. Добавляется при подготовке к показу.</summary>
+    File,
+
+    /// <summary>Строка сообщения коммита. Добавляется при подготовке к показу.</summary>
+    Message,
 }
 
 /// <summary>Строка diff.</summary>

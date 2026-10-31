@@ -158,6 +158,25 @@ public sealed class GitServiceTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetCommitDiffAsync_FirstAndSecondCommit_ReturnsMessageAndChanges()
+    {
+        _repo.Write("a.txt", "1\n");
+        await _repo.CommitAsync("feat: add a");
+        _repo.Write("a.txt", "2\n");
+        await _repo.RunAsync("commit", "-am", "fix: change a", "-m", "- explain why");
+        var log = await _service.GetLogAsync();
+
+        var second = await _service.GetCommitDiffAsync(log[0]);
+        var first = await _service.GetCommitDiffAsync(log[1]);
+
+        Assert.Equal("fix: change a\n\n- explain why", second.Message);
+        Assert.Contains(new DiffLine(DiffLineKind.Removed, "1", OldNumber: 1), second.Lines);
+        Assert.Contains(new DiffLine(DiffLineKind.Added, "2", NewNumber: 1), second.Lines);
+        Assert.Equal("feat: add a", first.Message);
+        Assert.Contains(first.Lines, l => l.Kind == DiffLineKind.Header && l.Text.StartsWith("new file mode"));
+    }
+
+    [Fact]
     public async Task StageAsync_DeletedFile_StagesDeletion()
     {
         _repo.Write("a.txt", "1");

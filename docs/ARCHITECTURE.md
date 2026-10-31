@@ -29,7 +29,9 @@ LazyGit/
 │   └── Parsers/
 │       ├── StatusParser.cs
 │       ├── BranchParser.cs
-│       └── LogParser.cs
+│       ├── LogParser.cs
+│       ├── DiffParser.cs
+│       └── CommitDiffParser.cs    git show: сообщение коммита + diff
 ├── Models/
 │   ├── ChangeKind.cs          Modified, Added, Deleted, Renamed, Untracked, ...
 │   ├── FileChange.cs          Path, Staged, Unstaged, OriginalPath?

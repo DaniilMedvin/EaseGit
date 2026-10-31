@@ -41,8 +41,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private RepoWatcher? _watcher;
     private bool _refreshPending;
 
-    // Файл, diff которого сейчас показан: при обновлении того же файла прокрутка сохраняется.
-    private (FileSection Section, string Path)? _diffKey;
+    // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
+    private object? _diffKey;
 
     public MainWindow(GitService git, AuthStatus auth)
     {
@@ -61,7 +61,6 @@ public sealed class MainWindow : Runnable<MainResult?>
             Width = Dim.Percent(35),
             Height = Dim.Percent(55),
         };
-        _files.SelectionChanged += (_, _) => _ = LoadDiffAsync();
 
         _commits = new CommitsPanel
         {
@@ -69,6 +68,16 @@ public sealed class MainWindow : Runnable<MainResult?>
             Y = Pos.Bottom(_files),
             Width = Dim.Width(_files),
             Height = Dim.Fill(2),
+        };
+        _files.SelectionChanged += (_, _) =>
+        {
+            if (!_commits.HasFocus)
+                _ = LoadDiffAsync();
+        };
+        _commits.SelectionChanged += (_, _) =>
+        {
+            if (_commits.HasFocus)
+                _ = LoadDiffAsync();
         };
 
         _diff = new DiffPanel
@@ -90,10 +99,18 @@ public sealed class MainWindow : Runnable<MainResult?>
             _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
             _diff, _diffTitle,
             _status, _hints);
-        _files.HasFocusChanged += (_, _) => UpdateHints();
-        _commits.HasFocusChanged += (_, _) => UpdateHints();
+        // Справа — контекст панели в фокусе: diff файла или содержимое коммита.
+        _files.HasFocusChanged += (_, _) => OnPanelFocusChanged(_files);
+        _commits.HasFocusChanged += (_, _) => OnPanelFocusChanged(_commits);
         _files.SetFocus();
         UpdateHints();
+    }
+
+    private void OnPanelFocusChanged(View panel)
+    {
+        UpdateHints();
+        if (panel.HasFocus)
+            _ = LoadDiffAsync();
     }
 
     /// <summary>Подсказки внизу зависят от панели в фокусе.</summary>
@@ -102,7 +119,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         var hints = new List<Hint>();
         if (_commits.HasFocus)
         {
-            hints.Add(new Hint("↑↓", "коммит"));
+            hints.Add(new Hint("↑↓", "выбор коммита"));
         }
         else
         {
@@ -405,10 +422,35 @@ public sealed class MainWindow : Runnable<MainResult?>
         return newline < 0 ? trimmed : trimmed[..newline];
     }
 
-    /// <summary>Загружает diff выбранного файла. Предыдущая незавершённая загрузка отменяется.</summary>
-    private async Task LoadDiffAsync()
+    /// <summary>
+    /// Показывает справа выбранный коммит, если в фокусе панель коммитов, иначе — diff выбранного файла.
+    /// Предыдущая незавершённая загрузка отменяется.
+    /// </summary>
+    private Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        return _commits.HasFocus ? LoadCommitDiffAsync() : LoadFileDiffAsync();
+    }
+
+    private Task LoadCommitDiffAsync()
+    {
+        if (_commits.SelectedCommit is not { } commit)
+        {
+            _diffKey = null;
+            _diffTitle.Text = " Коммит ";
+            _diff.SetMessage("Коммитов пока нет");
+            return Task.CompletedTask;
+        }
+
+        return ShowDiffAsync(commit.Hash, $" Коммит · {commit.ShortHash} ", async ct =>
+        {
+            var diff = await _git.GetCommitDiffAsync(commit, ct);
+            return await Task.Run(() => DiffPanel.PrepareCommit(commit, diff, DateTimeOffset.Now), ct);
+        });
+    }
+
+    private Task LoadFileDiffAsync()
+    {
         if (_files.SelectedDirectory is { } directory)
         {
             _diffKey = null;
@@ -416,7 +458,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             var files = directory.Files.Count;
             var action = directory.Collapsed ? "развернуть" : "свернуть";
             _diff.SetMessage($"Папка: {FilesWord(files)}. space — stage всей папки, enter — {action}");
-            return;
+            return Task.CompletedTask;
         }
 
         if (_files.SelectedFile is not { } row)
@@ -424,32 +466,39 @@ public sealed class MainWindow : Runnable<MainResult?>
             _diffKey = null;
             _diffTitle.Text = " Diff ";
             _diff.SetMessage("");
-            return;
+            return Task.CompletedTask;
         }
 
-        var key = (row.Section, row.File.Path);
-        var sameFile = _diffKey == key;
+        var staged = row.Section == FileSection.Staged;
+        var tag = staged ? " · staged" : row.File.IsUntracked ? " · новый файл" : "";
+        return ShowDiffAsync((row.Section, row.File.Path), $" Diff · {row.File.Path}{tag} ", async ct =>
+        {
+            var lines = await _git.GetDiffAsync(row.File, staged, ct);
+            return await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), ct);
+        });
+    }
+
+    /// <summary>Загружает и показывает diff. Для того же <paramref name="key"/>, что и сейчас, прокрутка сохраняется.</summary>
+    private async Task ShowDiffAsync(object key, string title, Func<CancellationToken, Task<PreparedDiff>> load)
+    {
+        var same = Equals(_diffKey, key);
         _diffKey = key;
+        _diffTitle.Text = title;
 
         var loading = new CancellationTokenSource();
         _diffLoading = loading;
-        var staged = row.Section == FileSection.Staged;
-        var tag = staged ? " · staged" : row.File.IsUntracked ? " · новый файл" : "";
-        _diffTitle.Text = $" Diff · {row.File.Path}{tag} ";
-
         try
         {
-            var lines = await _git.GetDiffAsync(row.File, staged, loading.Token);
-            var prepared = await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), loading.Token);
+            var prepared = await load(loading.Token);
             App?.Invoke(() =>
             {
                 if (!loading.IsCancellationRequested)
-                    _diff.SetDiff(prepared, keepScroll: sameFile);
+                    _diff.SetDiff(prepared, keepScroll: same);
             });
         }
         catch (OperationCanceledException)
         {
-            // Выбран другой файл.
+            // Выбрано другое.
         }
         catch (GitCommandException ex)
         {

@@ -111,6 +111,10 @@ public sealed class GitService
         return DiffParser.Parse(await RunCheckedAsync(args, ct));
     }
 
+    /// <summary>Сообщение и изменения коммита. Для первого коммита diff — относительно пустого дерева.</summary>
+    public async Task<CommitDiff> GetCommitDiffAsync(Commit commit, CancellationToken ct = default) =>
+        CommitDiffParser.Parse(await RunCheckedAsync(CommitDiffParser.Arguments(commit.Hash), ct));
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         _git.RunAsync(RepoRoot, ["commit", "--file=-", "--cleanup=strip"], ct, input: message);
