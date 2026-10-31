@@ -14,17 +14,22 @@ class Program
         var auth = new GhAuthService();
         var git = new GitRunner();
 
+        // Запуск внутри репозитория (или с путём к нему) сразу открывает главный экран.
+        var launchPath = args.FirstOrDefault() ?? Environment.CurrentDirectory;
+        var repoRoot = git.FindRepoRootAsync(launchPath).GetAwaiter().GetResult();
+
         // На время интерактивного входа через gh TUI останавливается и затем запускается заново.
         while (true)
         {
             var config = configStore.Load();
             var status = auth.GetStatusAsync().GetAwaiter().GetResult();
-            var initialPath = args.FirstOrDefault() ?? config.LastRepoPath ?? Environment.CurrentDirectory;
+            var startPath = args.FirstOrDefault() ?? config.LastRepoPath ?? Environment.CurrentDirectory;
 
-            var outcome = RunUi(status, config, configStore, git, initialPath);
-            if (outcome is UiOutcome.Quit)
+            var outcome = RunUi(status, config, configStore, git, repoRoot, startPath);
+            if (outcome is not UiOutcome.Login login)
                 return 0;
 
+            repoRoot = login.ReturnToRepo;
             RunLogin(auth);
         }
     }
@@ -32,14 +37,25 @@ class Program
     private abstract record UiOutcome
     {
         public sealed record Quit : UiOutcome;
-        public sealed record Login : UiOutcome;
+
+        /// <param name="ReturnToRepo">Репозиторий, главный экран которого открыть после входа.</param>
+        public sealed record Login(string? ReturnToRepo) : UiOutcome;
     }
 
-    private static UiOutcome RunUi(AuthStatus status, AppConfig config, ConfigStore configStore, GitRunner git, string initialPath)
+    /// <param name="repoRoot">Репозиторий для главного экрана; null — начать со стартового экрана.</param>
+    /// <param name="startPath">Путь, подставляемый в поле стартового экрана.</param>
+    private static UiOutcome RunUi(
+        AuthStatus status,
+        AppConfig config,
+        ConfigStore configStore,
+        GitRunner git,
+        string? repoRoot,
+        string startPath)
     {
         using var app = Application.Create().Init();
 
-        if (!status.IsAuthorized && !config.AuthPromptSkipped)
+        // При открытии репозитория сразу окно входа не показывается: войти можно с главного экрана.
+        if (repoRoot is null && !status.IsAuthorized && !config.AuthPromptSkipped)
         {
             using var authWindow = new AuthWindow(status);
             app.Run(authWindow);
@@ -48,35 +64,45 @@ class Program
                 case null:
                     return new UiOutcome.Quit();
                 case AuthChoice.Login:
-                    return new UiOutcome.Login();
+                    return new UiOutcome.Login(null);
                 case AuthChoice.Skip:
                     configStore.Save(config with { AuthPromptSkipped = true });
                     break;
             }
         }
 
-        // Esc на главном экране возвращает к стартовому.
-        var path = initialPath;
         while (true)
         {
-            using var startWindow = new StartWindow(git, status, path);
-            app.Run(startWindow);
-            switch (startWindow.Result)
+            if (repoRoot is null)
             {
-                case StartAction.Login:
-                    return new UiOutcome.Login();
-                case StartAction.OpenRepo:
-                    path = startWindow.RepoPath!;
-                    configStore.Save(configStore.Load() with { LastRepoPath = path });
-                    break;
-                default:
-                    return new UiOutcome.Quit();
+                using var startWindow = new StartWindow(git, status, startPath);
+                app.Run(startWindow);
+                switch (startWindow.Result)
+                {
+                    case StartAction.Login:
+                        return new UiOutcome.Login(null);
+                    case StartAction.OpenRepo:
+                        repoRoot = startWindow.RepoPath!;
+                        break;
+                    default:
+                        return new UiOutcome.Quit();
+                }
             }
 
-            using var mainWindow = new MainWindow(new GitService(git, path), status);
+            configStore.Save(configStore.Load() with { LastRepoPath = repoRoot });
+            using var mainWindow = new MainWindow(new GitService(git, repoRoot), status);
             app.Run(mainWindow);
-            if (mainWindow.Result is MainResult.Quit)
-                return new UiOutcome.Quit();
+            switch (mainWindow.Result)
+            {
+                case MainResult.Quit:
+                    return new UiOutcome.Quit();
+                case MainResult.Login:
+                    return new UiOutcome.Login(repoRoot);
+            }
+
+            // Esc на главном экране возвращает к стартовому.
+            startPath = repoRoot;
+            repoRoot = null;
         }
     }
 

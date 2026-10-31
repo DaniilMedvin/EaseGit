@@ -5,7 +5,7 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 namespace LazyGit.UI.Widgets;
 
 /// <summary>
-/// Звёздное небо на фоне: мерцающие звёзды (у краёв экрана ярче и чаще), полная луна
+/// Звёздное небо на фоне: мерцающие звёзды (у краёв экрана ярче и чаще), значок C#
 /// и изредка падающая звезда.
 /// Звёзды не рисуются поверх других элементов окна. Располагается в координатах (0, 0) окна.
 /// </summary>
@@ -19,7 +19,7 @@ public sealed class Starfield : AnimatedView
     private static readonly Color StarColor = new("#E0E2EA");
 
     private readonly Random _random = new();
-    private readonly Moon _moon = new();
+    private readonly CSharpLogo _logo = new();
     private Meteor? _meteor;
     private double _nextMeteorAt = 2.5;
 
@@ -52,7 +52,7 @@ public sealed class Starfield : AnimatedView
         var occupied = OccupiedAreas();
         DrawStars(occupied);
         _meteor?.Draw(this, occupied);
-        _moon.Draw(this, Seconds, occupied);
+        _logo.Draw(this, Seconds, occupied);
         return true;
     }
 

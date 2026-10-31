@@ -12,16 +12,18 @@ namespace LazyGit.UI;
 public enum MainResult
 {
     Quit,
+    Login,
 }
 
 /// <summary>
 /// Главный экран репозитория: шапка, панель файлов слева, diff справа.
 /// space — stage/unstage выбранного файла, a — всех файлов, r — обновить.
-/// Result: Quit (q) или null (Esc — назад к стартовому экрану).
+/// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
 {
     private readonly GitService _git;
+    private readonly AuthStatus _auth;
     private readonly RepoHeader _header;
     private readonly FilesPanel _files;
     private readonly DiffPanel _diff;
@@ -34,6 +36,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     public MainWindow(GitService git, AuthStatus auth)
     {
         _git = git;
+        _auth = auth;
         Width = Dim.Fill();
         Height = Dim.Fill();
         SetScheme(Theme.Base);
@@ -61,16 +64,19 @@ public sealed class MainWindow : Runnable<MainResult?>
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
 
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
-        hints.SetHints(
-        [
-            new Hint("↑↓", "навигация"),
-            new Hint("space", "stage/unstage"),
-            new Hint("a", "все"),
-            new Hint("ctrl+d/u", "прокрутка diff"),
-            new Hint("r", "обновить"),
-            new Hint("esc", "назад"),
-            new Hint("q", "выход"),
-        ]);
+        var hintList = new List<Hint>
+        {
+            new("↑↓", "выбор"),
+            new("space", "stage"),
+            new("a", "все"),
+            new("ctrl+d/u", "diff"),
+            new("r", "обновить"),
+        };
+        if (!auth.IsAuthorized)
+            hintList.Add(new Hint("ctrl+g", "войти"));
+        hintList.Add(new Hint("esc", "назад"));
+        hintList.Add(new Hint("q", "выход"));
+        hints.SetHints(hintList);
 
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
@@ -92,6 +98,19 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (key == Key.Q)
         {
             Result = MainResult.Quit;
+            RequestStop();
+            return true;
+        }
+
+        if (key == Key.G.WithCtrl && !_auth.IsAuthorized)
+        {
+            if (!_auth.GhInstalled)
+            {
+                ShowStatus($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", Theme.Error);
+                return true;
+            }
+
+            Result = MainResult.Login;
             RequestStop();
             return true;
         }
