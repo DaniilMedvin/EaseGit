@@ -22,6 +22,7 @@ public sealed class StartWindow : Runnable<StartAction?>
     private readonly AuthStatus _auth;
     private readonly TextField _path;
     private readonly Label _status;
+    private readonly Starfield _stars = new() { Height = Dim.Fill(6) };
     private readonly Waves _waves = new() { X = 0, Y = Pos.AnchorEnd(6) };
     private bool _busy;
 
@@ -87,7 +88,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         hintList.Add(new Hint("esc", "выход"));
         hints.SetHints(hintList);
 
-        Add(_waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, "Путь к репозиторию", Theme.Accent), _status, hints, new VersionLabel());
+        Add(_stars, _waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, "Путь к репозиторию", Theme.Accent), _status, hints, new VersionLabel());
         _path.SetFocus();
     }
 
@@ -120,10 +121,13 @@ public sealed class StartWindow : Runnable<StartAction?>
     protected override void OnIsRunningChanged(bool newIsRunning)
     {
         base.OnIsRunningChanged(newIsRunning);
-        if (newIsRunning)
-            _waves.Start();
-        else
-            _waves.Stop();
+        foreach (var animation in new AnimatedView[] { _stars, _waves })
+        {
+            if (newIsRunning)
+                animation.Start();
+            else
+                animation.Stop();
+        }
     }
 
     private async Task OpenRepoAsync()

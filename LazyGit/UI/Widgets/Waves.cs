@@ -7,46 +7,21 @@ namespace LazyGit.UI.Widgets;
 /// <summary>
 /// Анимированные волны в нижней части экрана. Цвет переливается между синим и зелёным,
 /// над гребнями изредка появляются блики. При низком окне не рисуются.
-/// Запуск — <see cref="Start"/>, остановка — <see cref="Stop"/>.
 /// </summary>
-public sealed class Waves : View
+public sealed class Waves : AnimatedView
 {
     private const string Blocks = " ▁▂▃▄▅▆▇█";
     private const int MinScreenHeight = 26;
-    private static readonly TimeSpan FrameInterval = TimeSpan.FromMilliseconds(80);
 
     private double _time;
-    private object? _timer;
 
     public Waves()
     {
         Width = Dim.Fill();
         Height = 5;
-        CanFocus = false;
     }
 
-    public void Start()
-    {
-        if (_timer is not null || App is null)
-            return;
-
-        _timer = App.AddTimeout(FrameInterval, () =>
-        {
-            _time += 0.07;
-            SetNeedsDraw();
-            return true;
-        });
-    }
-
-    public void Stop()
-    {
-        if (_timer is null)
-            return;
-
-        App?.RemoveTimeout(_timer);
-        _timer = null;
-    }
-
+    protected override void OnTick() => _time = Seconds * 0.875;
     protected override bool OnDrawingContent(DrawContext? context)
     {
         if (SuperView is null || SuperView.Viewport.Height < MinScreenHeight)

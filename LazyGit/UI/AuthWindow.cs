@@ -16,6 +16,7 @@ public enum AuthChoice
 /// <summary>Окно входа в GitHub при первом запуске. Result: Login, Skip или null (выход по Esc).</summary>
 public sealed class AuthWindow : Runnable<AuthChoice?>
 {
+    private readonly Starfield _stars = new() { Height = Dim.Fill(6) };
     private readonly Waves _waves = new() { X = 0, Y = Pos.AnchorEnd(6) };
 
     public AuthWindow(AuthStatus status)
@@ -98,7 +99,7 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
             ? [new Hint("enter", "войти"), new Hint("s", "пропустить"), new Hint("esc", "выход")]
             : [new Hint("s", "пропустить"), new Hint("esc", "выход")]);
 
-        Add(_waves, new UserBadge(status), logo, box, BoxTitle.For(box, "Вход в GitHub", Theme.Accent), note, hints, version);
+        Add(_stars, _waves, new UserBadge(status), logo, box, BoxTitle.For(box, "Вход в GitHub", Theme.Accent), note, hints, version);
         (status.GhInstalled ? login : skip).SetFocus();
     }
 
@@ -116,10 +117,13 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
     protected override void OnIsRunningChanged(bool newIsRunning)
     {
         base.OnIsRunningChanged(newIsRunning);
-        if (newIsRunning)
-            _waves.Start();
-        else
-            _waves.Stop();
+        foreach (var animation in new AnimatedView[] { _stars, _waves })
+        {
+            if (newIsRunning)
+                animation.Start();
+            else
+                animation.Stop();
+        }
     }
 
     private void Finish(AuthChoice choice)
