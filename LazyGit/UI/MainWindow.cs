@@ -24,6 +24,7 @@ public enum MainResult
 /// 1 / 2 / 3 и tab — переход между панелями.
 /// В файлах: space — stage/unstage файла или папки, a — всех файлов, d — сбросить изменения.
 /// В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить.
+/// s — спрятать изменения в stash; в панели stash: space — pop, a — apply, d — удалить.
 /// ~ — Command Log, «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
 /// Result: Quit (q), Login (ctrl+g — вход в GitHub) или null (Esc — назад к стартовому экрану).
@@ -38,6 +39,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly FilesPanel _files;
     private readonly BranchesPanel _branches;
     private readonly CommitsPanel _commits;
+    private readonly StashPanel _stash;
+    private readonly Label _stashTitle;
     private readonly DiffPanel _diff;
     private readonly CommandLogPanel _log;
     private readonly Label _logTitle;
@@ -96,10 +99,25 @@ public sealed class MainWindow : Runnable<MainResult?>
             Width = Dim.Width(_files),
             Height = Dim.Fill(2),
         };
+
+        // Stash виден, только когда не пуст: на маленьком экране место нужнее коммитам.
+        _stash = new StashPanel
+        {
+            X = 0,
+            Y = Pos.Bottom(_commits),
+            Width = Dim.Width(_files),
+            Height = 0,
+            Visible = false,
+        };
+        _stash.SelectionChanged += (_, _) =>
+        {
+            if (_stash.HasFocus)
+                _ = LoadDiffAsync();
+        };
         // Справа — контекст панели в фокусе, поэтому выбор в остальных панелях его не меняет.
         _files.SelectionChanged += (_, _) =>
         {
-            if (!_branches.HasFocus && !_commits.HasFocus)
+            if (FocusedScope == CommandScope.Files)
                 _ = LoadDiffAsync();
         };
         _branches.SelectionChanged += (_, _) =>
@@ -144,6 +162,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             _files, BoxTitle.ForFocusable(_files, "[1] Файлы"),
             _branches, BoxTitle.ForFocusable(_branches, "[2] Ветки"),
             _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
+            _stash, _stashTitle = BoxTitle.ForFocusable(_stash, "[4] Stash"),
             _diff, _diffTitle,
             _log, _logTitle,
             _status, _hints);
@@ -151,6 +170,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         _files.HasFocusChanged += (_, _) => OnPanelFocusChanged(_files);
         _branches.HasFocusChanged += (_, _) => OnPanelFocusChanged(_branches);
         _commits.HasFocusChanged += (_, _) => OnPanelFocusChanged(_commits);
+        _stash.HasFocusChanged += (_, _) => OnPanelFocusChanged(_stash);
+        _stashTitle.Visible = false;
         RegisterCommands();
         _files.SetFocus();
         UpdateHints();
@@ -217,6 +238,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private CommandScope FocusedScope =>
         _branches.HasFocus ? CommandScope.Branches
         : _commits.HasFocus ? CommandScope.Commits
+        : _stash.HasFocus ? CommandScope.Stash
         : CommandScope.Files;
 
     /// <summary>
@@ -262,12 +284,22 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = DeleteSelectedBranchAsync(), "удалить", dangerous: true,
             preview: () => BranchPreview(b => GitService.DeleteBranchArguments(b, force: false)), keywords: "удалить бранч");
 
+        Add("stash.pop", "Применить и удалить stash", CommandScope.Stash, CommandKey.Of("space", Key.Space),
+            () => _ = StashActionAsync(pop: true), "pop", preview: () => StashPreview("pop"), keywords: "стэш достать pop");
+        Add("stash.apply", "Применить stash", CommandScope.Stash, CommandKey.Of("a", Key.A),
+            () => _ = StashActionAsync(pop: false), "apply", preview: () => StashPreview("apply"), keywords: "стэш apply");
+        Add("stash.drop", "Удалить stash", CommandScope.Stash, CommandKey.Of("d", Key.D),
+            () => _ = DropStashAsync(), "удалить", dangerous: true, preview: () => StashPreview("drop"), keywords: "стэш drop");
+
         Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
             () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
         Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
             () => _ = PushAsync(), "push", hintOptional: true, preview: () => "git push", keywords: "пуш отправить опубликовать upstream");
+        Add("stash.save", "Спрятать изменения в stash", CommandScope.Global, CommandKey.Of("s", Key.S),
+            OpenStashDialog, "stash", hintOptional: true, preview: () => "git stash push --include-untracked",
+            keywords: "стэш спрятать отложить сохранить");
         Add("sync.fetch", "Fetch", CommandScope.Global, CommandKey.Of("f", Key.F),
             () => _ = FetchAsync(), preview: () => "git fetch --all --prune", keywords: "фетч обновить сервер");
 
@@ -278,6 +310,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("nav.files", "Панель файлов", CommandScope.Global, CommandKey.Of("1", Key.D1), () => _files.SetFocus(), hidden: true);
         Add("nav.branches", "Панель веток", CommandScope.Global, CommandKey.Of("2", Key.D2), () => _branches.SetFocus(), hidden: true);
         Add("nav.commits", "Панель коммитов", CommandScope.Global, CommandKey.Of("3", Key.D3), () => _commits.SetFocus(), hidden: true);
+        Add("nav.stash", "Панель stash", CommandScope.Global, CommandKey.Of("4", Key.D4), () => _stash.SetFocus(), hidden: true,
+            available: () => _stash.Visible);
         Add("view.diffDown", "Листать diff вниз", CommandScope.Global, CommandKey.Of("ctrl+d", Key.D.WithCtrl),
             () => _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
         Add("view.diffUp", "Листать diff вверх", CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
@@ -335,9 +369,71 @@ public sealed class MainWindow : Runnable<MainResult?>
         });
     }
 
+    /// <summary>Прячет все изменения, включая новые файлы, в stash с необязательным сообщением.</summary>
+    private void OpenStashDialog()
+    {
+        if (_busy)
+            return;
+
+        if (_files.Entries.Count == 0)
+        {
+            ShowStatus($"{Theme.SymbolError} Нечего прятать в stash: изменений нет", Theme.Error);
+            return;
+        }
+
+        var files = _files.Entries.Select(e => e.File.Path).Distinct().Count();
+        using var dialog = new InputDialog("Stash", $"Спрятать {FilesWord(files)} (с новыми). Сообщение — по желанию",
+            "спрятать");
+        App!.Run(dialog);
+        if (dialog.Result is not { } message)
+            return;
+
+        _ = RunAsync(ct => _git.StashAsync(message, ct), $"Изменения спрятаны в stash: {FilesWord(files)}");
+    }
+
+    private Task StashActionAsync(bool pop)
+    {
+        if (_stash.Selected is not { } stash)
+            return Task.CompletedTask;
+
+        return pop
+            ? RunAsync(ct => _git.StashPopAsync(stash, ct), $"Stash применён и удалён: {stash.Message}")
+            : RunAsync(ct => _git.StashApplyAsync(stash, ct), $"Stash применён и оставлен в списке: {stash.Message}");
+    }
+
+    private Task DropStashAsync()
+    {
+        if (_busy || _stash.Selected is not { } stash)
+            return Task.CompletedTask;
+
+        if (!Confirm($"Удалить stash «{stash.Message}»?", GitService.StashDropArguments(stash),
+                "Спрятанные изменения пропадут. Это нельзя отменить.", "Удалить"))
+            return Task.CompletedTask;
+
+        return RunAsync(ct => _git.StashDropAsync(stash, ct), $"Stash удалён: {stash.Message}");
+    }
+
+    private string? StashPreview(string action) =>
+        _stash.Selected is { } stash ? CommandText.Format(["stash", action, stash.Ref]) : null;
+
+    /// <summary>Показывает панель stash, только если в нём есть записи; высота — по числу записей, не больше 5.</summary>
+    private void SetStashes(IReadOnlyList<StashEntry> stashes)
+    {
+        _stash.SetItems(stashes);
+        var visible = stashes.Count > 0;
+        if (!visible && _stash.HasFocus)
+            _commits.SetFocus();
+
+        var height = visible ? Math.Min(stashes.Count, 5) + 2 : 0;
+        _stash.Visible = visible;
+        _stashTitle.Visible = visible;
+        _stash.Height = height;
+        _commits.Height = Dim.Fill(2 + height);
+    }
+
     private void FocusPanel(int step)
     {
-        View[] panels = [_files, _branches, _commits];
+        View[] panels = _stash.Visible ? [_files, _branches, _commits, _stash] : [_files, _branches, _commits];
         var current = Math.Max(0, Array.FindIndex(panels, p => p.HasFocus));
         panels[(current + step + panels.Length) % panels.Length].SetFocus();
     }
@@ -437,7 +533,9 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var head = _repoStatus?.HeadHash is { Length: >= 7 } hash ? $" {Theme.SymbolSeparator} {hash[..7]}" : "";
         var from = (_repoStatus?.Branch ?? "HEAD") + head;
-        using var dialog = new NewBranchDialog(from, _branches.Items.Select(b => b.Name).ToList());
+        var existing = _branches.Items.Select(b => b.Name).ToList();
+        using var dialog = new InputDialog("Новая ветка", $"От: {from}", "создать и переключиться",
+            name => BranchName.Check(name, existing));
         App!.Run(dialog);
         if (dialog.Result is not { } name)
             return;
@@ -821,9 +919,11 @@ public sealed class MainWindow : Runnable<MainResult?>
             var statusTask = _git.GetStatusAsync();
             var branchesTask = _git.GetBranchesAsync();
             var logTask = _git.GetLogAsync();
+            var stashTask = _git.GetStashesAsync();
             var status = await statusTask;
             var branches = await branchesTask;
             var log = await logTask;
+            var stashes = await stashTask;
             App?.Invoke(() =>
             {
                 _repoStatus = status;
@@ -831,6 +931,7 @@ public sealed class MainWindow : Runnable<MainResult?>
                 _files.SetStatus(status);
                 _branches.SetItems(branches);
                 _commits.SetItems(log);
+                SetStashes(stashes);
             });
             return true;
         }
@@ -850,6 +951,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         _diffLoading?.Cancel();
         if (_branches.HasFocus)
             return ShowBranchInfo();
+        if (_stash.HasFocus)
+            return LoadStashDiffAsync();
         return _commits.HasFocus ? LoadCommitDiffAsync() : LoadFileDiffAsync();
     }
 
@@ -889,6 +992,19 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             var diff = await _git.GetCommitDiffAsync(commit, ct);
             return await Task.Run(() => DiffPanel.PrepareCommit(commit, diff, DateTimeOffset.Now), ct);
+        });
+    }
+
+    private Task LoadStashDiffAsync()
+    {
+        if (_stash.Selected is not { } stash)
+            return Task.CompletedTask;
+
+        return ShowDiffAsync(stash.Hash, $" Stash · {stash.Ref} ", async ct =>
+        {
+            var diff = await _git.GetStashDiffAsync(stash, ct);
+            var asCommit = new Commit(stash.Hash, stash.AuthorName, stash.AuthorEmail, stash.Date, stash.Message);
+            return await Task.Run(() => DiffPanel.PrepareCommit(asCommit, diff, DateTimeOffset.Now), ct);
         });
     }
 

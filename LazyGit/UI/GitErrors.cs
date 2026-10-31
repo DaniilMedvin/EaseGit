@@ -9,6 +9,16 @@ public static class GitErrors
     public static string Explain(GitResult result)
     {
         var stderr = result.StdErr;
+        var isStash = result.Command.StartsWith("git stash");
+        if (isStash && result.StdOut.Contains("CONFLICT"))
+            return "Конфликт в stash: реши файлы в «Конфликтах» и добавь (space), stash сохранён";
+        if (isStash && stderr.Contains("would be overwritten"))
+            return "Нельзя применить stash: он затронет незакоммиченные изменения. Сделай коммит или stash их";
+        if (stderr.Contains("You do not have the initial commit yet"))
+            return "Stash работает только после первого коммита";
+        if (stderr.Contains("No local changes to save") || result.StdOut.Contains("No local changes to save"))
+            return "Нечего сохранять в stash: изменений нет";
+
         // Конфликты merge git пишет в stdout.
         if (result.StdOut.Contains("CONFLICT"))
             return "Конфликт при merge: реши файлы из раздела «Конфликты», добавь их (space) и сделай коммит (c)";

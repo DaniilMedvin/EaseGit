@@ -217,6 +217,40 @@ public sealed class GitService
     public Task<GitResult> UndoAsync(UndoPlan plan, CancellationToken ct = default) =>
         RunActionAsync(plan.Args, ct);
 
+    public async Task<IReadOnlyList<StashEntry>> GetStashesAsync(CancellationToken ct = default) =>
+        StashParser.Parse(await RunCheckedAsync(StashParser.Arguments, ct));
+
+    /// <summary>Аргументы stash всех изменений, включая новые файлы. Пустое сообщение — git подставит «WIP on …».</summary>
+    public static string[] StashArguments(string message) =>
+        message.Length == 0
+            ? ["stash", "push", "--include-untracked"]
+            : ["stash", "push", "--include-untracked", "--message", message];
+
+    public Task<GitResult> StashAsync(string message, CancellationToken ct = default) =>
+        RunActionAsync(StashArguments(message), ct);
+
+    /// <summary>Применяет stash и удаляет его. При конфликте git stash не удаляет.</summary>
+    public Task<GitResult> StashPopAsync(StashEntry stash, CancellationToken ct = default) =>
+        RunActionAsync(["stash", "pop", stash.Ref], ct);
+
+    /// <summary>Применяет stash, оставляя его в списке.</summary>
+    public Task<GitResult> StashApplyAsync(StashEntry stash, CancellationToken ct = default) =>
+        RunActionAsync(["stash", "apply", stash.Ref], ct);
+
+    public static string[] StashDropArguments(StashEntry stash) => ["stash", "drop", stash.Ref];
+
+    /// <summary>Удаляет stash. Необратимо (кроме поиска потерянного коммита через git fsck).</summary>
+    public Task<GitResult> StashDropAsync(StashEntry stash, CancellationToken ct = default) =>
+        RunActionAsync(StashDropArguments(stash), ct);
+
+    /// <summary>Изменения stash, включая сохранённые новые файлы.</summary>
+    public async Task<CommitDiff> GetStashDiffAsync(StashEntry stash, CancellationToken ct = default)
+    {
+        var output = await RunCheckedAsync(
+            ["stash", "show", "--patch", "--include-untracked", "--no-color", "--no-ext-diff", stash.Ref], ct);
+        return new CommitDiff(stash.Message, DiffParser.Parse(output));
+    }
+
     /// <summary>Создаёт коммит из изменений в индексе. Сообщение передаётся через stdin.</summary>
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         RunActionAsync(["commit", "--file=-", "--cleanup=strip"], ct, input: message);

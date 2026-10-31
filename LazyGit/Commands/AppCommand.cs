@@ -7,6 +7,7 @@ public enum CommandScope
     Files,
     Branches,
     Commits,
+    Stash,
 }
 
 /// <summary>

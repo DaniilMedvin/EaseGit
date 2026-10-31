@@ -145,6 +145,7 @@ public sealed class HelpDialog : Runnable<bool?>
                      {
                          (CommandScope.Files, "Файлы"),
                          (CommandScope.Branches, "Ветки"),
+                         (CommandScope.Stash, "Stash"),
                          (CommandScope.Global, "Везде"),
                      })
             {

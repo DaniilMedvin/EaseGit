@@ -32,6 +32,7 @@ LazyGit/
 │       ├── StatusParser.cs
 │       ├── BranchParser.cs
 │       ├── ReflogParser.cs
+│       ├── StashParser.cs
 │       ├── LogParser.cs
 │       ├── DiffParser.cs
 │       └── CommitDiffParser.cs    git show: сообщение коммита + diff
@@ -55,8 +56,8 @@ LazyGit/
     ├── Theme.cs               цвета и символы из DESIGN.md
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
-    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, DiffPanel, CommandLogPanel
-    ├── Dialogs/               CommitDialog, NewBranchDialog, ConfirmDialog, SettingsDialog, CommandPalette, ErrorDialog, CommandPalette
+    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, StashPanel, DiffPanel, CommandLogPanel
+    ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git

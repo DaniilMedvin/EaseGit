@@ -68,7 +68,7 @@
 - [ ] Темы: dark / light / пользовательские
 
 ## Этап 7. Продвинутое
-- [ ] Stash: создать, применить, удалить
+- [x] Stash: создать (`s`), pop / apply / удалить в панели `[4]`, diff справа
 - [ ] Построчный stage (hunks)
 - [ ] Amend, reset, revert, cherry-pick
 - [ ] Interactive rebase
