@@ -8,14 +8,15 @@
 - [x] Класс `Theme` с цветами из [DESIGN.md](DESIGN.md)
 - [x] Стартовый экран: логотип, путь к репозиторию, выбор папки ([макет](mockups/start.md))
 - [x] Вход в GitHub через gh с возможностью пропустить
-- [ ] Проект `LazyGit.Tests` (xUnit)
+- [x] Проект `LazyGit.Tests` (xUnit)
 - **Результат:** приложение открывается и закрывается по `q`
 
 ## Этап 1. Ядро работы с git
 - [ ] `GitRunner`: асинхронный запуск git, `GitResult` (stdout, stderr, exit code)
 - [ ] Проверка при старте: git установлен, мы внутри репозитория
 - [x] Модели `FileChange`, `Branch`, `Commit`, `RepoStatus`
-- [ ] Парсеры: `status --porcelain=v2 -b -z`, `branch --format`, `log --format`
+- [x] Парсер `status --porcelain=v2 -b -z`
+- [ ] Парсеры `branch --format`, `log --format`
 - [ ] Тесты на парсеры (включая пути с пробелами и кириллицей)
 - **Результат:** статус, ветки и лог доступны как объекты
 
