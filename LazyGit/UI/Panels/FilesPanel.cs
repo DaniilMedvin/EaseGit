@@ -24,6 +24,9 @@ public sealed class FilesPanel : View
         SetScheme(Theme.Text(Theme.Accent));
     }
 
+    /// <summary>Строки панели: заголовки разделов и файлы.</summary>
+    public IReadOnlyList<FileRow> Rows => _rows;
+
     /// <summary>Выбранный файл или null, если изменений нет.</summary>
     public FileEntryRow? SelectedFile => _selected >= 0 ? _rows[_selected] as FileEntryRow : null;
 

@@ -16,6 +16,7 @@ public enum MainResult
 
 /// <summary>
 /// Главный экран репозитория: шапка, панель файлов слева, diff справа.
+/// space — stage/unstage выбранного файла, a — всех файлов, r — обновить.
 /// Result: Quit (q) или null (Esc — назад к стартовому экрану).
 /// </summary>
 public sealed class MainWindow : Runnable<MainResult?>
@@ -26,7 +27,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly View _diff;
     private readonly Label _diffPlaceholder;
     private readonly Label _status;
-    private bool _refreshing;
+    private bool _busy;
+    private object? _statusTimeout;
 
     public MainWindow(GitService git, AuthStatus auth)
     {
@@ -65,6 +67,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         hints.SetHints(
         [
             new Hint("↑↓", "навигация"),
+            new Hint("space", "stage/unstage"),
+            new Hint("a", "все"),
             new Hint("r", "обновить"),
             new Hint("esc", "назад"),
             new Hint("q", "выход"),
@@ -100,16 +104,94 @@ public sealed class MainWindow : Runnable<MainResult?>
             return true;
         }
 
+        if (key == Key.Space)
+        {
+            _ = ToggleSelectedAsync();
+            return true;
+        }
+
+        if (key == Key.A)
+        {
+            _ = ToggleAllAsync();
+            return true;
+        }
+
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>Stage для файла из «Изменений», Untracked и конфликтов, unstage — для файла из Staged.</summary>
+    private Task ToggleSelectedAsync()
+    {
+        if (_files.SelectedFile is not { } row)
+            return Task.CompletedTask;
+
+        var file = row.File;
+        return row.Section switch
+        {
+            FileSection.Staged => RunAsync(ct => _git.UnstageAsync(file, ct), $"{file.Path} убран из индекса"),
+            FileSection.Conflicts => RunAsync(ct => _git.StageAsync(file, ct), $"{file.Path}: конфликт отмечен как решённый"),
+            _ => RunAsync(ct => _git.StageAsync(file, ct), $"{file.Path} добавлен в индекс"),
+        };
+    }
+
+    /// <summary>Если есть изменения вне индекса — добавляет всё, иначе убирает всё из индекса.</summary>
+    private Task ToggleAllAsync()
+    {
+        var hasUnstaged = _files.Rows.OfType<FileEntryRow>().Any(r => r.Section != FileSection.Staged);
+        if (hasUnstaged)
+            return RunAsync(ct => _git.StageAllAsync(ct), "Все изменения добавлены в индекс");
+
+        return _files.Rows.Count > 0
+            ? RunAsync(ct => _git.UnstageAllAsync(ct), "Все изменения убраны из индекса")
+            : Task.CompletedTask;
+    }
+
+    /// <summary>Выполняет изменяющую команду, показывает результат и обновляет экран. Одновременно — одна команда.</summary>
+    private async Task RunAsync(Func<CancellationToken, Task<GitResult>> action, string successMessage)
+    {
+        if (_busy)
+            return;
+
+        _busy = true;
+        try
+        {
+            var result = await action(CancellationToken.None);
+            await LoadStatusAsync();
+            App?.Invoke(() =>
+            {
+                if (result.Success)
+                    ShowStatus($"{Theme.SymbolSuccess} {successMessage}", Theme.Success, autoHide: true);
+                else
+                    ShowStatus($"{Theme.SymbolError} {FirstLine(result.StdErr)}", Theme.Error);
+            });
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task RefreshAsync()
     {
-        if (_refreshing)
+        if (_busy)
             return;
 
-        _refreshing = true;
-        ShowStatus($"{Theme.SpinnerFrames[0]} Обновление…", Theme.Muted);
+        _busy = true;
+        App?.Invoke(() => ShowStatus($"{Theme.SpinnerFrames[0]} Обновление…", Theme.Muted));
+        try
+        {
+            if (await LoadStatusAsync())
+                App?.Invoke(() => ShowStatus("", Theme.Muted));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Перечитывает статус и обновляет шапку и панель файлов. Возвращает false при ошибке.</summary>
+    private async Task<bool> LoadStatusAsync()
+    {
         try
         {
             var status = await _git.GetStatusAsync();
@@ -117,17 +199,21 @@ public sealed class MainWindow : Runnable<MainResult?>
             {
                 _header.SetStatus(status);
                 _files.SetStatus(status);
-                ShowStatus("", Theme.Muted);
             });
+            return true;
         }
         catch (GitCommandException ex)
         {
-            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {ex.Result.StdErr.Trim()}", Theme.Error));
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {FirstLine(ex.Result.StdErr)}", Theme.Error));
+            return false;
         }
-        finally
-        {
-            _refreshing = false;
-        }
+    }
+
+    private static string FirstLine(string text)
+    {
+        var trimmed = text.Trim();
+        var newline = trimmed.IndexOf('\n');
+        return newline < 0 ? trimmed : trimmed[..newline];
     }
 
     // TODO(этап 2): настоящий diff выбранного файла.
@@ -138,9 +224,26 @@ public sealed class MainWindow : Runnable<MainResult?>
             : "";
     }
 
-    private void ShowStatus(string text, Color color)
+    /// <summary>Показывает сообщение над подсказками. С autoHide сообщение исчезает через 3 секунды.</summary>
+    private void ShowStatus(string text, Color color, bool autoHide = false)
     {
+        if (_statusTimeout is not null)
+        {
+            App?.RemoveTimeout(_statusTimeout);
+            _statusTimeout = null;
+        }
+
         _status.Text = text;
         _status.SetScheme(Theme.Text(color));
+
+        if (autoHide && App is not null)
+        {
+            _statusTimeout = App.AddTimeout(TimeSpan.FromSeconds(3), () =>
+            {
+                _status.Text = "";
+                _statusTimeout = null;
+                return false;
+            });
+        }
     }
 }
