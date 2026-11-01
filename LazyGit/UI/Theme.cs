@@ -54,6 +54,7 @@ public static class Theme
     public const string SymbolExpanded = "▾";
     public const string SymbolCollapsed = "▸";
     public const string SymbolTreeGuide = "│";
+    public const string SymbolTag = "#";
     public static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
     public static Scheme Text(Color fg, TextStyle style = TextStyle.None) => new(new Attribute(fg, Color.None, style));

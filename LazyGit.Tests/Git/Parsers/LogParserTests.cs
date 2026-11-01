@@ -1,4 +1,5 @@
 using LazyGit.Git.Parsers;
+using LazyGit.Models;
 
 namespace LazyGit.Tests.Git.Parsers;
 
@@ -67,5 +68,28 @@ public class LogParserTests
     public void Parse_EmptyOutput_ReturnsNoCommits()
     {
         Assert.Empty(LogParser.Parse(""));
+    }
+
+    [Fact]
+    public void Parse_ParentsAndRefs_AreRead()
+    {
+        var record = Record(Hash1, "merge") + "\x1f" + Hash2 + " " + Hash1 + "\x1f"
+            + "HEAD -> refs/heads/feature/x, tag: refs/tags/v1.0, refs/remotes/origin/feature/x, refs/remotes/origin/HEAD";
+
+        var commit = Assert.Single(LogParser.Parse(record));
+
+        Assert.Equal([Hash2, Hash1], commit.Parents);
+        Assert.Equal(
+        [
+            new CommitRef("feature/x", RefKind.Branch, IsCurrent: true),
+            new CommitRef("v1.0", RefKind.Tag),
+            new CommitRef("origin/feature/x", RefKind.Remote),
+        ], commit.Refs);
+    }
+
+    [Fact]
+    public void ParseRefs_DetachedHead_ReturnsHead()
+    {
+        Assert.Equal([new CommitRef("HEAD", RefKind.Head)], LogParser.ParseRefs("HEAD"));
     }
 }

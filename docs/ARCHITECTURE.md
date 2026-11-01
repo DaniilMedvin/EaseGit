@@ -44,7 +44,8 @@ LazyGit/
 │   ├── ChangeKind.cs          Modified, Added, Deleted, Renamed, Untracked, ...
 │   ├── FileChange.cs          Path, Staged, Unstaged, OriginalPath?
 │   ├── Branch.cs              Name, IsCurrent, Upstream?, Ahead, Behind
-│   ├── Commit.cs              Hash, ShortHash, AuthorName, AuthorEmail, Date, Subject
+│   ├── Commit.cs              Hash, ShortHash, AuthorName, AuthorEmail, Date, Subject, Parents, Refs
+│   ├── CommitRef.cs           ветка / удалённая ветка / тег / HEAD на коммите
 │   └── RepoStatus.cs          Branch?, HeadHash?, Upstream?, Ahead, Behind, Files
 ├── State/
 │   └── AppState.cs            хранит RepoStatus, событие Changed, RefreshAsync()
@@ -57,7 +58,7 @@ LazyGit/
     ├── Theme.cs               цвета и символы из DESIGN.md
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
-    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel, StashPanel, DiffPanel, CommandLogPanel
+    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel (+ CommitGraph), StashPanel, DiffPanel, CommandLogPanel
     ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/

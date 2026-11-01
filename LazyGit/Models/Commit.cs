@@ -9,4 +9,10 @@ namespace LazyGit.Models;
 public sealed record Commit(string Hash, string AuthorName, string AuthorEmail, DateTimeOffset Date, string Subject)
 {
     public string ShortHash => Hash.Length > 7 ? Hash[..7] : Hash;
+
+    /// <summary>Полные хеши родителей: у первого коммита нет, у merge — два и больше.</summary>
+    public IReadOnlyList<string> Parents { get; init; } = [];
+
+    /// <summary>Ветки и теги, указывающие на коммит.</summary>
+    public IReadOnlyList<CommitRef> Refs { get; init; } = [];
 }
