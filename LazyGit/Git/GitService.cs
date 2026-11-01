@@ -177,6 +177,19 @@ public sealed class GitService
     public async Task<CommitDiff> GetCommitDiffAsync(Commit commit, CancellationToken ct = default) =>
         CommitDiffParser.Parse(await RunCheckedAsync(CommitDiffParser.Arguments(commit.Hash), ct));
 
+    /// <summary>Коммиты, менявшие файл, новые первыми; переименования прослеживаются (--follow).</summary>
+    public async Task<IReadOnlyList<FileRevision>> GetFileHistoryAsync(string path, int limit = GraphLogLimit, CancellationToken ct = default) =>
+        FileHistoryParser.Parse(await RunCheckedAsync(FileHistoryParser.Arguments(path, limit), ct));
+
+    /// <summary>Сообщение коммита и diff только файла из <paramref name="revision"/> (с прежним именем у переименования).</summary>
+    public async Task<CommitDiff> GetFileRevisionDiffAsync(FileRevision revision, CancellationToken ct = default) =>
+        CommitDiffParser.Parse(await RunCheckedAsync(
+            CommitDiffParser.Arguments(revision.Commit.Hash, revision.OldPath is null ? [revision.Path] : [revision.OldPath, revision.Path]), ct));
+
+    /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
+    public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
+        (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);
+
     /// <summary>Переключается на ветку. Незакоммиченные изменения переносятся, если не конфликтуют.</summary>
     public Task<GitResult> SwitchAsync(Branch branch, CancellationToken ct = default) =>
         RunActionAsync(["switch", "--no-guess", branch.Name], ct);

@@ -442,6 +442,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("conflict.back", T("Вернуться к файлам", "Back to files"), CommandScope.Conflict, CommandKey.Of("esc", Key.Esc),
             () => _files.SetFocus(), T("к файлам", "to files"), available: () => _conflict is not null);
 
+        Add("files.history", T("История файла", "File history"), CommandScope.Files, CommandKey.Of("h", Key.H),
+            OpenSelectedFileHistory, T("история", "history"), hintOptional: true,
+            available: () => _files.SelectedRow is FileEntryRow { Section: not FileSection.Untracked },
+            keywords: "история лог коммиты файла history log blame кто менял");
+
         Add("diff.stageLines", T("Stage строки / выделения", "Stage line / selection"), CommandScope.Diff, CommandKey.Of("space", Key.Space),
             () => _ = ApplyLinesAsync(hunk: false), "stage", available: () => _staging is { Staged: false },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "строка добавить");
@@ -570,6 +575,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("ctrl+o", Key.O.WithCtrl), () => _ = OpenCiAsync(),
             available: () => _ciRuns.Count > 0 && _ciSha == _repoStatus?.HeadHash,
             keywords: "ci actions сборка тесты проверки лог github workflow");
+        Add("view.fileHistory", T("История любого файла…", "History of any file…"), CommandScope.Global, CommandKey.Of("F", Key.F.WithShift),
+            PickFileHistory, keywords: "история файла лог найти файл history log file");
         Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
             hintOptional: true, available: () => _commits.Items.Count > 0, keywords: "граф ветки история дерево git graph");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
@@ -870,6 +877,36 @@ public sealed class MainWindow : Runnable<MainResult?>
         View[] panels = _stash.Visible ? [_files, _branches, _commits, _stash] : [_files, _branches, _commits];
         var current = Math.Max(0, Array.FindIndex(panels, p => p.HasFocus));
         panels[(current + step + panels.Length) % panels.Length].SetFocus();
+    }
+
+    /// <summary>История файла под курсором (у переименованного — по новому имени, прежние прослеживаются).</summary>
+    private void OpenSelectedFileHistory()
+    {
+        if (_busy || _files.SelectedRow is not FileEntryRow { Section: not FileSection.Untracked } row)
+            return;
+
+        OpenFileHistory(row.File.Path);
+    }
+
+    /// <summary>
+    /// Выбор любого файла репозитория (в том числе без изменений) и его история. Оба окна открываются прямо
+    /// из обработчика клавиши: внутри App.Invoke окно истории не получило бы свои загрузки.
+    /// </summary>
+    private void PickFileHistory()
+    {
+        if (_busy)
+            return;
+
+        using var picker = new FilePickerDialog(T("История файла", "File history"), ct => _git.GetTrackedFilesAsync(ct));
+        App!.Run(picker);
+        if (picker.Result is { } path)
+            OpenFileHistory(path);
+    }
+
+    private void OpenFileHistory(string path)
+    {
+        using var window = new FileHistoryWindow(_git, path);
+        App!.Run(window);
     }
 
     /// <summary>Окно графа всех веток. Действия в нём выполняются сразу, после закрытия экран обновляется.</summary>

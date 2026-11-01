@@ -8,7 +8,8 @@ namespace LazyGit.Git.Parsers;
 /// </summary>
 public static class CommitDiffParser
 {
-    public static string[] Arguments(string hash) =>
+    /// <param name="paths">Только эти файлы (для истории файла — его имя в коммите и прежнее у переименования).</param>
+    public static string[] Arguments(string hash, params string[] paths) =>
     [
         "show",
         "--no-color",
@@ -17,6 +18,7 @@ public static class CommitDiffParser
         "--diff-merges=first-parent",
         "--format=%B%x00",
         hash,
+        .. paths.Length > 0 ? (string[])["--", .. paths] : [],
     ];
 
     public static CommitDiff Parse(string output)
