@@ -362,6 +362,46 @@ public sealed class GitService
     public Task<GitResult> CommitAsync(string message, CancellationToken ct = default) =>
         RunActionAsync(["commit", "--file=-", "--cleanup=strip"], ct, input: message);
 
+    /// <summary>Аргументы amend: добавляет индекс в последний коммит, сообщение не меняется.</summary>
+    public static readonly string[] AmendArguments = ["commit", "--amend", "--no-edit"];
+
+    /// <summary>Добавляет staged-изменения в последний коммит. Переписывает историю ветки.</summary>
+    public Task<GitResult> AmendAsync(CancellationToken ct = default) =>
+        RunActionAsync(AmendArguments, ct);
+
+    public static string[] ResetArguments(Commit commit, ResetMode mode) =>
+        ["reset", $"--{mode.ToString().ToLowerInvariant()}", commit.Hash];
+
+    /// <summary>Переносит текущую ветку на коммит. Hard теряет изменения рабочей копии. Переписывает историю.</summary>
+    public Task<GitResult> ResetAsync(Commit commit, ResetMode mode, CancellationToken ct = default) =>
+        RunActionAsync(ResetArguments(commit, mode), ct);
+
+    /// <summary>Аргументы revert: новый коммит, отменяющий изменения выбранного. История не переписывается.</summary>
+    public static string[] RevertArguments(Commit commit) => ["revert", "--no-edit", commit.Hash];
+
+    public Task<GitResult> RevertAsync(Commit commit, CancellationToken ct = default) =>
+        RunActionAsync(RevertArguments(commit), ct);
+
+    public static string[] CherryPickArguments(string hash) => ["cherry-pick", hash];
+
+    /// <summary>Копирует коммит в текущую ветку новым коммитом. При конфликте операция остаётся незавершённой.</summary>
+    public Task<GitResult> CherryPickAsync(string hash, CancellationToken ct = default) =>
+        RunActionAsync(CherryPickArguments(hash), ct);
+
+    /// <summary>
+    /// Находит коммит по хешу, сокращённому хешу или имени ветки/тега и возвращает его полный хеш,
+    /// либо null. Ввод, начинающийся с «-», отвергается: git принял бы его за опцию.
+    /// </summary>
+    public async Task<Commit?> FindCommitAsync(string revision, CancellationToken ct = default)
+    {
+        if (revision.Length == 0 || revision.StartsWith('-'))
+            return null;
+
+        var result = await _git.RunAsync(RepoRoot,
+            ["log", "-1", "-z", "--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s", revision + "^{commit}", "--"], ct);
+        return result.Success ? Parsers.LogParser.Parse(result.StdOut).FirstOrDefault() : null;
+    }
+
     /// <summary>Короткий хеш HEAD или null в репозитории без коммитов.</summary>
     public async Task<string?> GetShortHeadAsync(CancellationToken ct = default)
     {
