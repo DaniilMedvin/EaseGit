@@ -27,6 +27,10 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
             ["search", "prs", reviewRequested ? "--review-requested=@me" : "--author=@me", "--state=open", "--sort=updated",
              "--limit", ListLimit.ToString(), "--json", PullRequestParser.SearchFields], ct));
 
+    /// <summary>Свои репозитории на GitHub, недавно обновлённые первыми.</summary>
+    public async Task<IReadOnlyList<RepoChoice>> ListMyReposAsync(CancellationToken ct = default) =>
+        RepoChoices.ParseList(await RunCheckedAsync(["repo", "list", "--limit", ListLimit.ToString(), "--json", RepoChoices.ListFields], ct));
+
     /// <summary>PR целиком: с описанием, проверками и возможностью merge.</summary>
     public async Task<PullRequest?> GetAsync(PullRequest pr, CancellationToken ct = default) =>
         PullRequestParser.ParseOne(await RunCheckedAsync(

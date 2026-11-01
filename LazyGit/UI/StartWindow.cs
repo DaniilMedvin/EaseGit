@@ -2,6 +2,7 @@ using System.Diagnostics;
 using LazyGit.Auth;
 using LazyGit.Git;
 using LazyGit.GitHub;
+using LazyGit.UI.Panels;
 using LazyGit.UI.Widgets;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.Input;
@@ -22,6 +23,10 @@ public sealed class StartWindow : Runnable<StartAction?>
     private readonly GitRunner _git;
     private readonly AuthStatus _auth;
     private readonly IReadOnlyList<string> _recentRepos;
+    private readonly RecentReposPanel _recent;
+
+    /// <summary>Сколько недавних проектов видно под полем пути.</summary>
+    private const int RecentRows = 5;
     private readonly ClipboardTextField _path;
     private readonly Label _status;
     private readonly Starfield _stars = new() { Height = Dim.Fill(6) };
@@ -41,7 +46,11 @@ public sealed class StartWindow : Runnable<StartAction?>
         Height = Dim.Fill();
         SetScheme(Theme.Base);
 
-        var logo = new Logo { X = Pos.Center(), Y = Pos.Center() - 7 };
+        // Недавние — только существующие папки, кроме той, что уже в поле.
+        var recent = recentRepos.Where(Directory.Exists).ToList();
+        var recentRows = Math.Min(recent.Count, RecentRows);
+        // Со списком недавних всё чуть выше, но логотип не уходит за верх экрана 80×24.
+        var logo = new Logo { X = Pos.Center(), Y = Pos.Center() - 7 - (recentRows > 2 ? 1 : 0) };
 
         var tagline = new Label
         {
@@ -89,8 +98,27 @@ public sealed class StartWindow : Runnable<StartAction?>
             Height = 1,
         };
 
-        var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
-        var hintList = new List<Hint> { new("enter", T("открыть", "open")), new("ctrl+o", T("выбрать папку", "choose folder")), new("ctrl+n", "git init") };
+        _recent = new RecentReposPanel
+        {
+            X = Pos.Left(box),
+            Y = Pos.Bottom(_status) + 1,
+            Width = Dim.Width(box),
+            Height = recentRows + 2,
+            Visible = recentRows > 0,
+        };
+        _recent.SetItems(recent);
+        var recentTitle = BoxTitle.ForFocusable(_recent, T("Недавние", "Recent"));
+        recentTitle.Visible = recentRows > 0;
+        // Список без фокуса — без выбранной строки, с фокусом — ❯ на ней; маркер рисуется заново.
+        _recent.HasFocusChanged += (_, _) => _recent.SetNeedsDraw();
+        _recent.LeftTop += (_, _) => _path.SetFocus();
+
+        // Справа внизу версия: подсказки не должны на неё налезать.
+        var hints = new HintBar { X = 1, Y = Pos.AnchorEnd(), Width = Dim.Fill(14) };
+        var hintList = new List<Hint> { new("enter", T("открыть", "open")) };
+        if (recentRows > 0)
+            hintList.Add(new Hint("↓", T("недавние", "recent")));
+        hintList.AddRange([new Hint("ctrl+o", T("выбрать папку", "choose folder"), Optional: true), new Hint("ctrl+n", "git init", Optional: true)]);
         if (!auth.IsAuthorized)
             hintList.Add(new Hint("ctrl+g", T("войти в GitHub", "sign in to GitHub")));
         else
@@ -98,7 +126,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         hintList.Add(new Hint("esc", T("выход", "quit")));
         hints.SetHints(hintList);
 
-        Add(_stars, _waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, T("Путь к репозиторию", "Repository path"), Theme.Accent), _status, hints, new VersionLabel());
+        Add(_stars, _waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, T("Путь к репозиторию", "Repository path"), Theme.Accent), _status, _recent, recentTitle, hints, new VersionLabel());
         _path.SetFocus();
     }
 
@@ -106,6 +134,20 @@ public sealed class StartWindow : Runnable<StartAction?>
 
     protected override bool OnKeyDown(Key key)
     {
+        // ↓ из поля пути — в список недавних, ↑ с первой строки списка — обратно, enter в списке — открыть.
+        if (_recent.Visible && _path.HasFocus && key == Key.CursorDown)
+        {
+            _recent.SetFocus();
+            return true;
+        }
+
+        if (_recent.HasFocus && key == Key.Enter && _recent.Selected is { } recentPath)
+        {
+            _path.Text = recentPath;
+            _ = OpenRepoAsync();
+            return true;
+        }
+
         if (key == Key.O.WithCtrl)
         {
             _ = PickFolderAsync();
@@ -135,7 +177,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         if (key == Key.G.WithCtrl)
         {
             using var window = new GitHubWindow(new GitHubService(new GhRunner(), Environment.CurrentDirectory), repo: null, GitHubTab.Mine,
-                found => LocalClones.FindAsync(_git, _recentRepos, found), _recentRepos.FirstOrDefault());
+                new LocalProjects(_git, _recentRepos), _recentRepos.FirstOrDefault());
             App!.Run(window);
             if (window.Result == GitHubAction.OpenRepository && window.OpenPath is { } path)
             {

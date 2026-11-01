@@ -11,4 +11,7 @@ public enum GitHubTab
 
     /// <summary>PR, где ждут моего ревью.</summary>
     ReviewRequested,
+
+    /// <summary>PR репозитория, выбранного через «/».</summary>
+    Other,
 }

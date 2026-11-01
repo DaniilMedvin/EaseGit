@@ -11,6 +11,9 @@ public enum CommandScope
 
     /// <summary>Diff в режиме построчного stage.</summary>
     Diff,
+
+    /// <summary>Файл с конфликтом в режиме решения по блокам.</summary>
+    Conflict,
 }
 
 /// <summary>

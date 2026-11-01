@@ -99,6 +99,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
 
+    // Файл в режиме решения конфликта по блокам: он справа вместо diff, панель в фокусе. null — режим выключен.
+    private ConflictFile? _conflict;
+    private readonly ConflictPanel _conflictPanel;
+
     // Файл в режиме построчного stage: его diff справа, панель diff в фокусе. null — режим выключен.
     private StagingTarget? _staging;
 
@@ -198,6 +202,21 @@ public sealed class MainWindow : Runnable<MainResult?>
         };
         _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
 
+        _conflictPanel = new ConflictPanel
+        {
+            X = Pos.Right(_files),
+            Y = Pos.Top(_files),
+            Width = Dim.Fill(),
+            Height = Dim.Fill(2),
+            Visible = false,
+        };
+        // Ушли из панели конфликта (esc, tab, 1–4, мышь) — режим заканчивается, справа снова diff.
+        _conflictPanel.HasFocusChanged += (_, _) =>
+        {
+            if (!_conflictPanel.HasFocus)
+                StopConflict();
+        };
+
         _branchLog = new GraphLogPanel
         {
             X = Pos.Right(_files),
@@ -230,7 +249,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             _branches, _branchesTitle = BoxTitle.ForFocusable(_branches, T("[2] Ветки", "[2] Branches")),
             _commits, _commitsTitle = BoxTitle.ForFocusable(_commits, T("[3] Коммиты", "[3] Commits")),
             _stash, _stashTitle = BoxTitle.ForFocusable(_stash, "[4] Stash"),
-            _diff, _branchLog, _diffTitle,
+            _diff, _branchLog, _conflictPanel, _diffTitle,
             _log, _logTitle,
             _status, _hints);
         // Справа — контекст панели в фокусе: diff файла, ветка или содержимое коммита.
@@ -330,7 +349,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     private CommandScope FocusedScope =>
-        _staging is not null && _diff.HasFocus ? CommandScope.Diff
+        _conflict is not null && _conflictPanel.HasFocus ? CommandScope.Conflict
+        : _staging is not null && _diff.HasFocus ? CommandScope.Diff
         : _branches.HasFocus ? CommandScope.Branches
         : _commits.HasFocus ? CommandScope.Commits
         : _stash.HasFocus ? CommandScope.Stash
@@ -404,6 +424,23 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("files.stageLines", T("Построчный stage файла", "Stage file by lines"), CommandScope.Files, CommandKey.Of("enter", Key.Enter),
             StartLineStaging, T("по строкам", "by lines"), available: () => _files.SelectedFile is { Section: not FileSection.Conflicts },
             keywords: "строки строка hunk ханк фрагмент частично патч patch");
+
+        Add("files.resolveBlocks", T("Решить конфликт по блокам", "Resolve the conflict block by block"), CommandScope.Files,
+            CommandKey.Of("enter", Key.Enter), () => _ = StartConflictAsync(), T("по блокам", "by blocks"),
+            available: () => _files.SelectedRow is FileEntryRow { Section: FileSection.Conflicts },
+            keywords: "конфликт блок фрагмент hunk ours theirs наша их merge решить");
+        Add("conflict.ours", T("Оставить нашу версию блока", "Keep our version of the block"), CommandScope.Conflict, CommandKey.Of("o", Key.O),
+            () => _ = ResolveBlockAsync(ConflictChoice.Ours), T("наша", "ours"), keywords: "конфликт блок ours наш", available: () => _conflict is not null);
+        Add("conflict.theirs", T("Оставить их версию блока", "Keep their version of the block"), CommandScope.Conflict, CommandKey.Of("t", Key.T),
+            () => _ = ResolveBlockAsync(ConflictChoice.Theirs), T("их", "theirs"), keywords: "конфликт блок theirs их", available: () => _conflict is not null);
+        Add("conflict.both", T("Оставить обе версии блока", "Keep both versions of the block"), CommandScope.Conflict, CommandKey.Of("b", Key.B),
+            () => _ = ResolveBlockAsync(ConflictChoice.Both), T("обе", "both"), keywords: "конфликт блок оба обе", available: () => _conflict is not null);
+        Add("conflict.restore", T("Вернуть конфликт в файле", "Restore the conflict in the file"), CommandScope.Conflict, CommandKey.Of("r", Key.R),
+            () => _ = RestoreConflictAsync(), T("вернуть", "restore"), hintOptional: true, dangerous: true, available: () => _conflict is not null,
+            preview: () => _conflict is null ? null : CommandText.Format(GitService.RestoreConflictArguments(_conflict.Path)),
+            keywords: "конфликт вернуть заново отменить");
+        Add("conflict.back", T("Вернуться к файлам", "Back to files"), CommandScope.Conflict, CommandKey.Of("esc", Key.Esc),
+            () => _files.SetFocus(), T("к файлам", "to files"), available: () => _conflict is not null);
 
         Add("diff.stageLines", T("Stage строки / выделения", "Stage line / selection"), CommandScope.Diff, CommandKey.Of("space", Key.Space),
             () => _ = ApplyLinesAsync(hunk: false), "stage", available: () => _staging is { Staged: false },
@@ -868,7 +905,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private void OpenHelp()
     {
         using var help = new HelpDialog(Viewport.Height,
-            _commands.All.Where(c => c.Scope == CommandScope.Diff || HelpLayout.IsShown(c)).ToList());
+            _commands.All.Where(c => c.Scope is CommandScope.Diff or CommandScope.Conflict || HelpLayout.IsShown(c)).ToList());
         App!.Run(help);
     }
 
@@ -907,6 +944,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         _logTitle.Visible = visible;
         _diff.Height = Dim.Fill(visible ? 2 + LogHeight : 2);
         _branchLog.Height = _diff.Height;
+        _conflictPanel.Height = _diff.Height;
     }
 
     /// <summary>Окно настроек; выбор сразу применяется и сохраняется в конфиг.</summary>
@@ -1571,7 +1609,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var recent = _config.Load().RecentRepos ?? [];
         using var window = new GitHubWindow(CreateGitHubService(), repo, tab,
-            found => LocalClones.FindAsync(new GitRunner(), recent.Where(p => p != _git.RepoRoot), found), _git.RepoRoot);
+            new LocalProjects(new GitRunner(), [_git.RepoRoot, .. recent.Where(p => p != _git.RepoRoot)]), _git.RepoRoot);
         App!.Run(window);
         switch (window.Result)
         {
@@ -1776,6 +1814,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        if (_conflict is not null)
+            return Task.CompletedTask;
         // Справа лог ветки, пока в фокусе ветки, иначе diff.
         var branchLog = _staging is null && _branches.HasFocus;
         _branchLog.Visible = branchLog;
@@ -1841,9 +1881,11 @@ public sealed class MainWindow : Runnable<MainResult?>
     /// <summary>ctrl+d / ctrl+u: на пол-экрана в diff или в логе ветки — что сейчас справа.</summary>
     private void ScrollRight(int direction)
     {
-        View view = _branchLog.Visible ? _branchLog : _diff;
+        View view = _conflictPanel.Visible ? _conflictPanel : _branchLog.Visible ? _branchLog : _diff;
         var step = direction * Math.Max(1, view.Viewport.Height / 2);
-        if (_branchLog.Visible)
+        if (_conflictPanel.Visible)
+            _conflictPanel.ScrollBy(step);
+        else if (_branchLog.Visible)
             _branchLog.ScrollBy(step);
         else
             _diff.ScrollBy(step);
@@ -1926,6 +1968,124 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     /// <summary>Включает построчный stage выбранного файла: фокус переходит в diff.</summary>
+    /// <summary>
+    /// Режим решения конфликта по блокам: файл справа целиком, ↑↓ — к блоку, o / t / b — оставить сторону.
+    /// Нельзя (не UTF-8, нет маркеров, маркеры не сходятся) — объяснение и подсказка решить файл целиком.
+    /// </summary>
+    private async Task StartConflictAsync()
+    {
+        if (_busy || _files.SelectedRow is not FileEntryRow { Section: FileSection.Conflicts } row)
+            return;
+
+        var (file, problem) = await _git.ReadConflictFileAsync(row.File.Path);
+        App?.Invoke(() =>
+        {
+            if (file is null)
+            {
+                ShowStatus($"{Theme.SymbolError} {problem}", Theme.Error);
+                return;
+            }
+
+            StopLineStaging();
+            _conflict = file;
+            _conflictPanel.Reset();
+            ShowConflict(file);
+            _conflictPanel.Visible = true;
+            _diff.Visible = false;
+            _branchLog.Visible = false;
+            _conflictPanel.SetFocus();
+            UpdateHints();
+        });
+    }
+
+    private void ShowConflict(ConflictFile file)
+    {
+        _conflictPanel.SetFile(file);
+        _diffTitle.Text = T($" Конфликт {Theme.SymbolSeparator} {file.Path} {Theme.SymbolSeparator} {Plural(file.Blocks, "блок", "блока", "блоков", "block", "blocks")} ",
+            $" Conflict {Theme.SymbolSeparator} {file.Path} {Theme.SymbolSeparator} {Plural(file.Blocks, "блок", "блока", "блоков", "block", "blocks")} ");
+    }
+
+    private void StopConflict()
+    {
+        if (_conflict is null)
+            return;
+
+        _conflict = null;
+        _conflictPanel.Visible = false;
+        _diff.Visible = true;
+        UpdateHints();
+        _ = LoadDiffAsync();
+    }
+
+    /// <summary>
+    /// Оставляет выбранную сторону в текущем блоке и сразу записывает файл. Решён последний блок — файл добавляется
+    /// в индекс (конфликт отмечен решённым) и режим заканчивается.
+    /// </summary>
+    private async Task ResolveBlockAsync(ConflictChoice choice)
+    {
+        if (_busy || _conflict is not { } file)
+            return;
+
+        var parts = ConflictResolver.Resolve(file.Parts, _conflictPanel.CurrentBlock, choice);
+        try
+        {
+            await _git.WriteConflictFileAsync(file, parts);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            App?.Invoke(() => ShowStatus(T($"{Theme.SymbolError} Не удалось записать {file.Path}: {ex.Message}",
+                $"{Theme.SymbolError} Couldn't write {file.Path}: {ex.Message}"), Theme.Error));
+            return;
+        }
+
+        var left = ConflictResolver.CountBlocks(parts);
+        App?.Invoke(() =>
+        {
+            if (left > 0)
+            {
+                _conflict = file with { Parts = parts };
+                ShowConflict(_conflict);
+                ShowStatus(T($"{Theme.SymbolSuccess} Блок решён, осталось: {left}", $"{Theme.SymbolSuccess} Block resolved, left: {left}"),
+                    Theme.Success, autoHide: true);
+                return;
+            }
+
+            var change = _repoStatus?.Files.FirstOrDefault(f => f.Path == file.Path);
+            _files.SetFocus();
+            if (change is not null)
+                _ = RunAsync(ct => _git.StageAsync(change, ct),
+                    T($"{file.Path}: все блоки решены, файл в индексе. Вернуть конфликт: git checkout -m -- {file.Path}",
+                        $"{file.Path}: all blocks resolved, the file is staged. Restore the conflict: git checkout -m -- {file.Path}"));
+        });
+    }
+
+    /// <summary>Возвращает файл к состоянию сразу после merge: все блоки снова с маркерами.</summary>
+    private async Task RestoreConflictAsync()
+    {
+        if (_busy || _conflict is not { } file)
+            return;
+
+        if (!Confirm(T($"Вернуть конфликт в {file.Path}?", $"Restore the conflict in {file.Path}?"), GitService.RestoreConflictArguments(file.Path),
+                T("Все блоки снова станут конфликтными, решения и ручные правки в файле пропадут.",
+                    "All blocks become conflicts again; resolutions and manual edits in the file are lost."), T("Вернуть", "Restore")))
+            return;
+
+        var result = await RunAsync(ct => _git.RestoreConflictAsync(file.Path, ct), T($"Конфликт в {file.Path} возвращён", $"Conflict in {file.Path} restored"));
+        if (result is not { Success: true })
+            return;
+
+        var (restored, _) = await _git.ReadConflictFileAsync(file.Path);
+        App?.Invoke(() =>
+        {
+            if (restored is null || _conflict is null)
+                return;
+
+            _conflict = restored;
+            _conflictPanel.Reset();
+            ShowConflict(restored);
+        });
+    }
+
     private void StartLineStaging()
     {
         if (_files.SelectedFile is not { } row)

@@ -1,3 +1,4 @@
+using LazyGit.Commands;
 using LazyGit.Git;
 using LazyGit.GitHub;
 using LazyGit.Models;
@@ -16,16 +17,21 @@ namespace LazyGit.UI;
 /// Pull request на GitHub: вкладки «Этот репозиторий», «Мои PR», «Ждут меня»; сверху список, снизу выбранный PR
 /// (состояние, описание, проверки CI, сводка файлов и diff с подсветкой). Над PR: checkout (только PR текущего
 /// репозитория), открыть в браузере, merge, approve, скопировать адрес; n — новый PR из текущей ветки;
-/// enter на PR другого проекта — открыть его локальную копию или склонировать.
+/// enter на PR другого проекта — открыть его локальную копию или склонировать; / — выбрать любой репозиторий
+/// и посмотреть (и влить) его PR в отдельной вкладке.
 /// Result — что сделать главному окну после закрытия или null.
 /// </summary>
 public sealed class GitHubWindow : Runnable<GitHubAction?>
 {
     private readonly GitHubService _github;
     private readonly GitHubRepo? _repo;
-    private readonly Func<GitHubRepo, Task<string?>> _findClone;
+    private readonly LocalProjects _locals;
+    private readonly Label _listTitle;
+
+    // Репозиторий вкладки «Другой», выбранный через «/».
+    private GitHubRepo? _other;
     private readonly string? _nearProject;
-    private readonly IReadOnlyList<GitHubTab> _tabs;
+    private readonly List<GitHubTab> _tabs;
     private readonly Dictionary<GitHubTab, IReadOnlyList<PullRequest>> _loaded = [];
     private readonly View _tabBar;
     private readonly PullRequestsPanel _list;
@@ -45,14 +51,13 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     private bool _busy;
 
     /// <param name="repo">Репозиторий открытого проекта на GitHub или null: тогда только вкладки по всем репозиториям.</param>
-    /// <param name="findClone">Ищет локальную копию репозитория среди недавно открытых.</param>
+    /// <param name="locals">Недавние проекты: в них ищутся локальные копии, они же первыми в выборе репозитория.</param>
     /// <param name="nearProject">Проект, рядом с которым клонировать новые (или null — в домашнюю папку).</param>
-    public GitHubWindow(GitHubService github, GitHubRepo? repo, GitHubTab tab, Func<GitHubRepo, Task<string?>> findClone,
-        string? nearProject)
+    public GitHubWindow(GitHubService github, GitHubRepo? repo, GitHubTab tab, LocalProjects locals, string? nearProject)
     {
         _github = github;
         _repo = repo;
-        _findClone = findClone;
+        _locals = locals;
         _nearProject = nearProject;
         _tabs = repo is null ? [GitHubTab.Mine, GitHubTab.ReviewRequested] : [GitHubTab.Repository, GitHubTab.Mine, GitHubTab.ReviewRequested];
         _tab = _tabs.Contains(tab) ? tab : _tabs[0];
@@ -72,7 +77,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
         _hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
 
-        Add(_tabBar, _list, BoxTitle.ForFocusable(_list, repo?.NameWithOwner ?? "GitHub"), _details, _detailsTitle, _status, _hints);
+        _listTitle = BoxTitle.ForFocusable(_list, repo?.NameWithOwner ?? "GitHub");
+        Add(_tabBar, _list, _listTitle, _details, _detailsTitle, _status, _hints);
         _list.SetFocus();
         UpdateTabs();
     }
@@ -92,11 +98,13 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return true;
         }
 
+        if (CommandKey.Char('/').Matches(key))
+            return Handled(PickRepository());
         if (key == Key.Tab)
             return SwitchTab(+1);
         if (key == Key.Tab.WithShift)
             return SwitchTab(-1);
-        Key[] numbers = [Key.D1, Key.D2, Key.D3];
+        Key[] numbers = [Key.D1, Key.D2, Key.D3, Key.D4];
         for (var i = 0; i < _tabs.Count; i++)
         {
             if (key == numbers[i])
@@ -144,7 +152,53 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         return Task.CompletedTask;
     }
 
-    private bool SwitchTab(int step) => SelectTab(_tabs[(_tabs.ToList().IndexOf(_tab) + step + _tabs.Count) % _tabs.Count]);
+    private bool SwitchTab(int step) => SelectTab(_tabs[(_tabs.IndexOf(_tab) + step + _tabs.Count) % _tabs.Count]);
+
+    /// <summary>
+    /// «/» — выбор репозитория. Выбран открытый проект — вкладка «Этот репозиторий», иначе — вкладка этого репозитория
+    /// (одна, заменяется при следующем выборе) со всеми его открытыми PR.
+    /// </summary>
+    private Task PickRepository()
+    {
+        using var picker = new RepoPickerDialog(async ct =>
+        {
+            var localsTask = _locals.ListAsync(ct);
+            IReadOnlyList<RepoChoice> remote;
+            try
+            {
+                remote = await _github.ListMyReposAsync(ct);
+            }
+            catch (Git.GitCommandException)
+            {
+                // Без сети — хотя бы недавние локальные и ручной ввод.
+                remote = [];
+            }
+
+            return RepoChoices.Merge(await localsTask, remote);
+        });
+        App!.Run(picker);
+        if (picker.Result is not { } chosen)
+            return Task.CompletedTask;
+
+        if (_repo is not null && LocalClones.SameRepo(chosen, _repo))
+        {
+            SelectTab(GitHubTab.Repository);
+            return Task.CompletedTask;
+        }
+
+        _other = chosen;
+        _loaded.Remove(GitHubTab.Other);
+        if (!_tabs.Contains(GitHubTab.Other))
+            _tabs.Add(GitHubTab.Other);
+        if (_tab == GitHubTab.Other)
+        {
+            UpdateTabs();
+            return LoadListAsync();
+        }
+
+        SelectTab(GitHubTab.Other);
+        return Task.CompletedTask;
+    }
 
     private bool SelectTab(GitHubTab tab)
     {
@@ -157,11 +211,12 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         return true;
     }
 
-    private static string TabTitle(GitHubTab tab) => tab switch
+    private string TabTitle(GitHubTab tab) => tab switch
     {
         GitHubTab.Repository => T("Этот репозиторий", "This repository"),
         GitHubTab.Mine => T("Мои PR", "My PRs"),
-        _ => T("Ждут меня", "Review requested"),
+        GitHubTab.ReviewRequested => T("Ждут меня", "Review requested"),
+        _ => _other?.NameWithOwner ?? "",
     };
 
     /// <summary>Строка вкладок «1 Этот репозиторий 3   2 Мои PR 5   3 Ждут меня»: текущая — плашкой, число — после загрузки.</summary>
@@ -180,12 +235,19 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         _tabBarSegments = segments;
         _tabBar.SetNeedsDraw();
 
-        _list.ShowRepo = _tab != GitHubTab.Repository;
+        _list.ShowRepo = _tab is GitHubTab.Mine or GitHubTab.ReviewRequested;
+        _listTitle.Text = $" {_tab switch
+        {
+            GitHubTab.Repository => _repo?.NameWithOwner,
+            GitHubTab.Other => _other?.NameWithOwner,
+            _ => T("Все репозитории", "All repositories"),
+        }} ";
         _list.Empty = _tab switch
         {
             GitHubTab.Repository => T("Открытых PR нет. n — создать из текущей ветки", "No open PRs. n creates one from the current branch"),
-            GitHubTab.Mine => T("У тебя нет открытых PR", "You have no open PRs"),
-            _ => T("Никто не ждёт твоего ревью", "Nobody is waiting for your review"),
+            GitHubTab.Mine => T("У тебя нет открытых PR. / — выбрать репозиторий", "You have no open PRs. / picks a repository"),
+            GitHubTab.ReviewRequested => T("Никто не ждёт твоего ревью. / — выбрать репозиторий", "Nobody is waiting for your review. / picks a repository"),
+            _ => T("В этом репозитории нет открытых PR", "This repository has no open PRs"),
         };
         UpdateHints();
     }
@@ -195,7 +257,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     private void UpdateHints()
     {
         var local = _list.Selected is { } pr && IsCurrentRepo(pr);
-        var hints = new List<Hint> { new("tab", T("вкладка", "tab")) };
+        var hints = new List<Hint> { new("tab", T("вкладка", "tab")), new("/", T("репозиторий", "repository")) };
         if (local)
             hints.Add(new Hint("space", "checkout"));
         else if (_list.Selected is not null)
@@ -233,7 +295,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             {
                 GitHubTab.Repository => await _github.ListAsync(_repo!, loading.Token),
                 GitHubTab.Mine => await _github.SearchAsync(reviewRequested: false, loading.Token),
-                _ => await _github.SearchAsync(reviewRequested: true, loading.Token),
+                GitHubTab.ReviewRequested => await _github.SearchAsync(reviewRequested: true, loading.Token),
+                _ => await _github.ListAsync(_other!, loading.Token),
             };
             App?.Invoke(() =>
             {
@@ -335,7 +398,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return;
         }
 
-        var local = await _findClone(pr.Repo);
+        var local = await _locals.FindAsync(pr.Repo);
         App?.Invoke(() =>
         {
             if (local is not null)

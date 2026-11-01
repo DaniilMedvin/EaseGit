@@ -1,3 +1,4 @@
+using System.Text;
 using LazyGit.Git.Parsers;
 using LazyGit.Models;
 
@@ -484,6 +485,54 @@ public sealed class GitService
 
         return last ?? new GitResult("git merge-file --union", 0, "", "");
     }
+
+    /// <summary>
+    /// Читает файл с конфликтом для решения по блокам. Возвращает файл или текст, почему по блокам нельзя:
+    /// не UTF-8 (запись могла бы испортить текст), нет маркеров (удалён в одной из веток, бинарный), маркеры не сходятся.
+    /// </summary>
+    public async Task<(ConflictFile? File, string? Problem)> ReadConflictFileAsync(string path, CancellationToken ct = default)
+    {
+        var full = Path.Combine(RepoRoot, path);
+        if (!File.Exists(full))
+            return (null, T("Файла нет в рабочей копии: он удалён в одной из веток. Реши целиком: o / t",
+                "The file is missing in the working tree: it was deleted in one branch. Resolve it whole: o / t"));
+
+        var bytes = await File.ReadAllBytesAsync(full, ct);
+        var hasBom = bytes is [0xEF, 0xBB, 0xBF, ..];
+        string text;
+        try
+        {
+            text = new UTF8Encoding(false, throwOnInvalidBytes: true).GetString(bytes, hasBom ? 3 : 0, bytes.Length - (hasBom ? 3 : 0));
+        }
+        catch (DecoderFallbackException)
+        {
+            return (null, T("Файл не в UTF-8 (или бинарный): по блокам нельзя, реши целиком: o / t",
+                "The file is not UTF-8 (or binary): resolve it whole: o / t"));
+        }
+
+        var parts = ConflictResolver.Parse(text);
+        if (parts is null)
+            return (null, T("Маркеры конфликта в файле не сходятся: реши его в редакторе или целиком (o / t)",
+                "Conflict markers in the file don't match: resolve it in an editor or whole (o / t)"));
+        if (ConflictResolver.CountBlocks(parts) == 0)
+            return (null, T("В файле нет блоков <<<<<<<: реши его целиком (o / t) или добавь в индекс (space)",
+                "The file has no <<<<<<< blocks: resolve it whole (o / t) or stage it (space)"));
+        return (new ConflictFile(path, parts, hasBom), null);
+    }
+
+    /// <summary>Записывает файл из частей (решённые блоки — выбранными строками) в той же кодировке.</summary>
+    public async Task WriteConflictFileAsync(ConflictFile file, IReadOnlyList<ConflictPart> parts, CancellationToken ct = default)
+    {
+        var text = ConflictResolver.Render(parts);
+        await File.WriteAllBytesAsync(Path.Combine(RepoRoot, file.Path),
+            [.. file.HasBom ? (byte[])[0xEF, 0xBB, 0xBF] : [], .. new UTF8Encoding(false).GetBytes(text)], ct);
+    }
+
+    /// <summary>Аргументы возврата конфликта: файл снова с маркерами, как сразу после merge. Ручные правки пропадут.</summary>
+    public static string[] RestoreConflictArguments(string path) => ["checkout", "--merge", "--", path];
+
+    public Task<GitResult> RestoreConflictAsync(string path, CancellationToken ct = default) =>
+        RunActionAsync(RestoreConflictArguments(path), ct);
 
     /// <summary>Выгружает версию файла из индекса (1 — база, 2 — наша, 3 — их) во временный файл в корне репозитория.</summary>
     private async Task<(string? Path, GitResult Result)> ExtractStageAsync(string path, int stage, CancellationToken ct)

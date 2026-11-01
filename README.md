@@ -36,11 +36,13 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **History**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, reorder).
 - **Graph of all branches** (`G`) with per-branch colors, tags and actions on any commit.
 - **Sync**: fetch, pull, push with `↑ahead ↓behind`, a spinner, `esc` to cancel, and a guided `push -u` for new branches.
-- **Conflicts**: keep ours / theirs / both per file, continue (`C`) or abort (`A`) merge, cherry-pick, revert and rebase.
+- **Conflicts**: resolve block by block (`enter` on a conflicted file: ours / theirs / both for each `<<<<<<<` block)
+  or keep ours / theirs / both for the whole file, continue (`C`) or abort (`A`) merge, cherry-pick, revert and rebase.
 - **GitHub pull requests** (`g`): PRs of this repository, your PRs and review requests across all repositories,
   with CI and review status, description, checks and diff; checkout, merge (squash / merge / rebase), approve,
   open in browser; create a PR from the current branch (`N`) with the title and description taken from commits;
-  `enter` on a PR of another project opens its local copy or clones it. CI status of HEAD in the header (`✓ CI`).
+  `enter` on a PR of another project opens its local copy or clones it; `/` picks any repository
+  (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message, pop, apply, drop, see its diff.
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.

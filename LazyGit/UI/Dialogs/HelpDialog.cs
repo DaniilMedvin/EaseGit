@@ -156,6 +156,7 @@ public sealed class HelpDialog : Runnable<bool?>
                          (CommandScope.Commits, T("Коммиты", "Commits")),
                          (CommandScope.Stash, "Stash"),
                          (CommandScope.Diff, T("Построчный stage (enter на файле)", "Line staging (enter on a file)")),
+                         (CommandScope.Conflict, T("Конфликт по блокам (enter на конфликтном файле)", "Conflict by blocks (enter on a conflicted file)")),
                          (CommandScope.Global, T("Везде", "Everywhere")),
                      })
             {

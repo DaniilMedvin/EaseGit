@@ -127,4 +127,63 @@ public sealed class ConflictTests : IAsyncLifetime
         Assert.Equal("ours", Read("a.txt"));
         Assert.Empty((await _service.GetStatusAsync()).Files);
     }
+
+    /// <summary>Файл из двух частей, меняющихся в разных ветках, — два блока конфликта; CRLF и BOM.</summary>
+    private async Task MergeWithTwoBlocksAsync()
+    {
+        const string bom = "\uFEFF";
+        _repo.Write("code.cs", bom + "a\r\n1\r\nx\r\nx\r\nx\r\nb\r\n1\r\n");
+        await _repo.CommitAsync("init");
+        await _repo.RunAsync("switch", "-c", "other");
+        _repo.Write("code.cs", bom + "a\r\n3\r\nx\r\nx\r\nx\r\nb\r\n3\r\n");
+        await _repo.CommitAsync("theirs");
+        await _repo.RunAsync("switch", "main");
+        _repo.Write("code.cs", bom + "a\r\n2\r\nx\r\nx\r\nx\r\nb\r\n2\r\n");
+        await _repo.CommitAsync("ours");
+        await _repo.Git.RunAsync(_repo.Path, ["merge", "other"]);
+    }
+
+    [Fact]
+    public async Task ReadConflictFile_TwoBlocks_ResolveEachKeepsBomAndCrlf()
+    {
+        await MergeWithTwoBlocksAsync();
+
+        var (file, problem) = await _service.ReadConflictFileAsync("code.cs");
+
+        Assert.Null(problem);
+        Assert.Equal(2, file!.Blocks);
+        Assert.True(file.HasBom);
+        var parts = ConflictResolver.Resolve(file.Parts, 0, ConflictChoice.Theirs);
+        parts = ConflictResolver.Resolve(parts, 0, ConflictChoice.Ours);
+        await _service.WriteConflictFileAsync(file, parts);
+
+        var bytes = File.ReadAllBytes(Path.Combine(_repo.Path, "code.cs"));
+        Assert.Equal([0xEF, 0xBB, 0xBF], bytes[..3]);
+        Assert.Equal("a\r\n3\r\nx\r\nx\r\nx\r\nb\r\n2\r\n", System.Text.Encoding.UTF8.GetString(bytes[3..]));
+    }
+
+    [Fact]
+    public async Task RestoreConflict_AfterResolving_MarkersAreBack()
+    {
+        await MergeWithConflictAsync();
+        var (file, _) = await _service.ReadConflictFileAsync("a.txt");
+        await _service.WriteConflictFileAsync(file!, ConflictResolver.Resolve(file!.Parts, 0, ConflictChoice.Ours));
+
+        var result = await _service.RestoreConflictAsync("a.txt");
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Contains("<<<<<<<", Read("a.txt"));
+    }
+
+    [Fact]
+    public async Task ReadConflictFile_NotUtf8OrNoMarkers_ExplainsWhy()
+    {
+        await MergeWithConflictAsync();
+        File.WriteAllBytes(Path.Combine(_repo.Path, "bin.dat"), [0xFF, 0xFE, 0x00, 0xC3]);
+        _repo.Write("plain.txt", "no markers\n");
+
+        Assert.Contains("UTF-8", (await _service.ReadConflictFileAsync("bin.dat")).Problem);
+        Assert.Contains("<<<<<<<", (await _service.ReadConflictFileAsync("plain.txt")).Problem);
+        Assert.NotNull((await _service.ReadConflictFileAsync("missing.txt")).Problem);
+    }
 }
