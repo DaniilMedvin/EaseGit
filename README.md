@@ -45,7 +45,25 @@ curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-os
 sudo mv lgit /usr/local/bin/
 ```
 
-On Windows, download `lgit-win-x64.zip` and put `lgit.exe` somewhere on your `PATH`.
+### Windows
+
+In PowerShell: download, unpack to `%LOCALAPPDATA%\Programs\lgit` and add that folder to your user `PATH`.
+
+```powershell
+$dir = "$env:LOCALAPPDATA\Programs\lgit"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-win-x64.zip -OutFile "$env:TEMP\lgit.zip"
+Expand-Archive "$env:TEMP\lgit.zip" -DestinationPath $dir -Force
+$path = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($path -notlike "*$dir*") { [Environment]::SetEnvironmentVariable("Path", "$path;$dir", "User") }
+```
+
+Open a new terminal and run `lgit`. Windows Terminal is recommended: the classic console draws box characters poorly.
+The binary is not signed, so SmartScreen may warn on the first run: *More info → Run anyway*.
+Install `gh` with `winget install GitHub.cli` if you want to sign in to GitHub from the app.
+To update, run the same commands again; to remove, delete the folder and remove it from `PATH`.
+
+With the GitHub CLI you can also download any release asset: `gh release download --repo DaniilMedvin/LazyGit --pattern 'lgit-linux-x64.tar.gz'`.
 
 Requirements: `git`. Optional: [GitHub CLI](https://cli.github.com/) `gh` to sign in to GitHub from the app.
 

@@ -45,7 +45,25 @@ curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-os
 sudo mv lgit /usr/local/bin/
 ```
 
-На Windows скачай `lgit-win-x64.zip` и положи `lgit.exe` в папку из `PATH`.
+### Windows
+
+В PowerShell: скачать, распаковать в `%LOCALAPPDATA%\Programs\lgit` и добавить эту папку в пользовательский `PATH`.
+
+```powershell
+$dir = "$env:LOCALAPPDATA\Programs\lgit"
+New-Item -ItemType Directory -Force $dir | Out-Null
+Invoke-WebRequest https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-win-x64.zip -OutFile "$env:TEMP\lgit.zip"
+Expand-Archive "$env:TEMP\lgit.zip" -DestinationPath $dir -Force
+$path = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($path -notlike "*$dir*") { [Environment]::SetEnvironmentVariable("Path", "$path;$dir", "User") }
+```
+
+Открой новый терминал и набери `lgit`. Лучше в Windows Terminal: старая консоль плохо рисует рамки.
+Файл не подписан, поэтому при первом запуске SmartScreen может предупредить: *Подробнее → Выполнить в любом случае*.
+Чтобы входить в GitHub из приложения, поставь `gh`: `winget install GitHub.cli`.
+Обновить — выполнить те же команды ещё раз; удалить — стереть папку и убрать её из `PATH`.
+
+Через GitHub CLI можно скачать любой файл релиза: `gh release download --repo DaniilMedvin/LazyGit --pattern 'lgit-linux-x64.tar.gz'`.
 
 Нужен `git`. По желанию — [GitHub CLI](https://cli.github.com/) `gh`, чтобы входить в GitHub из приложения.
 
