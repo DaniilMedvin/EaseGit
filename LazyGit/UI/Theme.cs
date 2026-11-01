@@ -4,26 +4,33 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 namespace LazyGit.UI;
 
 /// <summary>
-/// Цвета и символы интерфейса (docs/DESIGN.md). Палитра основана на стандартной теме Neovim.
+/// Цвета и символы интерфейса (docs/DESIGN.md). Цвета берутся из активной <see cref="ThemePalette"/>.
 /// Фон — Color.None, то есть фон терминала.
 /// </summary>
 public static class Theme
 {
+    // Единственное изменяемое состояние: палитра выбирается один раз при запуске окна (Apply), до создания
+    // каких-либо виджетов. Переключение темы перезапускает главное окно, поэтому на лету цвета не меняются.
+    private static ThemePalette _palette = ThemePalette.Dark;
+
+    /// <summary>Включает палитру. Вызывать до создания окон: уже нарисованные виджеты цвета не обновят.</summary>
+    public static void Apply(ThemePalette palette) => _palette = palette;
+
     public static readonly Color Fg = Color.None;
-    public static readonly Color Muted = new("#9B9EA4");
-    public static readonly Color Dim = new("#4F5258");
-    public static readonly Color Accent = new("#A6DBFF");
-    public static readonly Color Green = new("#B3F6C0");
-    public static readonly Color Cyan = new("#8CF8F7");
-    public static readonly Color SelectionBg = new("#2C2E33");
-    public static readonly Color Success = Green;
-    public static readonly Color Error = new("#FFC0B9");
-    public static readonly Color Warning = new("#FCE094");
-    public static readonly Color Info = Cyan;
+    public static Color Muted => _palette.Muted;
+    public static Color Dim => _palette.Dim;
+    public static Color Accent => _palette.Accent;
+    public static Color Green => _palette.Green;
+    public static Color Cyan => _palette.Cyan;
+    public static Color SelectionBg => _palette.SelectionBg;
+    public static Color Success => Green;
+    public static Color Error => _palette.Error;
+    public static Color Warning => _palette.Warning;
+    public static Color Info => Cyan;
 
     /// <summary>Фон добавленных и удалённых строк в diff.</summary>
-    public static readonly Color AddedBg = new("#1D2F25");
-    public static readonly Color RemovedBg = new("#3A2427");
+    public static Color AddedBg => _palette.AddedBg;
+    public static Color RemovedBg => _palette.RemovedBg;
 
     /// <summary>Цвета маскотов (Config.Mascot): Claude — оранжевый, ChatGPT — зелёный, Gemini — градиент.</summary>
     public static readonly Color MascotClaude = new("#D97757");
@@ -31,7 +38,7 @@ public static class Theme
     public static readonly Color[] MascotGemini = [new("#4796E3"), new("#9177C7"), new("#CA6673")];
 
     /// <summary>Предполагаемый фон терминала. Используется для приглушения цветов декораций.</summary>
-    public static readonly Color Backdrop = new("#14161B");
+    public static Color Backdrop => _palette.Backdrop;
 
     public const string SymbolCurrent = "●";
     public const string SymbolEmpty = "○";
@@ -85,20 +92,20 @@ public static class Theme
         _ => SyntaxPlain,
     };
 
-    public static readonly Color SyntaxPlain = new("#DCDCDC");
-    public static readonly Color SyntaxKeyword = new("#569CD6");
-    public static readonly Color SyntaxControlKeyword = new("#D8A0DF");
-    public static readonly Color SyntaxClass = new("#4EC9B0");
-    public static readonly Color SyntaxStruct = new("#86C691");
-    public static readonly Color SyntaxInterface = new("#B8D7A3");
-    public static readonly Color SyntaxMethod = new("#DCDCAA");
-    public static readonly Color SyntaxVariable = new("#9CDCFE");
-    public static readonly Color SyntaxString = new("#D69D85");
-    public static readonly Color SyntaxNumber = new("#B5CEA8");
-    public static readonly Color SyntaxComment = new("#57A64A");
-    public static readonly Color SyntaxPreprocessor = new("#9B9B9B");
-    public static readonly Color SyntaxDisabled = new("#767676");
-    public static readonly Color SyntaxPunctuation = new("#B4B4B4");
+    public static Color SyntaxPlain => _palette.SyntaxPlain;
+    public static Color SyntaxKeyword => _palette.SyntaxKeyword;
+    public static Color SyntaxControlKeyword => _palette.SyntaxControlKeyword;
+    public static Color SyntaxClass => _palette.SyntaxClass;
+    public static Color SyntaxStruct => _palette.SyntaxStruct;
+    public static Color SyntaxInterface => _palette.SyntaxInterface;
+    public static Color SyntaxMethod => _palette.SyntaxMethod;
+    public static Color SyntaxVariable => _palette.SyntaxVariable;
+    public static Color SyntaxString => _palette.SyntaxString;
+    public static Color SyntaxNumber => _palette.SyntaxNumber;
+    public static Color SyntaxComment => _palette.SyntaxComment;
+    public static Color SyntaxPreprocessor => _palette.SyntaxPreprocessor;
+    public static Color SyntaxDisabled => _palette.SyntaxDisabled;
+    public static Color SyntaxPunctuation => _palette.SyntaxPunctuation;
 
     /// <summary>
     /// Буква и цвет плашки вида изменения, как в VS Code и Rider:

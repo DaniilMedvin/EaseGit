@@ -4,7 +4,7 @@ namespace LazyGit.Config;
 
 public sealed class ConfigStore
 {
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true, PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
     private readonly string _path;
 
@@ -20,12 +20,26 @@ public sealed class ConfigStore
             if (!File.Exists(_path))
                 return new AppConfig();
 
-            return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(_path)) ?? new AppConfig();
+            return JsonSerializer.Deserialize<AppConfig>(File.ReadAllText(_path), JsonOptions) ?? new AppConfig();
         }
         catch (JsonException)
         {
-            // Повреждённый конфиг заменяется значениями по умолчанию.
+            // Повреждённый конфиг заменяется значениями по умолчанию, а правки пользователя сохраняются рядом:
+            // следующее сохранение перезапишет config.json.
+            BackUpBrokenFile();
             return new AppConfig();
+        }
+    }
+
+    private void BackUpBrokenFile()
+    {
+        try
+        {
+            File.Copy(_path, _path + ".bad", overwrite: true);
+        }
+        catch (IOException)
+        {
+            // Нет места или прав: работаем с настройками по умолчанию без копии.
         }
     }
 

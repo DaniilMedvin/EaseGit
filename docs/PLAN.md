@@ -65,8 +65,8 @@
 - [x] Быстрое создание `README.md` (`R`) и `.gitignore` для Visual Studio (`I`)
 - [ ] Локализация ru/en
 - [x] Окно настроек (`,`): маскот Clawd / ChatGPT / Gemini в углу diff
-- [ ] Конфиг `~/.config/lazygit-cs/config.json` (тема, клавиши)
-- [ ] Темы: dark / light / пользовательские
+- [x] Конфиг `~/.config/lazygit-cs/config.json` (тема, клавиши): [CONFIG.md](CONFIG.md)
+- [x] Темы: dark / light / пользовательские, `T` переключает
 
 ## Этап 7. Продвинутое
 - [x] Stash: создать (`s`), pop / apply / удалить в панели `[4]`, diff справа

@@ -18,6 +18,9 @@ public enum MainResult
 {
     Quit,
     Login,
+
+    /// <summary>Тема сменилась: окно открывается заново с той же страницей репозитория.</summary>
+    Reload,
 }
 
 /// <summary>
@@ -67,9 +70,16 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     private const int LogHeight = 8;
 
+    private readonly string? _notice;
+
+    // Проблемы пользовательской настройки (опечатка в теме или клавише): показываются при открытии.
+    private readonly List<string> _configProblems = [];
+
     /// <param name="log">Журнал, в который <paramref name="git"/> пишет команды; показывается панелью по ~.</param>
-    public MainWindow(GitService git, AuthStatus auth, ConfigStore config, CommandLog log)
+    /// <param name="notice">Сообщение при открытии, например «Тема: light» после переключения.</param>
+    public MainWindow(GitService git, AuthStatus auth, ConfigStore config, CommandLog log, string? notice = null)
     {
+        _notice = notice;
         _git = git;
         _config = config;
         _auth = auth;
@@ -202,11 +212,26 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             _ = RefreshAsync();
             StartWatching();
+            ShowStartupMessage();
         }
         else
         {
             _watcher?.Dispose();
             _watcher = null;
+        }
+    }
+
+    /// <summary>Сообщает о смене темы или о проблемах в config.json; по ним же ничего не ломается, берутся значения по умолчанию.</summary>
+    private void ShowStartupMessage()
+    {
+        if (_configProblems.Count > 0)
+        {
+            var more = _configProblems.Count > 1 ? $" (и ещё {_configProblems.Count - 1})" : "";
+            ShowStatus($"{Theme.SymbolWarning} config.json: {_configProblems[0]}{more}", Theme.Warning, autoHide: true);
+        }
+        else if (_notice is not null)
+        {
+            ShowStatus($"{Theme.SymbolSuccess} {_notice}", Theme.Success, autoHide: true);
         }
     }
 
@@ -254,9 +279,28 @@ public sealed class MainWindow : Runnable<MainResult?>
     /// </summary>
     private void RegisterCommands()
     {
+        var config = _config.Load();
+        var keyOverrides = config.Keys ?? [];
+        var overridden = new HashSet<string>();
+        if (ThemeCatalog.Resolve(config).Problem is { } themeProblem)
+            _configProblems.Add(themeProblem);
+
         void Add(string id, string title, CommandScope scope, CommandKey shortcut, Action execute, string? hint = null,
             bool hintOptional = false, Func<string?>? preview = null, bool dangerous = false, bool hidden = false,
-            Func<bool>? available = null, string keywords = "") =>
+            Func<bool>? available = null, string keywords = "")
+        {
+            if (keyOverrides.TryGetValue(id, out var text))
+            {
+                var (custom, error) = KeyParser.Parse(text);
+                if (custom is null)
+                    _configProblems.Add($"клавиша команды {id}: {error}");
+                else
+                {
+                    shortcut = custom;
+                    overridden.Add(id);
+                }
+            }
+
             _commands.Add(new AppCommand
             {
                 Id = id,
@@ -272,6 +316,7 @@ public sealed class MainWindow : Runnable<MainResult?>
                 IsAvailable = available ?? (() => true),
                 Keywords = keywords,
             });
+        }
 
         Add("files.stage", "Stage / unstage", CommandScope.Files, CommandKey.Of("space", Key.Space),
             () => _ = ToggleSelectedAsync(), "stage", preview: StagePreview, keywords: "добавить в индекс стейдж");
@@ -378,6 +423,8 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         Add("app.palette", "Палитра команд", CommandScope.Global,
             CommandKey.Any("ctrl+p / :", CommandKey.Of("ctrl+p", Key.P.WithCtrl), CommandKey.Char(':')), OpenPalette, hidden: true);
+        Add("app.theme", "Сменить тему (dark / light / свои)", CommandScope.Global, CommandKey.Of("T", Key.T.WithShift),
+            SwitchTheme, keywords: "тема цвета светлая тёмная dark light оформление");
         Add("app.settings", "Настройки", CommandScope.Global, CommandKey.Char(','), OpenSettings, keywords: "настройки маскот параметры");
         Add("app.login", "Войти в GitHub", CommandScope.Global, CommandKey.Of("ctrl+g", Key.G.WithCtrl),
             Login, "войти", hintOptional: true, available: () => !_auth.IsAuthorized);
@@ -389,7 +436,43 @@ public sealed class MainWindow : Runnable<MainResult?>
             Result = MainResult.Quit;
             RequestStop();
         }, "выход");
+
+        ReportKeyProblems(keyOverrides, overridden);
     }
+
+    /// <summary>Находит в разделе keys неизвестные команды и клавиши, занятые другой командой того же экрана.</summary>
+    private void ReportKeyProblems(IReadOnlyDictionary<string, string> keyOverrides, HashSet<string> overridden)
+    {
+        foreach (var id in keyOverrides.Keys.Where(id => _commands.All.All(c => c.Id != id)))
+            _configProblems.Add($"команды {id} нет, клавишу назначить не на что");
+
+        foreach (var group in _commands.All.Where(c => overridden.Contains(c.Id)).GroupBy(c => c.Scope))
+        {
+            foreach (var command in group)
+            {
+                var other = _commands.All.FirstOrDefault(c => c.Id != command.Id && c.Scope == command.Scope && c.Key.Label == command.Key.Label);
+                if (other is not null)
+                    _configProblems.Add($"клавиша {command.Key.Label} назначена и на {command.Id}, и на {other.Id}");
+            }
+        }
+    }
+
+    /// <summary>Включает следующую тему по кругу, запоминает её в конфиге и перезапускает окно: цвета задаются при создании виджетов.</summary>
+    private void SwitchTheme()
+    {
+        if (_busy)
+            return;
+
+        var config = _config.Load();
+        var next = ThemeCatalog.Next(config);
+        _config.Save(config with { Theme = next });
+        ThemeNotice = $"Тема: {next}";
+        Result = MainResult.Reload;
+        RequestStop();
+    }
+
+    /// <summary>Сообщение для следующего окна после <see cref="MainResult.Reload"/>.</summary>
+    public string? ThemeNotice { get; private set; }
 
     /// <summary>
     /// Отменяет последнее действие по reflog: коммит, merge, pull, checkout. Переписывание истории — через подтверждение;

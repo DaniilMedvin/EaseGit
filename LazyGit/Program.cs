@@ -71,8 +71,12 @@ class Program
             }
         }
 
+        string? notice = null;
         while (true)
         {
+            // Тема задаётся до создания окон: виджеты берут цвета при создании.
+            Theme.Apply(ThemeCatalog.Resolve(configStore.Load()).Palette);
+
             if (repoRoot is null)
             {
                 using var startWindow = new StartWindow(git, status, startPath);
@@ -91,10 +95,14 @@ class Program
 
             configStore.Save(configStore.Load() with { LastRepoPath = repoRoot });
             var log = new CommandLog();
-            using var mainWindow = new MainWindow(new GitService(git, repoRoot, log), status, configStore, log);
+            using var mainWindow = new MainWindow(new GitService(git, repoRoot, log), status, configStore, log, notice);
+            notice = null;
             app.Run(mainWindow);
             switch (mainWindow.Result)
             {
+                case MainResult.Reload:
+                    notice = mainWindow.ThemeNotice;
+                    continue;
                 case MainResult.Quit:
                     return new UiOutcome.Quit();
                 case MainResult.Login:
