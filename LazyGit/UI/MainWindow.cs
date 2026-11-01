@@ -341,8 +341,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
         Add("repo.createGitIgnore", "Создать .gitignore (Visual Studio)", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
-            () => CreateScaffoldFile(RepoScaffold.CreateGitIgnore, GitIgnoreTemplate.FileName, "Добавить .gitignore"),
-            ".gitignore", hintOptional: true, available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
+            () => _ = CreateGitIgnoreAsync(),
+            ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
             keywords: "гитигнор игнор visual studio шаблон создать файл ignore");
         Add("repo.createReadme", "Создать README.md", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
             () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, "Добавить README"),
@@ -712,8 +712,45 @@ public sealed class MainWindow : Runnable<MainResult?>
             : $"{branch.Name} влита в {target}, создан merge-коммит"));
     }
 
+    /// <summary>
+    /// Создаёт .gitignore по актуальному шаблону Visual Studio с GitHub; без сети — по встроенному.
+    /// Файл создаётся в UI-потоке, поэтому проверка «уже есть» повторяется после загрузки.
+    /// </summary>
+    private async Task CreateGitIgnoreAsync()
+    {
+        if (_busy)
+            return;
+
+        _busy = true;
+        ShowStatus("Загружаю актуальный шаблон .gitignore с GitHub…", Theme.Info);
+        GitIgnoreResult template;
+        try
+        {
+            using var http = new HttpClient();
+            template = await GitIgnoreSource.LoadAsync(http);
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        App?.Invoke(() =>
+        {
+            if (template.Origin == GitIgnoreOrigin.GitHub)
+            {
+                CreateScaffoldFile(root => RepoScaffold.CreateGitIgnore(root, template.Content), GitIgnoreTemplate.FileName,
+                    "Добавить .gitignore", "по актуальному шаблону github/gitignore");
+                return;
+            }
+
+            CreateScaffoldFile(root => RepoScaffold.CreateGitIgnore(root, template.Content), GitIgnoreTemplate.FileName,
+                "Добавить .gitignore", $"{Theme.SymbolWarning} GitHub недоступен, взят встроенный шаблон", warning: true);
+        });
+    }
+
     /// <summary>Создаёт файл из шаблона в корне репозитория и подсказывает, как его закоммитить.</summary>
-    private void CreateScaffoldFile(Func<string, bool> create, string fileName, string templateName)
+    private void CreateScaffoldFile(Func<string, bool> create, string fileName, string templateName, string? note = null,
+        bool warning = false)
     {
         try
         {
@@ -729,8 +766,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
         }
 
-        ShowStatus($"{Theme.SymbolSuccess} {fileName} создан: space — в индекс, c — коммит (ctrl+t → «{templateName}»)",
-            Theme.Success, autoHide: true);
+        var how = note is null ? "" : $" ({note})";
+        ShowStatus($"{(warning ? Theme.SymbolWarning : Theme.SymbolSuccess)} {fileName} создан{how}: space — в индекс, c — коммит (ctrl+t → «{templateName}»)",
+            warning ? Theme.Warning : Theme.Success, autoHide: true);
         _ = RefreshAsync();
     }
 

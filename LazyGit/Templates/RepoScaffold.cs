@@ -20,9 +20,12 @@ public static class RepoScaffold
     public static bool CreateReadme(string repoRoot) =>
         CreateIfMissing(Path.Combine(repoRoot, ReadmeFileName), ReadmeContent(repoRoot));
 
-    /// <summary>Создаёт .gitignore со стандартными правилами Visual Studio. Существующий файл не перезаписывается.</summary>
-    public static bool CreateGitIgnore(string repoRoot) =>
-        CreateIfMissing(Path.Combine(repoRoot, GitIgnoreTemplate.FileName), GitIgnoreTemplate.VisualStudio);
+    /// <summary>Создаёт .gitignore со встроенными правилами Visual Studio. Существующий файл не перезаписывается.</summary>
+    public static bool CreateGitIgnore(string repoRoot) => CreateGitIgnore(repoRoot, GitIgnoreTemplate.VisualStudio);
+
+    /// <summary>Создаёт .gitignore с переданным содержимым. Существующий файл не перезаписывается.</summary>
+    public static bool CreateGitIgnore(string repoRoot, string content) =>
+        CreateIfMissing(Path.Combine(repoRoot, GitIgnoreTemplate.FileName), content);
 
     private static bool CreateIfMissing(string path, string content)
     {
