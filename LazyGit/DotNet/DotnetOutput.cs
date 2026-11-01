@@ -49,7 +49,8 @@ public static partial class DotnetOutput
     public static int CountWarnings(IEnumerable<string> lines) =>
         lines.Where(l => Classify(l) == DotnetLineKind.Warning).Select(l => l.Trim()).Distinct().Count();
 
-    [GeneratedRegex(@"^\s+Failed (\S+) \[")]
+    // Имя до « [12 ms]»: у [Theory] в нём параметры с пробелами — «Method(url: "x")».
+    [GeneratedRegex(@"^\s+Failed (.+?) \[\d")]
     private static partial Regex FailedTestRegex();
 
     [GeneratedRegex(@"^(Passed|Failed)!\s+-\s+Failed:\s+(?<failed>\d+),\s+Passed:\s+(?<passed>\d+),\s+Skipped:\s+(?<skipped>\d+),\s+Total:\s+(?<total>\d+)")]

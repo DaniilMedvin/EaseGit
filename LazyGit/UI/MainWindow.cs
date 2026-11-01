@@ -87,6 +87,9 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что собирать по F5 (.sln / .csproj) — ищется при обновлении экрана, а не на каждую проверку доступности команды.
     private string? _dotnetTarget;
 
+    // Исключённые в окне проверки тесты: выбор живёт, пока открыт репозиторий, и не теряется между F5.
+    private readonly HashSet<string> _excludedTests = new(StringComparer.Ordinal);
+
     // «Подробнее» (ctrl+e): над diff файла, коммита и stash — какие классы и методы C# изменились. По умолчанию выключено.
     private bool _codeDetails;
 
@@ -1074,7 +1077,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || _dotnetTarget is not { } target)
             return;
 
-        using var window = new CheckWindow(_git.RepoRoot, target);
+        using var window = new CheckWindow(_git.RepoRoot, target, _excludedTests);
         App!.Run(window);
     }
 
