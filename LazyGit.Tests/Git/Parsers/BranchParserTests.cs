@@ -52,6 +52,26 @@ public class BranchParserTests
         Assert.True(branch.IsUpstreamGone);
     }
 
+    [Theory]
+    [InlineData("фича/панель-файлов")]
+    [InlineData("fix/имя с пробелом")]
+    public void Parse_CyrillicOrSpacesInName_KeepsFullName(string name)
+    {
+        var branch = Assert.Single(BranchParser.Parse(Line(" ", name, "origin/" + name, "ahead 1") + "\n"));
+
+        Assert.Equal(name, branch.Name);
+        Assert.Equal("origin/" + name, branch.Upstream);
+        Assert.Equal(1, branch.Ahead);
+    }
+
+    [Fact]
+    public void Parse_LineWithTooFewFields_IsSkipped()
+    {
+        var branches = BranchParser.Parse("*\0main\n" + Line(" ", "ok") + "\n");
+
+        Assert.Equal("ok", Assert.Single(branches).Name);
+    }
+
     [Fact]
     public void Parse_EmptyOutput_ReturnsNoBranches()
     {
