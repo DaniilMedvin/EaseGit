@@ -13,6 +13,7 @@ using Terminal.Gui.Drawing;
 using Terminal.Gui.Input;
 using Terminal.Gui.ViewBase;
 using Terminal.Gui.Views;
+using CheckState = LazyGit.Models.CheckState;
 
 namespace LazyGit.UI;
 
@@ -23,6 +24,9 @@ public enum MainResult
 
     /// <summary>Тема или язык сменились: окно открывается заново с той же страницей репозитория.</summary>
     Reload,
+
+    /// <summary>Открыть другой репозиторий: путь в <see cref="MainWindow.OpenRepoPath"/> (переход из PR в окне GitHub).</summary>
+    OpenRepo,
 }
 
 /// <summary>
@@ -81,6 +85,16 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Адрес remote и репозиторий на GitHub — перечитываются с остальным состоянием, чтобы окно GitHub открывалось сразу.
     private string? _remoteUrl;
     private GitHubRepo? _gitHubRepo;
+
+    // Статус CI коммита HEAD на GitHub. Сеть не дёргается на каждое изменение файла: новый коммит — сразу,
+    // пока CI идёт — раз в 15 с (и сам, по таймеру), иначе — не чаще раза в 2 минуты.
+    private static readonly TimeSpan CiPendingInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan CiIdleInterval = TimeSpan.FromMinutes(2);
+    private string? _ciSha;
+    private DateTimeOffset _ciCheckedAt;
+    private IReadOnlyList<WorkflowRun> _ciRuns = [];
+    private bool _ciLoading;
+    private object? _ciTimer;
 
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
@@ -263,6 +277,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             _watcher?.Dispose();
             _watcher = null;
+            if (_ciTimer is not null)
+                App?.RemoveTimeout(_ciTimer);
+            _ciTimer = null;
         }
     }
 
@@ -512,6 +529,10 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("N", Key.N.WithShift), () => _ = CreatePullRequestAsync(), preview: () => T("gh pr create --head <ветка> --base <main>", "gh pr create --head <branch> --base <main>"),
             available: () => _repoStatus is { IsDetached: false, Upstream: not null },
             keywords: "гитхаб github pr пулл реквест pull request создать новый открыть");
+        Add("github.ci", T("CI текущего коммита в браузере", "CI of the current commit in the browser"), CommandScope.Global,
+            CommandKey.Of("ctrl+o", Key.O.WithCtrl), () => _ = OpenCiAsync(),
+            available: () => _ciRuns.Count > 0 && _ciSha == _repoStatus?.HeadHash,
+            keywords: "ci actions сборка тесты проверки лог github workflow");
         Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
             hintOptional: true, available: () => _commits.Items.Count > 0, keywords: "граф ветки история дерево git graph");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
@@ -567,6 +588,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         Result = MainResult.Reload;
         RequestStop();
     }
+
+    /// <summary>Репозиторий для <see cref="MainResult.OpenRepo"/>.</summary>
+    public string? OpenRepoPath { get; private set; }
 
     /// <summary>Сообщение для следующего окна после <see cref="MainResult.Reload"/>.</summary>
     public string? ReloadNotice { get; private set; }
@@ -1470,6 +1494,73 @@ public sealed class MainWindow : Runnable<MainResult?>
     private GitHubService CreateGitHubService() => new(new GhRunner(), _git.RepoRoot, _commandLog);
 
     /// <summary>
+    /// Статус CI коммита HEAD в шапке. Вызывается при каждом обновлении экрана, но в сеть идёт, только если коммит
+    /// новый или прошёл интервал. Ошибка сети не показывается: статус CI — подсказка, а не действие.
+    /// </summary>
+    private async Task UpdateCiAsync()
+    {
+        var sha = _repoStatus?.HeadHash;
+        if (!_auth.IsAuthorized || _gitHubRepo is not { } repo || sha is null)
+        {
+            _ciRuns = [];
+            _header.SetCi(CheckState.None);
+            return;
+        }
+
+        if (sha != _ciSha)
+            _header.SetCi(CheckState.None);
+        var interval = WorkflowRunParser.Summarize(_ciRuns) == CheckState.Pending ? CiPendingInterval : CiIdleInterval;
+        if (_ciLoading || (sha == _ciSha && DateTimeOffset.Now - _ciCheckedAt < interval))
+            return;
+
+        _ciLoading = true;
+        IReadOnlyList<WorkflowRun> runs;
+        try
+        {
+            runs = await new GitHubService(new GhRunner(), _git.RepoRoot).GetRunsAsync(repo, sha);
+        }
+        catch (Exception ex) when (ex is GitCommandException or System.Text.Json.JsonException)
+        {
+            runs = [];
+        }
+        finally
+        {
+            _ciLoading = false;
+        }
+
+        App?.Invoke(() =>
+        {
+            if (_repoStatus?.HeadHash != sha)
+                return;
+
+            _ciSha = sha;
+            _ciCheckedAt = DateTimeOffset.Now;
+            _ciRuns = runs;
+            var state = WorkflowRunParser.Summarize(runs);
+            _header.SetCi(state);
+            UpdateHints();
+            // Пока CI идёт, статус обновляется сам, даже если в репозитории ничего не меняется.
+            if (state == CheckState.Pending && _ciTimer is null)
+                _ciTimer = App?.AddTimeout(CiPendingInterval, () =>
+                {
+                    _ciTimer = null;
+                    _ = UpdateCiAsync();
+                    return false;
+                });
+        });
+    }
+
+    /// <summary>Открывает в браузере упавший (или идущий) запуск Actions текущего коммита.</summary>
+    private Task OpenCiAsync()
+    {
+        if (_gitHubRepo is not { } repo || WorkflowRunParser.MostImportant(_ciRuns) is not { } run)
+            return Task.CompletedTask;
+
+        ShowStatus(T($"{Theme.SymbolSuccess} Открываю {run.Name}: {run.Url}", $"{Theme.SymbolSuccess} Opening {run.Name}: {run.Url}"), Theme.Success, autoHide: true);
+        return CreateGitHubService().OpenRunInBrowserAsync(repo, run);
+    }
+
+    /// <summary>
     /// Окно GitHub. Открывается прямо из обработчика клавиши, а не из App.Invoke: внутри Invoke окно не получило бы
     /// результаты своих фоновых загрузок. Если в нём сделали checkout — экран обновляется, «n» — открывается окно нового PR.
     /// </summary>
@@ -1478,10 +1569,17 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || ResolveGitHubRepo() is not { } repo)
             return;
 
-        using var window = new GitHubWindow(CreateGitHubService(), repo, tab);
+        var recent = _config.Load().RecentRepos ?? [];
+        using var window = new GitHubWindow(CreateGitHubService(), repo, tab,
+            found => LocalClones.FindAsync(new GitRunner(), recent.Where(p => p != _git.RepoRoot), found), _git.RepoRoot);
         App!.Run(window);
         switch (window.Result)
         {
+            case GitHubAction.OpenRepository:
+                OpenRepoPath = window.OpenPath;
+                Result = MainResult.OpenRepo;
+                RequestStop();
+                break;
             case GitHubAction.Refresh:
                 _ = RefreshAsync();
                 break;
@@ -1648,6 +1746,7 @@ public sealed class MainWindow : Runnable<MainResult?>
                 _remoteUrl = remoteUrl;
                 _gitHubRepo = remoteUrl is null ? null : GitHubRepo.FromRemoteUrl(remoteUrl);
                 _header.SetStatus(status, operation);
+                _ = UpdateCiAsync();
                 _files.SetStatus(status);
                 _branches.SetItems(branches);
                 _commits.SetItems(log);

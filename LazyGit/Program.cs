@@ -85,7 +85,7 @@ class Program
 
             if (repoRoot is null)
             {
-                using var startWindow = new StartWindow(git, status, startPath);
+                using var startWindow = new StartWindow(git, status, startPath, configStore.Load().RecentRepos ?? []);
                 app.Run(startWindow);
                 switch (startWindow.Result)
                 {
@@ -99,7 +99,7 @@ class Program
                 }
             }
 
-            configStore.Save(configStore.Load() with { LastRepoPath = repoRoot });
+            configStore.Save(configStore.Load().RememberRepo(repoRoot));
             var log = new CommandLog();
             using var mainWindow = new MainWindow(new GitService(git, repoRoot, log), status, configStore, log, notice);
             notice = null;
@@ -108,6 +108,9 @@ class Program
             {
                 case MainResult.Reload:
                     notice = mainWindow.ReloadNotice;
+                    continue;
+                case MainResult.OpenRepo when mainWindow.OpenRepoPath is { } next:
+                    repoRoot = next;
                     continue;
                 case MainResult.Quit:
                     return new UiOutcome.Quit();

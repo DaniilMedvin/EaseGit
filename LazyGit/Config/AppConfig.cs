@@ -7,6 +7,18 @@ public sealed record AppConfig
 
     public string? LastRepoPath { get; init; }
 
+    /// <summary>Недавно открытые репозитории, свежие первыми: по ним окно GitHub находит локальную копию проекта PR.</summary>
+    public IReadOnlyList<string>? RecentRepos { get; init; }
+
+    public const int RecentReposLimit = 20;
+
+    /// <summary>Запоминает открытый репозиторий: последний и первый в списке недавних, без повторов.</summary>
+    public AppConfig RememberRepo(string path) => this with
+    {
+        LastRepoPath = path,
+        RecentRepos = [path, .. (RecentRepos ?? []).Where(p => p != path).Take(RecentReposLimit - 1)],
+    };
+
     /// <summary>Маскот в углу панели diff, выбирается в окне настроек.</summary>
     public Mascot Mascot { get; init; }
 

@@ -21,6 +21,7 @@ public sealed class StartWindow : Runnable<StartAction?>
 {
     private readonly GitRunner _git;
     private readonly AuthStatus _auth;
+    private readonly IReadOnlyList<string> _recentRepos;
     private readonly ClipboardTextField _path;
     private readonly Label _status;
     private readonly Starfield _stars = new() { Height = Dim.Fill(6) };
@@ -30,8 +31,10 @@ public sealed class StartWindow : Runnable<StartAction?>
     // Путь, для которого ждём повторного ctrl+n, чтобы выполнить git init.
     private string? _pendingInitPath;
 
-    public StartWindow(GitRunner git, AuthStatus auth, string initialPath)
+    /// <param name="recentRepos">Недавние проекты: среди них дашборд PR ищет локальные копии.</param>
+    public StartWindow(GitRunner git, AuthStatus auth, string initialPath, IReadOnlyList<string> recentRepos)
     {
+        _recentRepos = recentRepos;
         _git = git;
         _auth = auth;
         Width = Dim.Fill();
@@ -131,8 +134,16 @@ public sealed class StartWindow : Runnable<StartAction?>
         // После входа ctrl+g — дашборд PR по всем репозиториям.
         if (key == Key.G.WithCtrl)
         {
-            using var window = new GitHubWindow(new GitHubService(new GhRunner(), Environment.CurrentDirectory), repo: null, GitHubTab.Mine);
+            using var window = new GitHubWindow(new GitHubService(new GhRunner(), Environment.CurrentDirectory), repo: null, GitHubTab.Mine,
+                found => LocalClones.FindAsync(_git, _recentRepos, found), _recentRepos.FirstOrDefault());
             App!.Run(window);
+            if (window.Result == GitHubAction.OpenRepository && window.OpenPath is { } path)
+            {
+                RepoPath = path;
+                Result = StartAction.OpenRepo;
+                RequestStop();
+            }
+
             return true;
         }
 

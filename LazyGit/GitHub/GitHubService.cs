@@ -74,6 +74,21 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
         CancellationToken ct = default) =>
         RunActionAsync(CreateArguments(repo, head, @base, title, draft), ct, body);
 
+    /// <summary>Запуски Actions для коммита <paramref name="sha"/>: по ним статус CI в шапке.</summary>
+    public async Task<IReadOnlyList<WorkflowRun>> GetRunsAsync(GitHubRepo repo, string sha, CancellationToken ct = default) =>
+        WorkflowRunParser.Parse(await RunCheckedAsync(
+            ["run", "list", "--repo", repo.NameWithOwner, "--commit", sha, "--json", WorkflowRunParser.Fields], ct));
+
+    /// <summary>Открывает запуск Actions в браузере.</summary>
+    public Task<GitResult> OpenRunInBrowserAsync(GitHubRepo repo, WorkflowRun run, CancellationToken ct = default) =>
+        gh.RunAsync(workingDirectory, ["run", "view", run.Id.ToString(), "--repo", repo.NameWithOwner, "--web"], ct);
+
+    public static string[] CloneArguments(GitHubRepo repo, string path) => ["repo", "clone", repo.NameWithOwner, path];
+
+    /// <summary>Скачивает репозиторий в папку <paramref name="path"/> (gh сам выбирает https или ssh по настройкам).</summary>
+    public Task<GitResult> CloneAsync(GitHubRepo repo, string path, CancellationToken ct = default) =>
+        RunActionAsync(CloneArguments(repo, path), ct);
+
     /// <summary>Открывает PR в браузере.</summary>
     public Task<GitResult> OpenInBrowserAsync(PullRequest pr, CancellationToken ct = default) =>
         gh.RunAsync(workingDirectory, ["pr", "view", pr.Number.ToString(), "--repo", pr.Repo.NameWithOwner, "--web"], ct);

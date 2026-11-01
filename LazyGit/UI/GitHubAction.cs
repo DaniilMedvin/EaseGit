@@ -8,4 +8,7 @@ public enum GitHubAction
 
     /// <summary>Открыть окно нового PR для текущей ветки.</summary>
     CreatePullRequest,
+
+    /// <summary>Открыть другой репозиторий: его путь в <see cref="GitHubWindow.OpenPath"/>.</summary>
+    OpenRepository,
 }

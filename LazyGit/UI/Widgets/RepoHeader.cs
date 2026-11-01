@@ -16,6 +16,7 @@ public sealed class RepoHeader : View
     private readonly AuthStatus _auth;
     private RepoStatus? _status;
     private RepoOperation _operation;
+    private CheckState _ci;
 
     public RepoHeader(string repoRoot, AuthStatus auth)
     {
@@ -32,6 +33,13 @@ public sealed class RepoHeader : View
     {
         _status = status;
         _operation = operation;
+        SetNeedsDraw();
+    }
+
+    /// <summary>Статус CI текущего коммита на GitHub: «✓ CI», «✗ CI», «● CI»; None — не показывать.</summary>
+    public void SetCi(CheckState ci)
+    {
+        _ci = ci;
         SetNeedsDraw();
     }
 
@@ -56,6 +64,17 @@ public sealed class RepoHeader : View
         if (_status is not null)
         {
             segments.AddRange(StatusSegments(_status));
+            if (_ci != CheckState.None)
+            {
+                var (symbol, color) = _ci switch
+                {
+                    CheckState.Success => (Theme.SymbolSuccess, Theme.Success),
+                    CheckState.Failure => (Theme.SymbolError, Theme.Error),
+                    _ => (Theme.SymbolCurrent, Theme.Warning),
+                };
+                segments.Add(new Segment("   ", Theme.Fg));
+                segments.Add(Segment.Pill($"{symbol} CI", color, _ci == CheckState.Failure ? TextStyle.Bold : TextStyle.None));
+            }
             if (_operation != RepoOperation.None)
             {
                 segments.Add(new Segment("   ", Theme.Fg));

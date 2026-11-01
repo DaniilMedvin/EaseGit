@@ -15,13 +15,16 @@ namespace LazyGit.UI;
 /// <summary>
 /// Pull request на GitHub: вкладки «Этот репозиторий», «Мои PR», «Ждут меня»; сверху список, снизу выбранный PR
 /// (состояние, описание, проверки CI, сводка файлов и diff с подсветкой). Над PR: checkout (только PR текущего
-/// репозитория), открыть в браузере, merge, approve, скопировать адрес; n — новый PR из текущей ветки.
+/// репозитория), открыть в браузере, merge, approve, скопировать адрес; n — новый PR из текущей ветки;
+/// enter на PR другого проекта — открыть его локальную копию или склонировать.
 /// Result — что сделать главному окну после закрытия или null.
 /// </summary>
 public sealed class GitHubWindow : Runnable<GitHubAction?>
 {
     private readonly GitHubService _github;
     private readonly GitHubRepo? _repo;
+    private readonly Func<GitHubRepo, Task<string?>> _findClone;
+    private readonly string? _nearProject;
     private readonly IReadOnlyList<GitHubTab> _tabs;
     private readonly Dictionary<GitHubTab, IReadOnlyList<PullRequest>> _loaded = [];
     private readonly View _tabBar;
@@ -34,15 +37,23 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     private CancellationTokenSource? _listLoading;
     private CancellationTokenSource? _detailsLoading;
 
+    /// <summary>Путь репозитория для <see cref="GitHubAction.OpenRepository"/>.</summary>
+    public string? OpenPath { get; private set; }
+
     // PR под курсором, загруженный целиком: по нему решается, можно ли влить и что предупредить.
     private PullRequest? _full;
     private bool _busy;
 
     /// <param name="repo">Репозиторий открытого проекта на GitHub или null: тогда только вкладки по всем репозиториям.</param>
-    public GitHubWindow(GitHubService github, GitHubRepo? repo, GitHubTab tab)
+    /// <param name="findClone">Ищет локальную копию репозитория среди недавно открытых.</param>
+    /// <param name="nearProject">Проект, рядом с которым клонировать новые (или null — в домашнюю папку).</param>
+    public GitHubWindow(GitHubService github, GitHubRepo? repo, GitHubTab tab, Func<GitHubRepo, Task<string?>> findClone,
+        string? nearProject)
     {
         _github = github;
         _repo = repo;
+        _findClone = findClone;
+        _nearProject = nearProject;
         _tabs = repo is null ? [GitHubTab.Mine, GitHubTab.ReviewRequested] : [GitHubTab.Repository, GitHubTab.Mine, GitHubTab.ReviewRequested];
         _tab = _tabs.Contains(tab) ? tab : _tabs[0];
         Width = Dim.Fill();
@@ -94,6 +105,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
         if (key == Key.Space)
             return Handled(CheckoutAsync());
+        if (key == Key.Enter)
+            return Handled(OpenProjectAsync());
         if (key == Key.O)
             return Handled(OpenInBrowserAsync());
         if (key == Key.M.WithShift)
@@ -181,10 +194,12 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
     private void UpdateHints()
     {
-        var local = _list.Selected is { } pr && pr.Repo == _repo;
+        var local = _list.Selected is { } pr && IsCurrentRepo(pr);
         var hints = new List<Hint> { new("tab", T("вкладка", "tab")) };
         if (local)
             hints.Add(new Hint("space", "checkout"));
+        else if (_list.Selected is not null)
+            hints.Add(new Hint("enter", T("открыть проект", "open project")));
         hints.Add(new Hint("o", T("браузер", "browser")));
         hints.Add(new Hint("M", "merge", Optional: true));
         hints.Add(new Hint("a", "approve", Optional: true));
@@ -291,7 +306,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         if (_list.Selected is not { } pr)
             return Task.CompletedTask;
 
-        if (pr.Repo != _repo)
+        if (!IsCurrentRepo(pr))
         {
             ShowStatus(T($"{Theme.SymbolError} PR из другого репозитория: открой его проект в LGit или в браузере (o)",
                 $"{Theme.SymbolError} The PR is from another repository: open its project in LGit or in the browser (o)"), Theme.Error);
@@ -300,6 +315,75 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
         return RunAsync(ct => _github.CheckoutAsync(pr, ct),
             T($"Ветка PR #{pr.Number} получена, ты на ней", $"Checked out the branch of PR #{pr.Number}"), changesRepo: true);
+    }
+
+    private bool IsCurrentRepo(PullRequest pr) => _repo is not null && LocalClones.SameRepo(pr.Repo, _repo);
+
+    /// <summary>
+    /// Переход в проект PR: локальная копия среди недавно открытых — открывается, нет — предложение
+    /// склонировать рядом с текущим проектом. PR этого же репозитория — подсказка про checkout.
+    /// </summary>
+    private async Task OpenProjectAsync()
+    {
+        if (_busy || _list.Selected is not { } pr)
+            return;
+
+        if (IsCurrentRepo(pr))
+        {
+            ShowStatus(T($"{Theme.SymbolSuccess} Это открытый сейчас проект: space — перейти на ветку PR",
+                $"{Theme.SymbolSuccess} This is the open project: space checks out the PR branch"), Theme.Muted);
+            return;
+        }
+
+        var local = await _findClone(pr.Repo);
+        App?.Invoke(() =>
+        {
+            if (local is not null)
+            {
+                Open(local);
+                return;
+            }
+
+            var path = LocalClones.ClonePath(_nearProject, pr.Repo);
+            if (!Confirm(T($"Склонировать {pr.Repo}?", $"Clone {pr.Repo}?"), GitHubService.CloneArguments(pr.Repo, path),
+                    T($"Локальной копии среди недавних проектов нет. Репозиторий скачается в {path} и откроется в LGit.",
+                        $"There is no local copy among recent projects. The repository will be downloaded to {path} and opened in LGit."),
+                    T("Клонировать", "Clone")))
+                return;
+
+            _ = CloneAndOpenAsync(pr.Repo, path);
+        });
+    }
+
+    private async Task CloneAndOpenAsync(GitHubRepo repo, string path)
+    {
+        if (_busy)
+            return;
+
+        _busy = true;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T($"Клонирую {repo} в {path}…", $"Cloning {repo} into {path}…")}", Theme.Muted);
+        try
+        {
+            var result = await _github.CloneAsync(repo, path);
+            App?.Invoke(() =>
+            {
+                if (result.Success)
+                    Open(path);
+                else
+                    ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(result)}", Theme.Error);
+            });
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Open(string path)
+    {
+        OpenPath = path;
+        Result = GitHubAction.OpenRepository;
+        RequestStop();
     }
 
     private Task OpenInBrowserAsync()

@@ -48,3 +48,4 @@
 | `showCommandLog` | панель Command Log открыта (`~`) |
 | `authPromptSkipped` | окно входа в GitHub пропущено |
 | `lastRepoPath` | последний открытый репозиторий |
+| `recentRepos` | недавние репозитории (до 20): в них окно GitHub ищет локальную копию проекта PR |

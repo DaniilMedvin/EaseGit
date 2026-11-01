@@ -39,7 +39,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **Conflicts**: keep ours / theirs / both per file, continue (`C`) or abort (`A`) merge, cherry-pick, revert and rebase.
 - **GitHub pull requests** (`g`): PRs of this repository, your PRs and review requests across all repositories,
   with CI and review status, description, checks and diff; checkout, merge (squash / merge / rebase), approve,
-  open in browser; create a PR from the current branch (`N`) with the title and description taken from commits.
+  open in browser; create a PR from the current branch (`N`) with the title and description taken from commits;
+  `enter` on a PR of another project opens its local copy or clones it. CI status of HEAD in the header (`✓ CI`).
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message, pop, apply, drop, see its diff.
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.
