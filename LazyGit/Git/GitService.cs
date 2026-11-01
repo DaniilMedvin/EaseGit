@@ -12,6 +12,9 @@ public sealed class GitService
 {
     public const int DefaultLogLimit = 200;
 
+    /// <summary>Сколько коммитов показывает окно графа всех веток.</summary>
+    public const int GraphLogLimit = 1000;
+
     private readonly GitRunner _git;
     private readonly CommandLog? _log;
     private string? _gitDir;
@@ -47,10 +50,14 @@ public sealed class GitService
     public async Task<IReadOnlyList<Branch>> GetBranchesAsync(CancellationToken ct = default) =>
         BranchParser.Parse(await RunCheckedAsync(BranchParser.Arguments, ct));
 
-    /// <summary>Последние коммиты текущей ветки, новые первыми. В репозитории без коммитов — пустой список.</summary>
-    public async Task<IReadOnlyList<Commit>> GetLogAsync(int limit = DefaultLogLimit, CancellationToken ct = default)
+    /// <summary>
+    /// Последние коммиты текущей ветки (или с <paramref name="allBranches"/> — всех веток и тегов), новые первыми.
+    /// В репозитории без коммитов — пустой список.
+    /// </summary>
+    public async Task<IReadOnlyList<Commit>> GetLogAsync(int limit = DefaultLogLimit, CancellationToken ct = default,
+        bool allBranches = false)
     {
-        var result = await _git.RunAsync(RepoRoot, LogParser.Arguments(limit), ct);
+        var result = await _git.RunAsync(RepoRoot, LogParser.Arguments(limit, allBranches), ct);
         if (result.Success)
             return LogParser.Parse(result.StdOut);
 
@@ -167,6 +174,39 @@ public sealed class GitService
     /// <summary>Переключается на ветку. Незакоммиченные изменения переносятся, если не конфликтуют.</summary>
     public Task<GitResult> SwitchAsync(Branch branch, CancellationToken ct = default) =>
         RunActionAsync(["switch", "--no-guess", branch.Name], ct);
+
+    /// <summary>Аргументы создания ветки от коммита с переключением на неё.</summary>
+    public static string[] CreateBranchAtArguments(string name, Commit commit) => ["switch", "--create", name, commit.Hash];
+
+    /// <summary>Создаёт ветку от выбранного коммита и переключается на неё.</summary>
+    public Task<GitResult> CreateBranchAtAsync(string name, Commit commit, CancellationToken ct = default) =>
+        RunActionAsync(CreateBranchAtArguments(name, commit), ct);
+
+    public static string[] CreateTagArguments(string name, Commit commit) => ["tag", name, commit.Hash];
+
+    /// <summary>Ставит лёгкий (без сообщения) тег на коммит.</summary>
+    public Task<GitResult> CreateTagAsync(string name, Commit commit, CancellationToken ct = default) =>
+        RunActionAsync(CreateTagArguments(name, commit), ct);
+
+    /// <summary>
+    /// Аргументы checkout ссылки из графа: локальная ветка — переключение, удалённая — локальная ветка
+    /// с тем же именем, следящая за ней, без ветки — detached HEAD на коммите.
+    /// </summary>
+    public static string[] CheckoutArguments(CommitRef? reference, Commit commit) => reference switch
+    {
+        { Kind: RefKind.Branch } => ["switch", "--no-guess", reference.Name],
+        { Kind: RefKind.Remote } => ["switch", "--track", reference.Name],
+        _ => ["switch", "--detach", commit.Hash],
+    };
+
+    public Task<GitResult> CheckoutAsync(CommitRef? reference, Commit commit, CancellationToken ct = default) =>
+        RunActionAsync(CheckoutArguments(reference, commit), ct);
+
+    /// <summary>Аргументы merge ветки или коммита (если на нём нет ветки) в текущую.</summary>
+    public static string[] MergeRevisionArguments(string revision) => ["merge", "--no-edit", revision];
+
+    public Task<GitResult> MergeRevisionAsync(string revision, CancellationToken ct = default) =>
+        RunActionAsync(MergeRevisionArguments(revision), ct);
 
     /// <summary>Создаёт ветку от HEAD и переключается на неё. В репозитории без коммитов — просто меняет имя ветки.</summary>
     public Task<GitResult> CreateBranchAsync(string name, CancellationToken ct = default) =>

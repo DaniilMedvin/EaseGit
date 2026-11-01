@@ -45,12 +45,39 @@ public class CommitGraphTests
     }
 
     [Fact]
-    public void Build_LanesHaveColorIndexes()
+    public void Build_MergedBranch_HasOwnColorUntilItJoins()
     {
-        var row = CommitGraph.Build([C("m", "a", "f"), C("f", "a"), C("a")])[0];
+        var rows = CommitGraph.Build([C("m", "a", "f"), C("f", "a"), C("a")]);
 
-        Assert.Equal(0, row[0].Lane);
-        Assert.Equal(1, row[2].Lane);
-        Assert.Equal(1, row[1].Lane);
+        Assert.Equal(0, rows[0][0].Color);
+        Assert.Equal(1, rows[0][2].Color);
+        Assert.Equal(1, rows[0][1].Color);
+        Assert.Equal(1, rows[1][2].Color);
+        Assert.Equal(0, rows[2][0].Color);
+        Assert.Equal(1, rows[2][2].Color);
+    }
+
+    [Fact]
+    public void Build_NewBranchInFreedColumn_GetsNewColor()
+    {
+        // Ветка a–b закончилась, следующая история c–d занимает ту же колонку, но это другая ветка.
+        var rows = CommitGraph.Build([C("a", "b"), C("b"), C("c", "d"), C("d")]);
+
+        Assert.Equal(0, rows[1][0].Color);
+        Assert.Equal(1, rows[2][0].Color);
+        Assert.Equal(1, rows[3][0].Color);
+    }
+
+    [Fact]
+    public void Build_CurrentBranchConverges_KeepsItsLineAndFirstColor()
+    {
+        // fix ответвилась от base, main (HEAD) — merge поверх base. Обе дорожки ждут base: продолжается main.
+        var main = C("main", "base") with { Refs = [new CommitRef("main", RefKind.Branch, IsCurrent: true)] };
+        var rows = CommitGraph.Build([C("fix", "base"), main, C("base")]);
+
+        Assert.Equal(0, rows[1].First(c => c.Symbol == CommitGraph.Commit).Color);
+        Assert.Equal(1, rows[0][0].Color);
+        Assert.Equal("╰─● ", new string(rows[2].Select(c => c.Symbol).ToArray()));
+        Assert.Equal(0, rows[2][2].Color);
     }
 }

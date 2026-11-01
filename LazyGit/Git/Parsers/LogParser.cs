@@ -12,7 +12,8 @@ public static class LogParser
 {
     private const char FieldSeparator = '\x1f';
 
-    public static string[] Arguments(int limit) =>
+    /// <param name="allBranches">История всех локальных и удалённых веток и тегов, а не только HEAD. Stash не входит.</param>
+    public static string[] Arguments(int limit, bool allBranches = false) =>
     [
         "log",
         "-z",
@@ -21,6 +22,7 @@ public static class LogParser
         // Полные имена ссылок: иначе локальную ветку feature/x не отличить от удалённой origin/x.
         "--decorate=full",
         "--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P%x1f%D",
+        .. allBranches ? (string[])["--branches", "--remotes", "--tags", "HEAD"] : [],
     ];
 
     public static IReadOnlyList<Commit> Parse(string output)

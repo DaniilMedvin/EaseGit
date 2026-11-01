@@ -466,6 +466,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("history.undo", "Отменить последнее действие", CommandScope.Global, CommandKey.Of("z", Key.Z),
             () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
         Add("view.refresh", "Обновить", CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
+        Add("view.graph", "Граф всех веток", CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, "граф",
+            hintOptional: true, available: () => _commits.Items.Count > 0, keywords: "граф ветки история дерево git graph");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
 
         Add("app.palette", "Палитра команд", CommandScope.Global,
@@ -682,6 +684,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         View[] panels = _stash.Visible ? [_files, _branches, _commits, _stash] : [_files, _branches, _commits];
         var current = Math.Max(0, Array.FindIndex(panels, p => p.HasFocus));
         panels[(current + step + panels.Length) % panels.Length].SetFocus();
+    }
+
+    /// <summary>Окно графа всех веток. Действия в нём выполняются сразу, после закрытия экран обновляется.</summary>
+    private void OpenGraph()
+    {
+        if (_busy)
+            return;
+
+        using var graph = new GraphWindow(_git);
+        App!.Run(graph);
+        if (graph.Result)
+            _ = RefreshAsync();
     }
 
     private void ToggleCommandLog()

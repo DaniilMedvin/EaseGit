@@ -58,6 +58,7 @@ LazyGit/
     ├── Theme.cs               цвета и символы из DESIGN.md
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
+    ├── GraphWindow.cs         окно графа всех веток (G): граф + коммит, действия над коммитом
     ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel (+ CommitGraph), StashPanel, DiffPanel, CommandLogPanel
     ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette
     └── Widgets/               StatusBar (подсказки), Spinner, Header

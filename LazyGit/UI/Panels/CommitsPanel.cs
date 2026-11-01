@@ -16,6 +16,9 @@ public sealed class CommitsPanel : ListPanel<Commit>
 
     protected override string EmptyText => "Коммитов пока нет";
 
+    /// <summary>Колонка автора перед давностью — для широкого окна графа.</summary>
+    public bool ShowAuthor { get; init; }
+
     protected override bool KeepSelection(IReadOnlyList<Commit> items)
     {
         var top = items.Count > 0 ? items[0].Hash : null;
@@ -30,13 +33,18 @@ public sealed class CommitsPanel : ListPanel<Commit>
     {
         // Давность прижата к правому краю; на узкой панели её место отдаётся заголовку.
         var age = RelativeTime.Format(commit.Date, DateTimeOffset.Now);
+        if (ShowAuthor && Viewport.Width >= 80)
+        {
+            var author = commit.AuthorName.Length > 16 ? commit.AuthorName[..15] + Theme.SymbolEllipsis : commit.AuthorName;
+            age = author.PadRight(16) + "  " + age.PadLeft(6);
+        }
         var showAge = Viewport.Width >= 30;
         var textWidth = Viewport.Width - 1 - (showAge ? age.Length + 2 : 1);
 
         var segments = new List<Segment> { Marker(selected) };
         segments.AddRange(GraphSegments(commit, textWidth / 3));
         segments.Add(new Segment(commit.ShortHash, Theme.Muted));
-        foreach (var reference in commit.Refs)
+        foreach (var reference in commit.Refs.OrderBy(RefOrder))
             segments.Add(RefSegment(reference));
         segments.Add(new Segment(" " + commit.Subject, Theme.Fg));
         this.DrawSegments(1, line, segments, textWidth, background);
@@ -64,7 +72,7 @@ public sealed class CommitsPanel : ListPanel<Commit>
         var shown = cut ? cells.Take(Math.Max(0, maxWidth - 2)) : cells;
         foreach (var cell in shown)
         {
-            var color = cell.Lane < 0 ? Theme.Dim : LaneColor(cell.Lane);
+            var color = cell.Color < 0 ? Theme.Dim : BranchColor(cell.Color);
             var style = cell.Symbol is CommitGraph.Commit or CommitGraph.Merge ? TextStyle.Bold : TextStyle.None;
             yield return new Segment(cell.Symbol.ToString(), color, style);
         }
@@ -73,14 +81,23 @@ public sealed class CommitsPanel : ListPanel<Commit>
             yield return new Segment(Theme.SymbolEllipsis + " ", Theme.Dim);
     }
 
-    /// <summary>Цвета дорожек по кругу: соседние ветки различаются.</summary>
-    private static Color LaneColor(int lane) => (lane % 5) switch
+    /// <summary>Цвета веток по кругу: ветки, появившиеся рядом, различаются.</summary>
+    private static Color BranchColor(int color) => (color % 5) switch
     {
         0 => Theme.Accent,
         1 => Theme.Cyan,
         2 => Theme.Green,
         3 => Theme.Warning,
         _ => Theme.SyntaxControlKeyword,
+    };
+
+    /// <summary>Порядок меток: текущая ветка или HEAD, локальные ветки, удалённые, теги.</summary>
+    private static int RefOrder(CommitRef reference) => reference switch
+    {
+        { IsCurrent: true } or { Kind: RefKind.Head } => 0,
+        { Kind: RefKind.Branch } => 1,
+        { Kind: RefKind.Remote } => 2,
+        _ => 3,
     };
 
     private static Segment RefSegment(CommitRef reference) => reference.Kind switch
