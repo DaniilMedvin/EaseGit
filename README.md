@@ -55,8 +55,23 @@ sudo mv lgit /usr/local/bin/
 
 # macOS (Apple Silicon)
 curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-osx-arm64.tar.gz | tar xz
-sudo mv lgit /usr/local/bin/
+sudo mkdir -p /usr/local/bin && sudo mv lgit /usr/local/bin/
 ```
+
+### macOS
+
+The build is for Apple Silicon (M1 and newer); on Intel Macs build from source (see below).
+`/usr/local/bin` may be missing on a fresh Mac, so the command above creates it.
+
+Installed with `curl` as above, `lgit` just runs. If you downloaded the archive **in a browser**, macOS marks it
+as quarantined and refuses to open it ("cannot verify the developer"), because the binary is not notarized by Apple.
+Remove the mark once:
+
+```sh
+xattr -d com.apple.quarantine lgit
+```
+
+or in Finder: right-click `lgit` → **Open** → **Open**.
 
 ### Windows
 

@@ -55,8 +55,23 @@ sudo mv lgit /usr/local/bin/
 
 # macOS (Apple Silicon)
 curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-osx-arm64.tar.gz | tar xz
-sudo mv lgit /usr/local/bin/
+sudo mkdir -p /usr/local/bin && sudo mv lgit /usr/local/bin/
 ```
+
+### macOS
+
+Сборка для Apple Silicon (M1 и новее); на Mac с Intel собери из исходников (см. ниже).
+На новом Mac папки `/usr/local/bin` может не быть — команда выше её создаёт.
+
+Если ставить через `curl`, как выше, `lgit` просто запускается. Если архив скачан **в браузере**, macOS помечает
+его как скачанный из интернета и не даёт открыть («не удалось проверить разработчика»): файл не нотаризован Apple.
+Сними пометку один раз:
+
+```sh
+xattr -d com.apple.quarantine lgit
+```
+
+или в Finder: правый клик по `lgit` → **Открыть** → **Открыть**.
 
 ### Windows
 
