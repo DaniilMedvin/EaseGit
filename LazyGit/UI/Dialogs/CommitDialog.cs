@@ -117,6 +117,12 @@ public sealed class CommitDialog : Runnable<string?>
             return true;
         }
 
+        if (key == Key.T.WithCtrl)
+        {
+            ApplyTemplate();
+            return true;
+        }
+
         if (_subject.HasFocus && (key == Key.CursorDown || key == Key.J.WithCtrl))
         {
             _body.SetFocus();
@@ -131,6 +137,22 @@ public sealed class CommitDialog : Runnable<string?>
         }
 
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>Предлагает шаблон и подставляет его в тип, заголовок и тело; курсор встаёт в конец заголовка.</summary>
+    private void ApplyTemplate()
+    {
+        using var picker = new CommitTemplatePicker(CommitTemplate.BuiltIn);
+        App?.Run(picker);
+        if (picker.Result is not { } template)
+            return;
+
+        _types.Select(template.Type);
+        _subject.Text = template.Subject;
+        _subject.InsertionPoint = _subject.Text.Length;
+        _body.Text = template.Body;
+        UpdatePreview();
+        _subject.SetFocus();
     }
 
     private string Message => CommitMessage.Compose(_types.Selected, _subject.Text, _body.Text);
@@ -190,6 +212,7 @@ public sealed class CommitDialog : Runnable<string?>
                 new Hint("enter", "коммит"),
                 new Hint("↓", "тело"),
                 new Hint("tab", "тип"),
+                new Hint("ctrl+t", "шаблон"),
                 new Hint("ctrl+c/x/v", "буфер"),
                 new Hint("esc", "отмена"),
             ]);
@@ -232,6 +255,15 @@ public sealed class CommitDialog : Runnable<string?>
         public event EventHandler? Changed;
 
         public string? Selected => CommitMessage.Types[_index];
+
+        /// <summary>Выбирает тип по имени; неизвестный тип и null — «без типа».</summary>
+        public void Select(string? type)
+        {
+            var index = Array.IndexOf(CommitMessage.Types, type);
+            _index = index < 0 ? CommitMessage.Types.Length - 1 : index;
+            SetNeedsDraw();
+            Changed?.Invoke(this, EventArgs.Empty);
+        }
 
         public void Move(int delta)
         {

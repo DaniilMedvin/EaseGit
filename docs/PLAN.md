@@ -61,7 +61,8 @@
 - [x] Панель Command Log (`~`): изменяющие команды с результатом и временем, фоновые чтения не пишутся
 - [x] Палитра команд `ctrl+p` / `:` с поиском (как в opencode), русские ключевые слова
 - [x] Предупреждения об опасных операциях + undo через reflog (`z`: коммит, amend, merge, pull, checkout)
-- [ ] Шаблоны коммитов (Conventional Commits)
+- [x] Шаблоны коммитов (Conventional Commits): `ctrl+t` в окне коммита
+- [x] Быстрое создание `README.md` (`R`) и `.gitignore` для Visual Studio (`I`)
 - [ ] Локализация ru/en
 - [x] Окно настроек (`,`): маскот Clawd / ChatGPT / Gemini в углу diff
 - [ ] Конфиг `~/.config/lazygit-cs/config.json` (тема, клавиши)

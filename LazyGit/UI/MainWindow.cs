@@ -3,6 +3,7 @@ using LazyGit.Commands;
 using LazyGit.Config;
 using LazyGit.Git;
 using LazyGit.Models;
+using LazyGit.Templates;
 using LazyGit.UI.Dialogs;
 using LazyGit.UI.Panels;
 using LazyGit.UI.Widgets;
@@ -339,6 +340,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             keywords: "abort отменить merge конфликт");
         Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
+        Add("repo.createGitIgnore", "Создать .gitignore (Visual Studio)", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
+            () => CreateScaffoldFile(RepoScaffold.CreateGitIgnore, GitIgnoreTemplate.FileName, "Добавить .gitignore"),
+            ".gitignore", hintOptional: true, available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
+            keywords: "гитигнор игнор visual studio шаблон создать файл ignore");
+        Add("repo.createReadme", "Создать README.md", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
+            () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, "Добавить README"),
+            "README", hintOptional: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
+            keywords: "ридми readme описание создать файл");
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
             () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
         Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
@@ -701,6 +710,28 @@ public sealed class MainWindow : Runnable<MainResult?>
             result.StdOut.Contains("Already up to date") ? $"{target} уже содержит все коммиты {branch.Name}"
             : result.StdOut.Contains("Fast-forward") ? $"{branch.Name} влита в {target} (fast-forward)"
             : $"{branch.Name} влита в {target}, создан merge-коммит"));
+    }
+
+    /// <summary>Создаёт файл из шаблона в корне репозитория и подсказывает, как его закоммитить.</summary>
+    private void CreateScaffoldFile(Func<string, bool> create, string fileName, string templateName)
+    {
+        try
+        {
+            if (!create(_git.RepoRoot))
+            {
+                ShowStatus($"{Theme.SymbolError} {fileName} уже есть в репозитории", Theme.Error);
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            ShowStatus($"{Theme.SymbolError} Не удалось создать {fileName}: {ex.Message}", Theme.Error);
+            return;
+        }
+
+        ShowStatus($"{Theme.SymbolSuccess} {fileName} создан: space — в индекс, c — коммит (ctrl+t → «{templateName}»)",
+            Theme.Success, autoHide: true);
+        _ = RefreshAsync();
     }
 
     private string? CommitPreview(Func<Commit, string[]> args) =>
