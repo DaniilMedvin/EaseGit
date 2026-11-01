@@ -77,8 +77,11 @@ public sealed class HelpDialog : Runnable<bool?>
     /// <summary>Содержимое справки: строки из цветных фрагментов.</summary>
     private sealed class HelpContent : View
     {
-        private const int KeyColumn = 11;
-        private const int SecondColumn = 36;
+        private const int KeyColumn = HelpLayout.KeyColumn;
+
+        /// <summary>Ширина содержимого: окно минус рамка и отступы. Вторая колонка начинается на её половине.</summary>
+        private const int ContentWidth = DialogWidth - 4;
+        private const int SecondColumn = ContentWidth / 2;
 
         private readonly List<Segment[]> _lines;
 
@@ -141,10 +144,16 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Keys("enter", "свернуть папку", "← →", "свернуть / развернуть"));
             lines.Add(Keys("esc", "отменить push/pull", "", ""));
 
+            lines.Add([]);
+            lines.Add(Heading("Окно коммита"));
+            lines.Add(Keys("tab", "тип коммита", "ctrl+t", "шаблон сообщения"));
+            lines.Add(Keys("↓", "перейти в тело", "ctrl+s", "создать коммит"));
+
             foreach (var (scope, title) in new[]
                      {
                          (CommandScope.Files, "Файлы"),
                          (CommandScope.Branches, "Ветки"),
+                         (CommandScope.Commits, "Коммиты"),
                          (CommandScope.Stash, "Stash"),
                          (CommandScope.Global, "Везде"),
                      })
@@ -155,11 +164,8 @@ public sealed class HelpDialog : Runnable<bool?>
 
                 lines.Add([]);
                 lines.Add(Heading(title));
-                for (var i = 0; i < inScope.Count; i += 2)
-                {
-                    var second = i + 1 < inScope.Count ? inScope[i + 1] : null;
-                    lines.Add(Keys(inScope[i].Key.Label, inScope[i].Title, second?.Key.Label ?? "", second?.Title ?? ""));
-                }
+                foreach (var (first, second) in HelpLayout.Arrange(inScope, SecondColumn))
+                    lines.Add(Keys(first.Key.Label, first.Title, second?.Key.Label ?? "", second?.Title ?? ""));
             }
 
             return lines;
@@ -184,11 +190,10 @@ public sealed class HelpDialog : Runnable<bool?>
 
         private static Segment[] Keys(string key1, string description1, string key2, string description2)
         {
-            var first = "  " + key1.PadRight(KeyColumn) + description1;
             return
             [
                 new("  " + key1.PadRight(KeyColumn), Theme.Fg, TextStyle.Bold),
-                new(description1.PadRight(Math.Max(0, SecondColumn - first.Length + description1.Length)), Theme.Muted),
+                new(description1.PadRight(Math.Max(0, SecondColumn - HelpLayout.Indent - KeyColumn)), Theme.Muted),
                 new(key2.PadRight(KeyColumn), Theme.Fg, TextStyle.Bold),
                 new(description2, Theme.Muted),
             ];
