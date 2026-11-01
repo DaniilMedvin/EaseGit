@@ -1,0 +1,109 @@
+# LGit
+
+[![CI](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml/badge.svg)](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DaniilMedvin/LazyGit)](https://github.com/DaniilMedvin/LazyGit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+A calm, keyboard-driven git client for the terminal, written in C# on .NET 10 and Terminal.Gui v2.
+
+**English** · [Русский](README.ru.md)
+
+![Main screen: files, branches, commits and a highlighted C# diff](docs/screenshots/main-en.svg)
+
+## Features
+
+- **Files**: staged / changes / new / conflicts, folder tree, stage a file, a folder or everything, discard with confirmation.
+- **Line-by-line staging**: `enter` on a file, then stage, unstage or discard single lines, selections (`v`) or hunks.
+- **Diff** with line numbers and C# syntax highlighting in the Visual Studio dark style.
+- **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`).
+- **Branches**: checkout, create, merge, delete (with a second confirmation for unmerged ones), cherry-pick.
+- **History**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, reorder).
+- **Graph of all branches** (`G`) with per-branch colors, tags and actions on any commit.
+- **Sync**: fetch, pull, push with `↑ahead ↓behind`, a spinner, `esc` to cancel, and a guided `push -u` for new branches.
+- **Conflicts**: keep ours / theirs / both per file, continue (`C`) or abort (`A`) merge, cherry-pick, revert and rebase.
+- **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
+- **Stash**: save with a message, pop, apply, drop, see its diff.
+- **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.
+- **Command palette** (`ctrl+p` or `:`) with fuzzy search, help (`?`) generated from the actual key bindings.
+- **Themes** (dark, light, your own) and **remappable keys** in `config.json`; **English and Russian** UI (`L` switches).
+
+| Interactive rebase | Graph of all branches |
+|---|---|
+| ![Interactive rebase](docs/screenshots/rebase-en.svg) | ![Graph](docs/screenshots/graph-en.svg) |
+
+## Install
+
+Download a single self-contained binary from [Releases](https://github.com/DaniilMedvin/LazyGit/releases/latest), no .NET needed.
+
+```sh
+# Linux x64
+curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-linux-x64.tar.gz | tar xz
+sudo mv lgit /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-osx-arm64.tar.gz | tar xz
+sudo mv lgit /usr/local/bin/
+```
+
+On Windows, download `lgit-win-x64.zip` and put `lgit.exe` somewhere on your `PATH`.
+
+Requirements: `git`. Optional: [GitHub CLI](https://cli.github.com/) `gh` to sign in to GitHub from the app.
+
+### From source
+
+```sh
+git clone https://github.com/DaniilMedvin/LazyGit.git && cd LazyGit
+dotnet run --project LazyGit -- /path/to/repo
+# or a single file in LazyGit/bin/Release/net10.0/linux-x64/publish/lgit
+dotnet publish LazyGit -c Release -r linux-x64
+```
+
+## Usage
+
+```sh
+lgit              # repository in the current folder, or the start screen
+lgit ~/projects/x # open a specific repository
+```
+
+| Key | Action | Key | Action |
+|---|---|---|---|
+| `1` `2` `3` `4` / `tab` | switch panel | `?` / `F1` | help with all keys |
+| `space` | stage / checkout / pop | `ctrl+p` / `:` | command palette |
+| `c` | commit | `p` / `P` / `f` | pull / push / fetch |
+| `enter` on a file | line-by-line staging | `i` in commits | interactive rebase |
+| `z` | undo last action | `G` | graph of all branches |
+| `C` / `A` | continue / abort an operation | `T` / `L` | theme / language |
+| `~` | Command Log | `q` | quit |
+
+Panel-specific keys are always shown in the bottom line.
+
+![Commit window](docs/screenshots/commit-en.svg)
+
+## Configuration
+
+`~/.config/lazygit-cs/config.json`: language, theme, custom themes and key bindings. See [docs/CONFIG.md](docs/CONFIG.md).
+
+```jsonc
+{
+  "language": "en",
+  "theme": "light",
+  "keys": { "files.stage": "s", "sync.fetch": "F5" }
+}
+```
+
+## Development
+
+```sh
+dotnet build
+dotnet test                 # parsers on real git output + integration tests on temporary repositories
+scripts/demo-repos.sh       # repositories in tricky states (conflicts, diverged branches, …) for manual checks
+scripts/screenshots.sh      # re-shoot the screenshots in docs/screenshots (needs tmux and python3)
+```
+
+Project docs (in Russian): [plan](docs/PLAN.md), [architecture](docs/ARCHITECTURE.md), [conventions](docs/CONVENTIONS.md), [design](docs/DESIGN.md).
+
+Releases are built by GitHub Actions: push a tag `v*` and binaries for Linux, Windows and macOS are attached to the release.
+
+## License
+
+[MIT](LICENSE)

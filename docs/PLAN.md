@@ -78,9 +78,9 @@
 - [x] Окно графа всех веток (`G`): цвет за веткой, детали коммита, checkout / ветка / тег / merge / cherry-pick / revert
 
 ## Этап 8. Релиз
-- [ ] README со скриншотами / GIF
-- [ ] Single-file сборка: `dotnet publish -c Release -r linux-x64 --self-contained -p:PublishSingleFile=true`
-- [ ] GitHub Actions: сборка + тесты
+- [x] README (en + ru) со скриншотами: `scripts/screenshots.sh` снимает сцены в tmux → SVG в `docs/screenshots/`
+- [x] Single-file сборка: `dotnet publish LazyGit -c Release -r linux-x64` → один файл `lgit` (~47 МБ, сжатый)
+- [x] GitHub Actions: `ci.yml` (сборка, тесты, publish на каждый push/PR), `release.yml` (тег `v*` → бинарники Linux / Windows / macOS)
 
 ## Риски
 - Вывод git зависит от версии и языка: только `--porcelain`, `--format`, `-z`, `LC_ALL=C`

@@ -1,0 +1,65 @@
+name: Release
+
+# git tag v0.1.0 && git push origin v0.1.0 → релиз на GitHub с бинарниками под Linux, Windows и macOS.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            rid: linux-x64
+          - os: windows-latest
+            rid: win-x64
+          # На macOS собираем там же: SDK подписывает исполняемый файл, без подписи arm64 не запустится.
+          - os: macos-latest
+            rid: osx-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Publish
+        shell: bash
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          dotnet publish LazyGit --configuration Release --runtime ${{ matrix.rid }} \
+            -p:Version="$version" --output publish
+
+      - name: Archive
+        shell: bash
+        run: |
+          cd publish
+          if [ "${{ matrix.rid }}" = "win-x64" ]; then
+            7z a "../lgit-${{ matrix.rid }}.zip" lgit.exe
+          else
+            tar -czf "../lgit-${{ matrix.rid }}.tar.gz" lgit
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lgit-${{ matrix.rid }}
+          path: lgit-${{ matrix.rid }}.*
+
+  release:
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "LGit $GITHUB_REF_NAME" --generate-notes

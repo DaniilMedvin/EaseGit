@@ -1,0 +1,216 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1040" height="674" viewBox="0 0 1040 674">
+<style>text{font-family:"JetBrains Mono","Cascadia Mono","SF Mono",Menlo,Consolas,"DejaVu Sans Mono",monospace;font-size:14px;white-space:pre}</style>
+<rect width="100%" height="100%" rx="10" fill="#14161B"/>
+<rect width="100%" height="30" rx="10" fill="#202227"/><rect y="20" width="100%" height="10" fill="#202227"/>
+<circle cx="20" cy="15" r="6" fill="#FF5F57"/><circle cx="40" cy="15" r="6" fill="#FEBC2E"/><circle cx="60" cy="15" r="6" fill="#28C840"/>
+<text x="520" y="20" fill="#9B9EA4" text-anchor="middle">lgit — ~/weather-cli</text>
+<text x="16.0" y="59.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">╭─</text>
+<text x="41.2" y="59.3" fill="#A6DBFF" textLength="33.6" lengthAdjust="spacingAndGlyphs">LGit</text>
+<text x="83.2" y="59.3" fill="#4F5258" textLength="940.8" lengthAdjust="spacingAndGlyphs">───────────────────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
+<rect x="150.4" y="64" width="67.7" height="18" fill="#2E484B"/>
+<rect x="293.2" y="64" width="109.7" height="18" fill="#474236"/>
+<rect x="872.8" y="64" width="134.9" height="18" fill="#37473F"/>
+<text x="16.0" y="77.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="77.3" fill="#D4D4D4" textLength="92.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">weather-cli</text>
+<text x="158.8" y="77.3" fill="#8CF8F7" textLength="50.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">⎇ main</text>
+<text x="226.0" y="77.3" fill="#B3F6C0" textLength="16.8" lengthAdjust="spacingAndGlyphs">↑3</text>
+<text x="251.2" y="77.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">↓0</text>
+<text x="301.6" y="77.3" fill="#FCE094" textLength="92.4" lengthAdjust="spacingAndGlyphs">3 изменения</text>
+<text x="427.6" y="77.3" fill="#4F5258" textLength="109.2" lengthAdjust="spacingAndGlyphs">~/weather-cli</text>
+<text x="881.2" y="77.3" fill="#B3F6C0" textLength="117.6" lengthAdjust="spacingAndGlyphs">● DaniilMedvin</text>
+<text x="1015.6" y="77.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="95.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="16.0" y="113.3" fill="#A6DBFF" textLength="352.8" lengthAdjust="spacingAndGlyphs">╭─ [1] Файлы ────────────────────────────╮</text>
+<text x="368.8" y="113.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">╭─</text>
+<text x="394.0" y="113.3" fill="#9B9EA4" textLength="92.4" lengthAdjust="spacingAndGlyphs">Diff · src/</text>
+<text x="494.8" y="113.3" fill="#4F5258" textLength="529.2" lengthAdjust="spacingAndGlyphs">──────────────────────────────────────────────────────────────╮</text>
+<rect x="32.8" y="118" width="67.7" height="18" fill="#37473F"/>
+<text x="16.0" y="131.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="41.2" y="131.3" fill="#B3F6C0" textLength="50.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">Staged</text>
+<text x="108.4" y="131.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="360.4" y="131.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="368.8" y="131.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="385.6" y="131.3" fill="#9B9EA4" textLength="478.8" lengthAdjust="spacingAndGlyphs">Папка: 1 файл. space — stage всей папки, enter — свернуть</text>
+<text x="1015.6" y="131.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="24.4" y="136" width="336.5" height="18" fill="#2C2E33"/>
+<text x="16.0" y="149.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="149.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">❯</text>
+<text x="49.6" y="149.3" fill="#9B9EA4" textLength="8.4" lengthAdjust="spacingAndGlyphs">▾</text>
+<text x="66.4" y="149.3" fill="#D4D4D4" textLength="33.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">src/</text>
+<text x="360.4" y="149.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="368.8" y="149.3" fill="#4F5258" textLength="655.2" lengthAdjust="spacingAndGlyphs">│                                                                            │</text>
+<rect x="74.8" y="154" width="25.7" height="18" fill="#FCE094"/>
+<text x="16.0" y="167.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="167.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="83.2" y="167.3" fill="#14161B" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">M</text>
+<text x="108.4" y="167.3" fill="#FCE094" textLength="50.4" lengthAdjust="spacingAndGlyphs">Cli.cs</text>
+<text x="360.4" y="167.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="368.8" y="167.3" fill="#4F5258" textLength="655.2" lengthAdjust="spacingAndGlyphs">│                                                                            │</text>
+<rect x="32.8" y="172" width="92.9" height="18" fill="#474236"/>
+<text x="16.0" y="185.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="41.2" y="185.3" fill="#FCE094" textLength="75.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">Изменения</text>
+<text x="133.6" y="185.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="217.6" y="185.3" fill="#A6DBFF" textLength="604.8" lengthAdjust="spacingAndGlyphs">╭─ Коммит ─────────────────────────────────────────────────────────────╮</text>
+<text x="1015.6" y="185.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="234.4" y="190" width="50.9" height="18" fill="#A6DBFF"/>
+<text x="16.0" y="203.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="203.3" fill="#9B9EA4" textLength="8.4" lengthAdjust="spacingAndGlyphs">▾</text>
+<text x="66.4" y="203.3" fill="#D4D4D4" textLength="33.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">src/</text>
+<text x="217.6" y="203.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="242.8" y="203.3" fill="#14161B" textLength="33.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">feat</text>
+<text x="301.6" y="203.3" fill="#9B9EA4" textLength="462.0" lengthAdjust="spacingAndGlyphs">fix   docs   refactor   test   chore   style   без типа</text>
+<text x="814.0" y="203.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="203.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="74.8" y="208" width="25.7" height="18" fill="#FCE094"/>
+<text x="16.0" y="221.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="221.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="83.2" y="221.3" fill="#14161B" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">M</text>
+<text x="108.4" y="221.3" fill="#FCE094" textLength="92.4" lengthAdjust="spacingAndGlyphs">Forecast.cs</text>
+<text x="217.6" y="221.3" fill="#A6DBFF" textLength="604.8" lengthAdjust="spacingAndGlyphs">│                                                                      │</text>
+<text x="1015.6" y="221.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="32.8" y="226" width="109.7" height="18" fill="#2E484B"/>
+<text x="16.0" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="41.2" y="239.3" fill="#8CF8F7" textLength="92.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">Новые файлы</text>
+<text x="150.4" y="239.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">1</text>
+<text x="217.6" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">&gt;</text>
+<text x="251.2" y="239.3" fill="#D4D4D4" textLength="159.6" lengthAdjust="spacingAndGlyphs">add fahrenheit flag</text>
+<text x="814.0" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="239.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="257.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="257.3" fill="#9B9EA4" textLength="8.4" lengthAdjust="spacingAndGlyphs">▾</text>
+<text x="66.4" y="257.3" fill="#D4D4D4" textLength="42.0" lengthAdjust="spacingAndGlyphs" font-weight="bold">docs/</text>
+<text x="217.6" y="257.3" fill="#A6DBFF" textLength="604.8" lengthAdjust="spacingAndGlyphs">│                                                                      │</text>
+<text x="1015.6" y="257.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="74.8" y="262" width="25.7" height="18" fill="#8CF8F7"/>
+<text x="16.0" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="275.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="83.2" y="275.3" fill="#14161B" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">U</text>
+<text x="108.4" y="275.3" fill="#8CF8F7" textLength="84.0" lengthAdjust="spacingAndGlyphs">roadmap.md</text>
+<text x="217.6" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="275.3" fill="#9B9EA4" textLength="210.0" lengthAdjust="spacingAndGlyphs" font-style="italic">feat: add fahrenheit flag</text>
+<text x="763.6" y="275.3" fill="#4F5258" textLength="42.0" lengthAdjust="spacingAndGlyphs">25/72</text>
+<text x="814.0" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="275.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="293.3" fill="#A6DBFF" textLength="806.4" lengthAdjust="spacingAndGlyphs">│                       │                                                                      │</text>
+<text x="1015.6" y="293.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="311.3" fill="#A6DBFF" textLength="806.4" lengthAdjust="spacingAndGlyphs">│                       │                                                                      │</text>
+<text x="1015.6" y="311.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="329.3" fill="#A6DBFF" textLength="210.0" lengthAdjust="spacingAndGlyphs">│                       │</text>
+<text x="234.4" y="329.3" fill="#9B9EA4" textLength="235.2" lengthAdjust="spacingAndGlyphs">Тело коммита (необязательно)</text>
+<text x="814.0" y="329.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="329.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="347.3" fill="#A6DBFF" textLength="210.0" lengthAdjust="spacingAndGlyphs">│                       │</text>
+<text x="234.4" y="347.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="347.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="347.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="365.3" fill="#A6DBFF" textLength="210.0" lengthAdjust="spacingAndGlyphs">╰───────────────────────│</text>
+<text x="234.4" y="365.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="365.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="365.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="383.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">╭─ [2] Ветки ───────────</text>
+<text x="217.6" y="383.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="383.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="383.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="383.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="401.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="66.4" y="401.3" fill="#D4D4D4" textLength="109.2" lengthAdjust="spacingAndGlyphs">feature/cache</text>
+<text x="217.6" y="401.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="401.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="401.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="401.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="419.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="66.4" y="419.3" fill="#D4D4D4" textLength="109.2" lengthAdjust="spacingAndGlyphs">feature/units</text>
+<text x="217.6" y="419.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="419.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="419.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="419.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<rect x="24.4" y="424" width="193.7" height="18" fill="#2C2E33"/>
+<text x="16.0" y="437.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="437.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">❯</text>
+<text x="49.6" y="437.3" fill="#8CF8F7" textLength="8.4" lengthAdjust="spacingAndGlyphs">●</text>
+<text x="66.4" y="437.3" fill="#8CF8F7" textLength="33.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">main</text>
+<text x="217.6" y="437.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="437.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="814.0" y="437.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="437.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="455.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="217.6" y="455.3" fill="#A6DBFF" textLength="604.8" lengthAdjust="spacingAndGlyphs">│                                                                      │</text>
+<text x="1015.6" y="455.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="473.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">╰───────────────────────</text>
+<text x="217.6" y="473.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="234.4" y="473.3" fill="#9B9EA4" textLength="117.6" lengthAdjust="spacingAndGlyphs">Staged: 1 файл</text>
+<text x="814.0" y="473.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="1015.6" y="473.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="491.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">╭─ [3] Коммиты ─────────</text>
+<text x="217.6" y="491.3" fill="#A6DBFF" textLength="604.8" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────────────────────────────────╯</text>
+<text x="1015.6" y="491.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="509.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="509.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
+<text x="66.4" y="509.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">1d3ac73</text>
+<text x="133.6" y="509.3" fill="#8CF8F7" textLength="50.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">⎇ main</text>
+<text x="192.4" y="509.3" fill="#D4D4D4" textLength="75.6" lengthAdjust="spacingAndGlyphs">fix enter</text>
+<text x="276.4" y="509.3" fill="#9B9EA4" textLength="67.2" lengthAdjust="spacingAndGlyphs">коммит ·</text>
+<text x="352.0" y="509.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">↓</text>
+<text x="368.8" y="509.3" fill="#9B9EA4" textLength="50.4" lengthAdjust="spacingAndGlyphs">тело ·</text>
+<text x="427.6" y="509.3" fill="#D4D4D4" textLength="25.2" lengthAdjust="spacingAndGlyphs">tab</text>
+<text x="461.2" y="509.3" fill="#9B9EA4" textLength="42.0" lengthAdjust="spacingAndGlyphs">тип ·</text>
+<text x="511.6" y="509.3" fill="#D4D4D4" textLength="50.4" lengthAdjust="spacingAndGlyphs">ctrl+t</text>
+<text x="570.4" y="509.3" fill="#9B9EA4" textLength="67.2" lengthAdjust="spacingAndGlyphs">шаблон ·</text>
+<text x="646.0" y="509.3" fill="#D4D4D4" textLength="84.0" lengthAdjust="spacingAndGlyphs">ctrl+c/x/v</text>
+<text x="738.4" y="509.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">буфер ·</text>
+<text x="805.6" y="509.3" fill="#D4D4D4" textLength="16.8" lengthAdjust="spacingAndGlyphs">e…</text>
+<text x="1015.6" y="509.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="527.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="527.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
+<text x="66.4" y="527.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">6b154de</text>
+<text x="133.6" y="527.3" fill="#D4D4D4" textLength="25.2" lengthAdjust="spacingAndGlyphs">wip</text>
+<text x="326.8" y="527.3" fill="#4F5258" textLength="697.2" lengthAdjust="spacingAndGlyphs">1 ч ││                                                                            │</text>
+<rect x="24.4" y="532" width="336.5" height="18" fill="#2C2E33"/>
+<text x="16.0" y="545.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="545.3" fill="#A6DBFF" textLength="25.2" lengthAdjust="spacingAndGlyphs" font-weight="bold">❯ ●</text>
+<text x="66.4" y="545.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">56bf6fd</text>
+<text x="133.6" y="545.3" fill="#D4D4D4" textLength="184.8" lengthAdjust="spacingAndGlyphs">fix: typo in help text</text>
+<text x="326.8" y="545.3" fill="#4F5258" textLength="25.2" lengthAdjust="spacingAndGlyphs">3 ч</text>
+<text x="360.4" y="545.3" fill="#4F5258" textLength="663.6" lengthAdjust="spacingAndGlyphs">││                                                                            │</text>
+<text x="16.0" y="563.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="563.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
+<text x="66.4" y="563.3" fill="#9B9EA4" textLength="159.6" lengthAdjust="spacingAndGlyphs">a81f928 origin/main</text>
+<text x="234.4" y="563.3" fill="#D4D4D4" textLength="75.6" lengthAdjust="spacingAndGlyphs">docs: us…</text>
+<text x="318.4" y="563.3" fill="#4F5258" textLength="705.6" lengthAdjust="spacingAndGlyphs">1 дн ││                                                                            │</text>
+<text x="16.0" y="581.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="581.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
+<text x="66.4" y="581.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">a3615df</text>
+<text x="133.6" y="581.3" fill="#FCE094" textLength="58.8" lengthAdjust="spacingAndGlyphs">#v0.1.0</text>
+<text x="200.8" y="581.3" fill="#D4D4D4" textLength="109.2" lengthAdjust="spacingAndGlyphs">fix: handle …</text>
+<text x="318.4" y="581.3" fill="#4F5258" textLength="705.6" lengthAdjust="spacingAndGlyphs">4 дн ││                                                                            │</text>
+<text x="16.0" y="599.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="49.6" y="599.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">◉</text>
+<text x="58.0" y="599.3" fill="#8CF8F7" textLength="16.8" lengthAdjust="spacingAndGlyphs">─╮</text>
+<text x="83.2" y="599.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">ec1bb53</text>
+<text x="150.4" y="599.3" fill="#D4D4D4" textLength="159.6" lengthAdjust="spacingAndGlyphs">Merge branch &#x27;feat…</text>
+<text x="318.4" y="599.3" fill="#4F5258" textLength="705.6" lengthAdjust="spacingAndGlyphs">5 дн ││                                                                            │</text>
+<text x="16.0" y="617.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">╰────────────────────────────────────────╯╰────────────────────────────────────────────────────────────────────────────╯</text>
+<text x="24.4" y="653.3" fill="#D4D4D4" textLength="42.0" lengthAdjust="spacingAndGlyphs">space</text>
+<text x="74.8" y="653.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">stage ·</text>
+<text x="142.0" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">a</text>
+<text x="158.8" y="653.3" fill="#9B9EA4" textLength="42.0" lengthAdjust="spacingAndGlyphs">все ·</text>
+<text x="209.2" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">d</text>
+<text x="226.0" y="653.3" fill="#9B9EA4" textLength="84.0" lengthAdjust="spacingAndGlyphs">сбросить ·</text>
+<text x="318.4" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">c</text>
+<text x="335.2" y="653.3" fill="#9B9EA4" textLength="67.2" lengthAdjust="spacingAndGlyphs">коммит ·</text>
+<text x="410.8" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">p</text>
+<text x="427.6" y="653.3" fill="#9B9EA4" textLength="50.4" lengthAdjust="spacingAndGlyphs">pull ·</text>
+<text x="486.4" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">P</text>
+<text x="503.2" y="653.3" fill="#9B9EA4" textLength="50.4" lengthAdjust="spacingAndGlyphs">push ·</text>
+<text x="562.0" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">s</text>
+<text x="578.8" y="653.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">stash ·</text>
+<text x="646.0" y="653.3" fill="#D4D4D4" textLength="25.2" lengthAdjust="spacingAndGlyphs">tab</text>
+<text x="679.6" y="653.3" fill="#9B9EA4" textLength="67.2" lengthAdjust="spacingAndGlyphs">панель ·</text>
+<text x="755.2" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">?</text>
+<text x="772.0" y="653.3" fill="#9B9EA4" textLength="75.6" lengthAdjust="spacingAndGlyphs">справка ·</text>
+<text x="856.0" y="653.3" fill="#D4D4D4" textLength="25.2" lengthAdjust="spacingAndGlyphs">esc</text>
+<text x="889.6" y="653.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">назад ·</text>
+<text x="956.8" y="653.3" fill="#D4D4D4" textLength="8.4" lengthAdjust="spacingAndGlyphs">q</text>
+<text x="973.6" y="653.3" fill="#9B9EA4" textLength="42.0" lengthAdjust="spacingAndGlyphs">выход</text>
+</svg>

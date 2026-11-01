@@ -1,0 +1,109 @@
+# LGit
+
+[![CI](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml/badge.svg)](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DaniilMedvin/LazyGit)](https://github.com/DaniilMedvin/LazyGit/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+
+Спокойный git-клиент для терминала, который управляется с клавиатуры. C#, .NET 10, Terminal.Gui v2.
+
+[English](README.md) · **Русский**
+
+![Главный экран: файлы, ветки, коммиты и diff C# с подсветкой](docs/screenshots/main-ru.svg)
+
+## Возможности
+
+- **Файлы**: staged / изменения / новые / конфликты, дерево папок, stage файла, папки или всего сразу, сброс с подтверждением.
+- **Построчный stage**: `enter` на файле, затем stage, unstage или сброс отдельных строк, выделения (`v`) или фрагмента.
+- **Diff** с номерами строк и подсветкой C# в стиле тёмной темы Visual Studio.
+- **Коммиты** по Conventional Commits: выбор типа, предпросмотр, счётчик длины, шаблоны (`ctrl+t`).
+- **Ветки**: checkout, создание, merge, удаление (для невлитой — второе подтверждение), cherry-pick.
+- **История**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, перестановка).
+- **Граф всех веток** (`G`): цвет за каждой веткой, теги и действия над любым коммитом.
+- **Синхронизация**: fetch, pull, push с `↑ahead ↓behind`, спиннером и отменой по `esc`, подсказка `push -u` для новой ветки.
+- **Конфликты**: наша / их / обе версии файла, продолжить (`C`) или прервать (`A`) merge, cherry-pick, revert и rebase.
+- **Отмена** (`z`) последнего коммита, amend, merge, pull или checkout через reflog.
+- **Stash**: сохранить с сообщением, pop, apply, удалить, посмотреть diff.
+- **Прозрачность**: перед каждым действием видна точная git-команда, а Command Log (`~`) показывает, что выполнено.
+- **Палитра команд** (`ctrl+p` или `:`) с нечётким поиском, справка (`?`) строится из реальных клавиш.
+- **Темы** (тёмная, светлая, свои) и **свои клавиши** в `config.json`; интерфейс **на русском и английском** (`L` переключает).
+
+| Interactive rebase | Граф всех веток |
+|---|---|
+| ![Interactive rebase](docs/screenshots/rebase-ru.svg) | ![Граф](docs/screenshots/graph-ru.svg) |
+
+## Установка
+
+Один исполняемый файл со всем нужным: скачай его из [Releases](https://github.com/DaniilMedvin/LazyGit/releases/latest), .NET не нужен.
+
+```sh
+# Linux x64
+curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-linux-x64.tar.gz | tar xz
+sudo mv lgit /usr/local/bin/
+
+# macOS (Apple Silicon)
+curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-osx-arm64.tar.gz | tar xz
+sudo mv lgit /usr/local/bin/
+```
+
+На Windows скачай `lgit-win-x64.zip` и положи `lgit.exe` в папку из `PATH`.
+
+Нужен `git`. По желанию — [GitHub CLI](https://cli.github.com/) `gh`, чтобы входить в GitHub из приложения.
+
+### Из исходников
+
+```sh
+git clone https://github.com/DaniilMedvin/LazyGit.git && cd LazyGit
+dotnet run --project LazyGit -- /путь/к/репозиторию
+# или один файл в LazyGit/bin/Release/net10.0/linux-x64/publish/lgit
+dotnet publish LazyGit -c Release -r linux-x64
+```
+
+## Запуск
+
+```sh
+lgit              # репозиторий в текущей папке или стартовый экран
+lgit ~/projects/x # открыть конкретный репозиторий
+```
+
+| Клавиша | Действие | Клавиша | Действие |
+|---|---|---|---|
+| `1` `2` `3` `4` / `tab` | переход между панелями | `?` / `F1` | справка со всеми клавишами |
+| `space` | stage / checkout / pop | `ctrl+p` / `:` | палитра команд |
+| `c` | коммит | `p` / `P` / `f` | pull / push / fetch |
+| `enter` на файле | построчный stage | `i` в коммитах | interactive rebase |
+| `z` | отменить последнее действие | `G` | граф всех веток |
+| `C` / `A` | продолжить / прервать операцию | `T` / `L` | тема / язык |
+| `~` | Command Log | `q` | выход |
+
+Клавиши текущей панели всегда видны в нижней строке.
+
+![Окно коммита](docs/screenshots/commit-ru.svg)
+
+## Настройки
+
+`~/.config/lazygit-cs/config.json`: язык, тема, свои темы и клавиши. Подробнее — [docs/CONFIG.md](docs/CONFIG.md).
+
+```jsonc
+{
+  "language": "ru",
+  "theme": "light",
+  "keys": { "files.stage": "s", "sync.fetch": "F5" }
+}
+```
+
+## Разработка
+
+```sh
+dotnet build
+dotnet test                 # парсеры на реальном выводе git + интеграционные тесты на временных репозиториях
+scripts/demo-repos.sh       # репозитории в сложных состояниях (конфликты, разошедшиеся ветки…) для ручной проверки
+scripts/screenshots.sh      # переснять скриншоты в docs/screenshots (нужны tmux и python3)
+```
+
+Документация проекта: [план](docs/PLAN.md), [архитектура](docs/ARCHITECTURE.md), [соглашения](docs/CONVENTIONS.md), [дизайн](docs/DESIGN.md).
+
+Релизы собирает GitHub Actions: отправь тег `v*`, и к релизу приложатся бинарники для Linux, Windows и macOS.
+
+## Лицензия
+
+[MIT](LICENSE)
