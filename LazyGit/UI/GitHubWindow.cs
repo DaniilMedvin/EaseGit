@@ -123,6 +123,13 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return Handled(ApproveAsync());
         if (key == Key.Y)
             return Handled(CopyUrl());
+        if (key == Key.W && _list.Selected is { } prRun)
+        {
+            // Actions ветки PR: почему у него ✗ CI.
+            using var actions = new ActionsWindow(_github, prRun.Repo, prRun.HeadRef ?? _full?.HeadRef, headSha: null);
+            App!.Run(actions);
+            return true;
+        }
         if (key == Key.N && _repo is not null)
         {
             Result = GitHubAction.CreatePullRequest;
@@ -263,6 +270,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         else if (_list.Selected is not null)
             hints.Add(new Hint("enter", T("открыть проект", "open project")));
         hints.Add(new Hint("o", T("браузер", "browser")));
+        hints.Add(new Hint("w", "Actions", Optional: true));
         hints.Add(new Hint("M", "merge", Optional: true));
         hints.Add(new Hint("a", "approve", Optional: true));
         if (_repo is not null)

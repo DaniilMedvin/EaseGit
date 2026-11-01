@@ -44,7 +44,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **GitHub pull requests** (`g`): PRs of this repository, your PRs and review requests across all repositories,
   with CI and review status, description, checks and diff; checkout, merge (squash / merge / rebase), approve,
   open in browser; create a PR from the current branch (`N`) with the title and description taken from commits;
-  `enter` on a PR of another project opens its local copy or clones it; `/` picks any repository
+  `enter` on a PR of another project opens its local copy or clones it; `w` shows its Actions; `/` picks any repository
   (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.
 - **Search history** (`ctrl+f`): by message, author, or where a line of code appeared or disappeared (`git log -S`),
@@ -55,6 +55,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   before that commit to see who wrote the line earlier.
 - **Build and test** on demand (`F5`): `dotnet build` and `dotnet test` with live output, a summary and the failed tests;
   pick which tests to run by class or one by one (`space`, `a` for all).
+- **GitHub Actions** (`ctrl+o`): runs of the branch, jobs and steps, the log of failed steps right in LGit,
+  rerun failed jobs or the whole run, cancel; refreshes itself while something is running.
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message (everything or only the selected file or folder, `S`), pop, apply, drop, see its diff.
 - **Tags** (`#`): list, create on HEAD (annotated with a message), push, delete locally or on the server.

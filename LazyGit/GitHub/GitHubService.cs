@@ -83,6 +83,37 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
         WorkflowRunParser.Parse(await RunCheckedAsync(
             ["run", "list", "--repo", repo.NameWithOwner, "--commit", sha, "--json", WorkflowRunParser.Fields], ct));
 
+    /// <summary>Последние запуски Actions репозитория (только ветки <paramref name="branch"/>, если задана).</summary>
+    public async Task<IReadOnlyList<ActionsRun>> ListRunsAsync(GitHubRepo repo, string? branch, CancellationToken ct = default) =>
+        ActionsParser.ParseRuns(await RunCheckedAsync(
+            ["run", "list", "--repo", repo.NameWithOwner, "--limit", "50", "--json", ActionsParser.RunFields,
+             .. branch is null ? (string[])[] : ["--branch", branch]], ct));
+
+    public async Task<IReadOnlyList<ActionsJob>> GetJobsAsync(GitHubRepo repo, long run, CancellationToken ct = default) =>
+        ActionsParser.ParseJobs(await RunCheckedAsync(["run", "view", run.ToString(), "--repo", repo.NameWithOwner, "--json", "jobs"], ct));
+
+    /// <summary>Лог только упавших шагов. Пока запуск идёт или лог стёрт по сроку — пусто.</summary>
+    public async Task<IReadOnlyList<ActionsLogLine>> GetFailedLogAsync(GitHubRepo repo, long run, CancellationToken ct = default)
+    {
+        var result = await gh.RunAsync(workingDirectory, ["run", "view", run.ToString(), "--repo", repo.NameWithOwner, "--log-failed"], ct);
+        return result.Success ? ActionsParser.ParseFailedLog(result.StdOut) : [];
+    }
+
+    public static string[] RerunArguments(GitHubRepo repo, long run, bool failedOnly) =>
+        ["run", "rerun", run.ToString(), "--repo", repo.NameWithOwner, .. failedOnly ? (string[])["--failed"] : []];
+
+    /// <summary>Перезапускает запуск целиком или только упавшие jobs.</summary>
+    public Task<GitResult> RerunAsync(GitHubRepo repo, long run, bool failedOnly, CancellationToken ct = default) =>
+        RunActionAsync(RerunArguments(repo, run, failedOnly), ct);
+
+    public static string[] CancelRunArguments(GitHubRepo repo, long run) => ["run", "cancel", run.ToString(), "--repo", repo.NameWithOwner];
+
+    public Task<GitResult> CancelRunAsync(GitHubRepo repo, long run, CancellationToken ct = default) =>
+        RunActionAsync(CancelRunArguments(repo, run), ct);
+
+    public Task<GitResult> OpenRunInBrowserAsync(GitHubRepo repo, long run, CancellationToken ct = default) =>
+        gh.RunAsync(workingDirectory, ["run", "view", run.ToString(), "--repo", repo.NameWithOwner, "--web"], ct);
+
     /// <summary>Открывает запуск Actions в браузере.</summary>
     public Task<GitResult> OpenRunInBrowserAsync(GitHubRepo repo, WorkflowRun run, CancellationToken ct = default) =>
         gh.RunAsync(workingDirectory, ["run", "view", run.Id.ToString(), "--repo", repo.NameWithOwner, "--web"], ct);

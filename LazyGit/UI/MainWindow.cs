@@ -617,9 +617,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("N", Key.N.WithShift), () => _ = CreatePullRequestAsync(), preview: () => T("gh pr create --head <ветка> --base <main>", "gh pr create --head <branch> --base <main>"),
             available: () => _repoStatus is { IsDetached: false, Upstream: not null },
             keywords: "гитхаб github pr пулл реквест pull request создать новый открыть");
-        Add("github.ci", T("CI текущего коммита в браузере", "CI of the current commit in the browser"), CommandScope.Global,
-            CommandKey.Of("ctrl+o", Key.O.WithCtrl), () => _ = OpenCiAsync(),
-            available: () => _ciRuns.Count > 0 && _ciSha == _repoStatus?.HeadHash,
+        Add("github.actions", T("GitHub Actions: запуски, jobs, лог, перезапуск", "GitHub Actions: runs, jobs, log, rerun"), CommandScope.Global,
+            CommandKey.Of("ctrl+o", Key.O.WithCtrl), OpenActions,
+            available: () => _gitHubRepo is not null && _auth.IsAuthorized,
             keywords: "ci actions сборка тесты проверки лог github workflow");
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
             CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
@@ -1893,14 +1893,19 @@ public sealed class MainWindow : Runnable<MainResult?>
         });
     }
 
-    /// <summary>Открывает в браузере упавший (или идущий) запуск Actions текущего коммита.</summary>
-    private Task OpenCiAsync()
+    /// <summary>
+    /// Окно Actions: запуски текущей ветки, выбран запуск HEAD. Открывается прямо из обработчика клавиши (не из Invoke):
+    /// иначе окно не получило бы свои загрузки.
+    /// </summary>
+    private void OpenActions()
     {
-        if (_gitHubRepo is not { } repo || WorkflowRunParser.MostImportant(_ciRuns) is not { } run)
-            return Task.CompletedTask;
+        if (_busy || ResolveGitHubRepo() is not { } repo)
+            return;
 
-        ShowStatus(T($"{Theme.SymbolSuccess} Открываю {run.Name}: {run.Url}", $"{Theme.SymbolSuccess} Opening {run.Name}: {run.Url}"), Theme.Success, autoHide: true);
-        return CreateGitHubService().OpenRunInBrowserAsync(repo, run);
+        using var window = new ActionsWindow(CreateGitHubService(), repo, _repoStatus?.Branch, _repoStatus?.HeadHash);
+        App!.Run(window);
+        _ciCheckedAt = default;
+        _ = UpdateCiAsync();
     }
 
     /// <summary>
