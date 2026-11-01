@@ -28,6 +28,27 @@ public class GitErrorsTests
         Assert.Contains(expected, GitErrors.Explain(Failed(stderr)));
     }
 
+    [Theory]
+    [InlineData("git revert --no-edit abc", "Конфликт при revert")]
+    [InlineData("git cherry-pick abc", "Конфликт при cherry-pick")]
+    public void Explain_ConflictInRevertOrCherryPick_NamesOperation(string command, string expected)
+    {
+        var result = new GitResult(command, 1, "CONFLICT (content): Merge conflict in a.txt\n", "error: could not apply abc");
+
+        Assert.StartsWith(expected, GitErrors.Explain(result));
+    }
+
+    [Theory]
+    [InlineData("error: commit abc is a merge but no -m option was given.", "merge-коммит")]
+    [InlineData("The previous cherry-pick is now empty, possibly due to conflict resolution.", "уже есть в ветке")]
+    [InlineData("fatal: cherry-pick is already in progress", "не завершена")]
+    public void Explain_HistoryEditingErrors_ReturnsFriendlyText(string stderr, string expected)
+    {
+        var result = new GitResult("git cherry-pick abc", 1, "", stderr);
+
+        Assert.Contains(expected, GitErrors.Explain(result));
+    }
+
     [Fact]
     public void Explain_MergeConflictInStdout_ExplainsWhatToDo()
     {

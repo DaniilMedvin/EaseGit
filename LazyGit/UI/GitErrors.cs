@@ -19,6 +19,17 @@ public static class GitErrors
         if (stderr.Contains("No local changes to save") || result.StdOut.Contains("No local changes to save"))
             return "Нечего сохранять в stash: изменений нет";
 
+        var isRevert = result.Command.StartsWith("git revert");
+        var isPick = result.Command.StartsWith("git cherry-pick");
+        if ((isRevert || isPick) && result.StdOut.Contains("CONFLICT"))
+            return $"Конфликт при {(isRevert ? "revert" : "cherry-pick")}: реши файлы из «Конфликтов», добавь их (space) и нажми c. Отменить всё: A";
+        if ((isRevert || isPick) && stderr.Contains("is a merge but no -m option"))
+            return "Это merge-коммит: его нельзя откатить или скопировать целиком. Выбери обычный коммит";
+        if (stderr.Contains("is now empty") || stderr.Contains("nothing to commit"))
+            return "Эти изменения уже есть в ветке, коммит получился бы пустым. Прервать: A";
+        if (stderr.Contains("cherry-pick is already in progress") || stderr.Contains("revert is already in progress"))
+            return "Предыдущая операция не завершена: реши конфликты и нажми c либо прерви её (A)";
+
         // Конфликты merge git пишет в stdout.
         if (result.StdOut.Contains("CONFLICT"))
             return "Конфликт при merge: реши файлы из раздела «Конфликты», добавь их (space) и сделай коммит (c)";

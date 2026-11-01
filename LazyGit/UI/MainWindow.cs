@@ -302,6 +302,29 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = DeleteSelectedBranchAsync(), "удалить", dangerous: true,
             preview: () => BranchPreview(b => GitService.DeleteBranchArguments(b, force: false)), keywords: "удалить бранч");
 
+        Add("branches.cherryPick", "Cherry-pick вершины ветки", CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
+            () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true,
+            preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
+
+        Add("commits.amend", "Amend: добавить staged в последний коммит", CommandScope.Commits, CommandKey.Of("a", Key.A),
+            () => _ = AmendAsync(), "amend", dangerous: true, preview: () => CommandText.Format(GitService.AmendArguments),
+            keywords: "дополнить исправить последний коммит аменд");
+        Add("commits.revert", "Revert коммита", CommandScope.Commits, CommandKey.Of("v", Key.V),
+            () => _ = RevertSelectedAsync(), "revert", preview: () => CommitPreview(GitService.RevertArguments),
+            keywords: "откатить отменить коммит ревёрт");
+        Add("commits.resetSoft", "Reset --soft к коммиту", CommandScope.Commits, CommandKey.Of("S", Key.S.WithShift),
+            () => _ = ResetSelectedAsync(ResetMode.Soft), "soft", hintOptional: true, dangerous: true,
+            preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Soft)), keywords: "сброс reset мягкий вернуться");
+        Add("commits.resetMixed", "Reset --mixed к коммиту", CommandScope.Commits, CommandKey.Of("m", Key.M),
+            () => _ = ResetSelectedAsync(ResetMode.Mixed), "mixed", hintOptional: true, dangerous: true,
+            preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Mixed)), keywords: "сброс reset вернуться");
+        Add("commits.resetHard", "Reset --hard к коммиту", CommandScope.Commits, CommandKey.Of("H", Key.H.WithShift),
+            () => _ = ResetSelectedAsync(ResetMode.Hard), "hard", hintOptional: true, dangerous: true,
+            preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Hard)), keywords: "сброс reset жёсткий удалить вернуться");
+        Add("commits.cherryPick", "Cherry-pick по хешу или имени", CommandScope.Commits, CommandKey.Of("C", Key.C.WithShift),
+            OpenCherryPickDialog, "cherry-pick", hintOptional: true, preview: () => "git cherry-pick <хеш>",
+            keywords: "черри пик скопировать коммит перенести");
+
         Add("stash.pop", "Применить и удалить stash", CommandScope.Stash, CommandKey.Of("space", Key.Space),
             () => _ = StashActionAsync(pop: true), "pop", preview: () => StashPreview("pop"), keywords: "стэш достать pop");
         Add("stash.apply", "Применить stash", CommandScope.Stash, CommandKey.Of("a", Key.A),
@@ -679,6 +702,138 @@ public sealed class MainWindow : Runnable<MainResult?>
             : result.StdOut.Contains("Fast-forward") ? $"{branch.Name} влита в {target} (fast-forward)"
             : $"{branch.Name} влита в {target}, создан merge-коммит"));
     }
+
+    private string? CommitPreview(Func<Commit, string[]> args) =>
+        _commits.Selected is { } commit ? CommandText.Format(args(commit)) : null;
+
+    /// <summary>Предупреждение для действий, переписывающих историю: если коммиты уже отправлены, понадобится force push.</summary>
+    private async Task<string> RewriteWarningAsync(string normal)
+    {
+        var pushed = await _git.IsHeadPushedAsync();
+        return pushed
+            ? $"{Theme.SymbolWarning} Коммиты уже отправлены в {_repoStatus?.Upstream}: после этого история разойдётся, и для push понадобится --force-with-lease."
+            : normal;
+    }
+
+    /// <summary>Добавляет staged-изменения в последний коммит (сообщение остаётся).</summary>
+    private async Task AmendAsync()
+    {
+        if (_busy)
+            return;
+
+        if (_repoStatus?.HeadHash is null)
+        {
+            ShowStatus($"{Theme.SymbolError} Amend невозможен: коммитов ещё нет", Theme.Error);
+            return;
+        }
+
+        if (!_files.Entries.Any(r => r.Section == FileSection.Staged))
+        {
+            ShowStatus($"{Theme.SymbolError} Нечего добавлять в коммит: сначала добавь файлы в индекс (space)", Theme.Error);
+            return;
+        }
+
+        var last = _commits.Items.Count > 0 ? _commits.Items[0] : null;
+        var warning = await RewriteWarningAsync("Последний коммит будет заменён новым с теми же сообщением и автором. Прежний можно найти в git reflog (или вернуть клавишей z).");
+        App?.Invoke(() =>
+        {
+            if (!Confirm($"Добавить staged-изменения в коммит «{last?.Subject}»?", GitService.AmendArguments, warning, "Amend"))
+                return;
+
+            _ = RunAsync(ct => _git.AmendAsync(ct), "Изменения добавлены в последний коммит");
+        });
+    }
+
+    /// <summary>Создаёт коммит, отменяющий выбранный. История не переписывается.</summary>
+    private Task RevertSelectedAsync()
+    {
+        if (_busy || _commits.Selected is not { } commit)
+            return Task.CompletedTask;
+
+        if (!Confirm($"Откатить коммит {commit.ShortHash} «{commit.Subject}»?", GitService.RevertArguments(commit),
+                "Появится новый коммит с обратными изменениями. Прежний коммит и история остаются.", "Revert"))
+            return Task.CompletedTask;
+
+        return RunAsync(ct => _git.RevertAsync(commit, ct), $"Коммит {commit.ShortHash} откачен новым коммитом");
+    }
+
+    /// <summary>Переносит ветку на выбранный коммит. Soft и mixed сохраняют изменения, hard их удаляет.</summary>
+    private async Task ResetSelectedAsync(ResetMode mode)
+    {
+        if (_busy || _commits.Selected is not { } commit)
+            return;
+
+        if (_commits.Items.Count > 0 && _commits.Items[0].Hash == commit.Hash && mode != ResetMode.Hard)
+        {
+            ShowStatus($"{Theme.SymbolError} Это уже последний коммит: выбери более старый", Theme.Error);
+            return;
+        }
+
+        var normal = mode switch
+        {
+            ResetMode.Soft => "Коммиты выше пропадут из ветки, а их изменения окажутся в индексе (staged).",
+            ResetMode.Mixed => "Коммиты выше пропадут из ветки, а их изменения останутся в файлах, но не в индексе.",
+            _ => $"{Theme.SymbolWarning} Коммиты выше пропадут, а все незакоммиченные изменения в файлах будут удалены. Прежний коммит можно найти в git reflog.",
+        };
+        var warning = await RewriteWarningAsync(normal);
+        App?.Invoke(() =>
+        {
+            if (!Confirm($"Перенести ветку на {commit.ShortHash} «{commit.Subject}»?", GitService.ResetArguments(commit, mode), warning, "Reset"))
+                return;
+
+            _ = RunAsync(ct => _git.ResetAsync(commit, mode, ct), $"Ветка перенесена на {commit.ShortHash} (--{mode.ToString().ToLowerInvariant()})");
+        });
+    }
+
+    /// <summary>Копирует вершину выбранной ветки в текущую.</summary>
+    private async Task CherryPickBranchTipAsync()
+    {
+        if (_busy || _branches.Selected is not { } branch)
+            return;
+
+        if (branch.IsCurrent)
+        {
+            ShowStatus($"{Theme.SymbolError} Это текущая ветка. Выбери другую ветку, чтобы взять её последний коммит", Theme.Error);
+            return;
+        }
+
+        var commit = await _git.FindCommitAsync(branch.Name);
+        App?.Invoke(() =>
+        {
+            if (commit is null)
+                ShowStatus($"{Theme.SymbolError} В ветке {branch.Name} нет коммитов", Theme.Error);
+            else
+                _ = CherryPickAsync(commit);
+        });
+    }
+
+    /// <summary>Спрашивает хеш (или имя ветки/тега) коммита и копирует его в текущую ветку.</summary>
+    private void OpenCherryPickDialog()
+    {
+        if (_busy)
+            return;
+
+        using var dialog = new InputDialog("Cherry-pick", "Хеш коммита, имя ветки или тега. Хеш видно в панели коммитов другой ветки",
+            "скопировать", text => text.StartsWith('-') ? "Хеш не может начинаться с -" : null);
+        App!.Run(dialog);
+        if (dialog.Result is not { } revision)
+            return;
+
+        _ = Task.Run(async () =>
+        {
+            var commit = await _git.FindCommitAsync(revision);
+            App?.Invoke(() =>
+            {
+                if (commit is null)
+                    ShowStatus($"{Theme.SymbolError} Коммит «{revision}» не найден. Проверь хеш или имя ветки", Theme.Error);
+                else
+                    _ = CherryPickAsync(commit);
+            });
+        });
+    }
+
+    private Task CherryPickAsync(Commit commit) =>
+        RunAsync(ct => _git.CherryPickAsync(commit.Hash, ct), $"Коммит {commit.ShortHash} скопирован: {commit.Subject}");
 
     private bool Confirm(string question, string[] args, string warning, string confirmText)
     {
