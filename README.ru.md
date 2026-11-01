@@ -33,7 +33,7 @@ LGit работает с любым git-репозиторием, но зато�
   справа цветной `git log --graph` выбранной ветки (HEAD, ветки, теги) — без checkout.
 - **Просмотр коммита**: полный хеш, сообщение и сводка как `git show --stat` (`путь | 12 ++++----`) над diff.
 - **Колесо мыши** листает diff; в заголовках панелей счётчики и позиция (`[3] Коммиты · 4/120`).
-- **История**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, перестановка).
+- **История**: amend, исправить старый коммит staged-изменениями (`F`: fixup + autosquash), reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, перестановка).
 - **Граф всех веток** (`G`): цвет за каждой веткой, теги и действия над любым коммитом.
 - **Синхронизация**: fetch, pull, push с `↑ahead ↓behind`, спиннером и отменой по `esc`, подсказка `push -u` для новой ветки.
 - **Конфликты**: по блокам (`enter` на конфликтном файле: наша / их / обе для каждого блока `<<<<<<<`)

@@ -465,6 +465,30 @@ public sealed class GitService
     public Task<GitResult> ContinueAsync(RepoOperation operation, CancellationToken ct = default) =>
         RunActionAsync(ContinueArguments(operation), ct);
 
+    /// <summary>Аргументы первого шага fixup: временный коммит «fixup! …» из индекса.</summary>
+    public static string[] FixupCommitArguments(Commit target) => ["commit", $"--fixup={target.Hash}"];
+
+    /// <summary>Аргументы второго шага: rebase с --autosquash склеивает fixup с целью; редактор не открывается.</summary>
+    public static string[] AutosquashArguments(Commit target) =>
+        target.Parents.Count == 0
+            ? ["rebase", "--interactive", "--autosquash", "--autostash", "--root"]
+            : ["rebase", "--interactive", "--autosquash", "--autostash", target.Parents[0]];
+
+    /// <summary>
+    /// Встраивает staged-изменения в старый коммит <paramref name="target"/>: commit --fixup, затем rebase --autosquash.
+    /// Коммиты после цели пересоздаются. При конфликте rebase останавливается, как обычно (C — продолжить, A — прервать).
+    /// </summary>
+    public async Task<GitResult> FixupAsync(Commit target, CancellationToken ct = default)
+    {
+        var commit = await RunActionAsync(FixupCommitArguments(target), ct);
+        if (!commit.Success)
+            return commit;
+
+        // Список шагов autosquash уже правильный — подтверждаем его без изменений.
+        var environment = new Dictionary<string, string> { ["GIT_SEQUENCE_EDITOR"] = "true" };
+        return await RunActionAsync(AutosquashArguments(target), ct, environment: environment);
+    }
+
     /// <summary>
     /// Аргументы interactive rebase от <paramref name="oldest"/> (включительно) до HEAD.
     /// У первого коммита репозитория родителя нет — тогда --root. --autostash прячет и возвращает незакоммиченные изменения.

@@ -515,6 +515,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("commits.cherryPick", T("Cherry-pick по хешу или имени", "Cherry-pick by hash or name"), CommandScope.Commits, CommandKey.Of("C", Key.C.WithShift),
             OpenCherryPickDialog, "cherry-pick", hintOptional: true, preview: () => T("git cherry-pick <хеш>", "git cherry-pick <hash>"),
             available: () => _repoOperation == RepoOperation.None, keywords: "черри пик скопировать коммит перенести");
+        Add("commits.fixup", T("Встроить staged-изменения в этот коммит (fixup)", "Put staged changes into this commit (fixup)"), CommandScope.Commits,
+            CommandKey.Of("F", Key.F.WithShift), () => _ = FixupSelectedAsync(), "fixup", hintOptional: true, dangerous: true,
+            available: () => _repoOperation == RepoOperation.None,
+            preview: () => _commits.Selected is { } c ? CommandText.Format(GitService.FixupCommitArguments(c)) + " && git rebase -i --autosquash …" : null,
+            keywords: "fixup исправить старый коммит встроить autosquash дополнить поправить прошлый");
         Add("commits.compare", T("Изменения с этого коммита до HEAD", "Changes from this commit to HEAD"), CommandScope.Commits,
             CommandKey.Char('='), CompareSelectedCommit, T("сравнить", "compare"), hintOptional: true,
             available: () => _commits.Selected is { } c && _commits.Items.Count > 0 && _commits.Items[0].Hash != c.Hash,
@@ -852,11 +857,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || _commits.Selected is not { } selected)
             return;
 
-        var index = _commits.Items.ToList().IndexOf(selected);
-        var range = _commits.Items.Take(index + 1).ToList();
-        var linear = range.All(c => c.Parents.Count <= 1)
-            && range.Zip(range.Skip(1)).All(pair => pair.First.Parents.Count == 1 && pair.First.Parents[0] == pair.Second.Hash);
-        if (!linear)
+        var range = RangeFromHead(selected);
+        if (range is null)
         {
             ShowStatus(T($"{Theme.SymbolError} В диапазоне есть merge-коммит: такой rebase не поддерживается. Выбери коммит выше merge", $"{Theme.SymbolError} The range has a merge commit: this rebase is not supported. Pick a commit above the merge"), Theme.Error);
             return;
@@ -885,6 +887,74 @@ public sealed class MainWindow : Runnable<MainResult?>
                 await _git.GetOperationAsync() == RepoOperation.Rebase
                     ? await StoppedMessageAsync()
                     : T($"Rebase выполнен: {summary}", $"Rebase done: {summary}"));
+        });
+    }
+
+    /// <summary>
+    /// Коммиты от HEAD до <paramref name="commit"/> включительно, если между ними нет merge-коммитов (цепочка по первым
+    /// родителям), иначе null: rebase такой истории git бы выпрямил.
+    /// </summary>
+    private List<Commit>? RangeFromHead(Commit commit)
+    {
+        var range = _commits.Items.Take(_commits.Items.ToList().IndexOf(commit) + 1).ToList();
+        var linear = range.All(c => c.Parents.Count <= 1)
+            && range.Zip(range.Skip(1)).All(pair => pair.First.Parents.Count == 1 && pair.First.Parents[0] == pair.Second.Hash);
+        return linear ? range : null;
+    }
+
+    /// <summary>
+    /// Встраивает staged-изменения в выбранный старый коммит (commit --fixup + rebase --autosquash) после подтверждения.
+    /// Для последнего коммита есть amend, для диапазона с merge — объяснение, почему нельзя.
+    /// </summary>
+    private async Task FixupSelectedAsync()
+    {
+        if (_busy || _commits.Selected is not { } commit)
+            return;
+
+        if (_repoOperation != RepoOperation.None)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Сначала заверши {RepoHeader.OperationName(_repoOperation)}: C — продолжить, A — прервать",
+                $"{Theme.SymbolError} Finish the {RepoHeader.OperationName(_repoOperation)} first: C continues, A aborts"), Theme.Error);
+            return;
+        }
+
+        if (!_files.Entries.Any(r => r.Section == FileSection.Staged))
+        {
+            ShowStatus(T($"{Theme.SymbolError} Нечего встраивать: добавь исправления в индекс (space), затем F на коммите",
+                $"{Theme.SymbolError} Nothing to put in: stage the fix (space), then F on the commit"), Theme.Error);
+            return;
+        }
+
+        if (_commits.Items[0].Hash == commit.Hash)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Это последний коммит: для него есть amend (a)", $"{Theme.SymbolError} This is the last commit: use amend (a)"), Theme.Error);
+            return;
+        }
+
+        if (RangeFromHead(commit) is not { } range)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Между коммитом и HEAD есть merge-коммит: так встроить нельзя. Выбери коммит выше merge",
+                $"{Theme.SymbolError} There is a merge commit between it and HEAD: can't do it this way. Pick a commit above the merge"), Theme.Error);
+            return;
+        }
+
+        var warning = await RewriteWarningAsync(T(
+            $"Коммит {commit.ShortHash} и {Plural(range.Count - 1, "коммит", "коммита", "коммитов", "commit", "commits")} после него пересоздадутся с новыми хешами. " +
+            "Если исправление конфликтует с более поздними коммитами, rebase остановится: реши файлы и нажми C, или A — вернуть всё как было.",
+            $"Commit {commit.ShortHash} and {Plural(range.Count - 1, "коммит", "коммита", "коммитов", "commit", "commits")} after it get new hashes. " +
+            "If the fix conflicts with later commits, the rebase stops: resolve the files and press C, or A to restore everything."));
+        var command = CommandText.Format(GitService.FixupCommitArguments(commit)) + " && " + CommandText.Format(GitService.AutosquashArguments(commit));
+        App?.Invoke(() =>
+        {
+            using var dialog = new ConfirmDialog(T($"Встроить staged-изменения в {commit.ShortHash} «{commit.Subject}»?",
+                $"Put the staged changes into {commit.ShortHash} '{commit.Subject}'?"), command, warning, "Fixup");
+            App!.Run(dialog);
+            if (dialog.Result != true)
+                return;
+
+            _ = RunAsync(ct => _git.FixupAsync(commit, ct),
+                T($"Изменения встроены в «{commit.Subject}», история пересобрана", $"Changes put into '{commit.Subject}', history rebuilt"),
+                T("Встраиваю исправление…", "Putting the fix in…"));
         });
     }
 

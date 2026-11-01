@@ -33,7 +33,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   the selected branch's `git log --graph` is shown on the right in color (HEAD, branches, tags) without checkout.
 - **Commit view**: full hash, message and a `git show --stat` style summary (`path | 12 ++++----`) above the diff.
 - **Mouse wheel** scrolls the diff; panel titles show counts and the position (`[3] Commits · 4/120`).
-- **History**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, reorder).
+- **History**: amend, fix an older commit with staged changes (`F`: fixup + autosquash), reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, reorder).
 - **Graph of all branches** (`G`) with per-branch colors, tags and actions on any commit.
 - **Sync**: fetch, pull, push with `↑ahead ↓behind`, a spinner, `esc` to cancel, and a guided `push -u` for new branches.
 - **Conflicts**: resolve block by block (`enter` on a conflicted file: ours / theirs / both for each `<<<<<<<` block)
