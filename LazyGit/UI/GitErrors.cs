@@ -9,6 +9,8 @@ public static class GitErrors
     public static string Explain(GitResult result)
     {
         var stderr = result.StdErr;
+        if (result.Command.StartsWith("git apply"))
+            return $"Не удалось применить выбранные строки ({FirstLine(stderr)}). Обнови экран (r) и попробуй ещё раз или добавь файл целиком";
         var isStash = result.Command.StartsWith("git stash");
         if (isStash && result.StdOut.Contains("CONFLICT"))
             return "Конфликт в stash: реши файлы в «Конфликтах» и добавь (space), stash сохранён";

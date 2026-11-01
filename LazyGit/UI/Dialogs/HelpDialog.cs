@@ -155,6 +155,7 @@ public sealed class HelpDialog : Runnable<bool?>
                          (CommandScope.Branches, "Ветки"),
                          (CommandScope.Commits, "Коммиты"),
                          (CommandScope.Stash, "Stash"),
+                         (CommandScope.Diff, "Построчный stage (enter на файле)"),
                          (CommandScope.Global, "Везде"),
                      })
             {
@@ -200,7 +201,7 @@ public sealed class HelpDialog : Runnable<bool?>
                 second?.Key.Label ?? "", second is null ? "" : HelpLayout.Title(second), key2, text2);
 
             static (Color Key, Color Text) Colors(AppCommand command) =>
-                command.IsAvailable() ? (Theme.Fg, Theme.Muted) : (Theme.Dim, Theme.Dim);
+                command.UnavailableNote is not null && !command.IsAvailable() ? (Theme.Dim, Theme.Dim) : (Theme.Fg, Theme.Muted);
         }
 
         private static Segment[] Keys(string key1, string description1, Color keyColor1, Color textColor1,

@@ -29,4 +29,8 @@ public enum DiffLineKind
 /// <param name="Text">Для Added, Removed и Context — содержимое без префикса «+», «-», « »; для остальных — строка целиком.</param>
 /// <param name="OldNumber">Номер строки в старой версии файла (Removed, Context).</param>
 /// <param name="NewNumber">Номер строки в новой версии файла (Added, Context).</param>
-public sealed record DiffLine(DiffLineKind Kind, string Text, int? OldNumber = null, int? NewNumber = null);
+public sealed record DiffLine(DiffLineKind Kind, string Text, int? OldNumber = null, int? NewNumber = null)
+{
+    /// <summary>Строка в файле кончается на \r (CRLF). Не показывается, но нужна, чтобы патч из строк совпал с файлом.</summary>
+    public bool EndsWithCr { get; init; }
+}

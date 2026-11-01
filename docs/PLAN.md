@@ -70,7 +70,7 @@
 
 ## Этап 7. Продвинутое
 - [x] Stash: создать (`s`), pop / apply / удалить в панели `[4]`, diff справа
-- [ ] Построчный stage (hunks)
+- [x] Построчный stage: `enter` на файле, `space` строка / выделение `v`, `a` фрагмент, unstage из Staged
 - [x] Amend, reset, revert, cherry-pick
 - [ ] Interactive rebase
 - [x] Разрешение конфликтов: `⚠ идёт merge` в шапке, `A` прервать, `o` / `t` / `b` — наша / их / обе версии файла

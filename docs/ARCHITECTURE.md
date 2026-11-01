@@ -27,6 +27,7 @@ LazyGit/
 │   ├── GitService.cs          GetStatusAsync(), StageAsync(), CommitAsync(), ...
 │   ├── CommandLog.cs          журнал изменяющих команд (GitService пишет, CommandLogPanel показывает)
 │   ├── UndoPlanner.cs         отмена последнего действия по записи reflog → UndoPlan
+│   ├── PatchBuilder.cs        патч из выбранных строк diff для построчного stage (git apply --cached)
 │   ├── RepoWatcher.cs         FileSystemWatcher: изменения файлов и .git → одно событие Changed
 │   └── Parsers/
 │       ├── StatusParser.cs

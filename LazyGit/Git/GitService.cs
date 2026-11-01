@@ -129,15 +129,26 @@ public sealed class GitService
         if (file.IsUntracked)
         {
             // С --no-index git возвращает 1, если файлы различаются, — это не ошибка.
-            var untracked = await _git.RunAsync(RepoRoot, ["diff", "--no-color", "--no-ext-diff", "--no-index", "--", "/dev/null", file.Path], ct);
+            var untracked = await _git.RunAsync(RepoRoot, ["diff", .. DiffOptions, "--no-index", "--", "/dev/null", file.Path], ct);
             return untracked.ExitCode is 0 or 1 ? DiffParser.Parse(untracked.StdOut) : throw new GitCommandException(untracked);
         }
 
         string[] args = staged
-            ? ["diff", "--no-color", "--no-ext-diff", "--find-renames", "--cached", "--", .. Paths(file)]
-            : ["diff", "--no-color", "--no-ext-diff", "--", file.Path];
+            ? ["diff", .. DiffOptions, "--find-renames", "--cached", "--", .. Paths(file)]
+            : ["diff", .. DiffOptions, "--", file.Path];
         return DiffParser.Parse(await RunCheckedAsync(args, ct));
     }
+
+    /// <summary>Префиксы a/ b/ явно: из этого diff строится патч для git apply, а diff.noprefix в конфиге их убирает.</summary>
+    private static readonly string[] DiffOptions = ["--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/"];
+
+    /// <summary>Аргументы применения патча к индексу: stage выбранных строк или, с <paramref name="reverse"/>, unstage.</summary>
+    public static string[] ApplyToIndexArguments(bool reverse) =>
+        reverse ? ["apply", "--cached", "--reverse", "--whitespace=nowarn", "-"] : ["apply", "--cached", "--whitespace=nowarn", "-"];
+
+    /// <summary>Применяет патч из <see cref="PatchBuilder"/> к индексу. Рабочая копия не меняется.</summary>
+    public Task<GitResult> ApplyToIndexAsync(string patch, bool reverse, CancellationToken ct = default) =>
+        RunActionAsync(ApplyToIndexArguments(reverse), ct, patch);
 
     /// <summary>Сообщение и изменения коммита. Для первого коммита diff — относительно пустого дерева.</summary>
     public async Task<CommitDiff> GetCommitDiffAsync(Commit commit, CancellationToken ct = default) =>

@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 
 namespace LazyGit.Git;
 
@@ -20,6 +21,8 @@ public sealed class GitRunner
         {
             WorkingDirectory = workingDirectory,
             RedirectStandardInput = input is not null,
+            // Без BOM: иначе он попадёт в начало сообщения коммита или патча.
+            StandardInputEncoding = input is not null ? new UTF8Encoding(false) : null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,

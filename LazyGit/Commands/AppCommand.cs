@@ -8,6 +8,9 @@ public enum CommandScope
     Branches,
     Commits,
     Stash,
+
+    /// <summary>Diff в режиме построчного stage.</summary>
+    Diff,
 }
 
 /// <summary>

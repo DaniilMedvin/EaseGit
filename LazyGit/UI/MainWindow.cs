@@ -68,6 +68,12 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
 
+    // Файл в режиме построчного stage: его diff справа, панель diff в фокусе. null — режим выключен.
+    private StagingTarget? _staging;
+
+    /// <param name="Staged">Unstage из staged-изменений, иначе stage из изменений рабочей копии.</param>
+    private sealed record StagingTarget(string Path, bool Staged);
+
     private const int LogHeight = 8;
 
     private readonly string? _notice;
@@ -188,6 +194,12 @@ public sealed class MainWindow : Runnable<MainResult?>
         _branches.HasFocusChanged += (_, _) => OnPanelFocusChanged(_branches);
         _commits.HasFocusChanged += (_, _) => OnPanelFocusChanged(_commits);
         _stash.HasFocusChanged += (_, _) => OnPanelFocusChanged(_stash);
+        // Ушли из diff (esc, tab, 1–4, мышь) — режим построчного stage заканчивается.
+        _diff.HasFocusChanged += (_, _) =>
+        {
+            if (!_diff.HasFocus)
+                StopLineStaging();
+        };
         _stashTitle.Visible = false;
         RegisterCommands();
         _files.SetFocus();
@@ -196,6 +208,9 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     private void OnPanelFocusChanged(View panel)
     {
+        // Панель может получить фокус раньше, чем diff узнает, что потерял его: режим выключается до загрузки её diff.
+        if (panel.HasFocus)
+            StopLineStaging();
         UpdateHints();
         if (panel.HasFocus)
             _ = LoadDiffAsync();
@@ -268,7 +283,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     private CommandScope FocusedScope =>
-        _branches.HasFocus ? CommandScope.Branches
+        _staging is not null && _diff.HasFocus ? CommandScope.Diff
+        : _branches.HasFocus ? CommandScope.Branches
         : _commits.HasFocus ? CommandScope.Commits
         : _stash.HasFocus ? CommandScope.Stash
         : CommandScope.Files;
@@ -338,6 +354,26 @@ public sealed class MainWindow : Runnable<MainResult?>
             keywords: "конфликт оба обе union объединить вместе");
         Add("files.discard", "Сбросить изменения", CommandScope.Files, CommandKey.Of("d", Key.D),
             () => _ = DiscardSelectedAsync(), "сбросить", dangerous: true, keywords: "откатить отменить удалить ресет");
+        Add("files.stageLines", "Построчный stage файла", CommandScope.Files, CommandKey.Of("enter", Key.Enter),
+            StartLineStaging, "по строкам", available: () => _files.SelectedFile is { Section: not FileSection.Conflicts },
+            keywords: "строки строка hunk ханк фрагмент частично патч patch");
+
+        Add("diff.stageLines", "Stage строки / выделения", CommandScope.Diff, CommandKey.Of("space", Key.Space),
+            () => _ = ApplyLinesAsync(hunk: false), "stage", available: () => _staging is { Staged: false },
+            preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "строка добавить");
+        Add("diff.unstageLines", "Unstage строки / выделения", CommandScope.Diff, CommandKey.Of("space", Key.Space),
+            () => _ = ApplyLinesAsync(hunk: false), "unstage", available: () => _staging is { Staged: true },
+            preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: true)), keywords: "строка убрать");
+        Add("diff.stageHunk", "Stage фрагмента (@@)", CommandScope.Diff, CommandKey.Of("a", Key.A),
+            () => _ = ApplyLinesAsync(hunk: true), "фрагмент", available: () => _staging is { Staged: false },
+            preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "hunk ханк блок");
+        Add("diff.unstageHunk", "Unstage фрагмента (@@)", CommandScope.Diff, CommandKey.Of("a", Key.A),
+            () => _ = ApplyLinesAsync(hunk: true), "фрагмент", available: () => _staging is { Staged: true },
+            preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: true)), keywords: "hunk ханк блок");
+        Add("diff.range", "Выделить несколько строк", CommandScope.Diff, CommandKey.Of("v", Key.V),
+            () => _diff.ToggleRange(), "выделить", available: () => _staging is not null, keywords: "выделение диапазон");
+        Add("diff.back", "Вернуться к файлам", CommandScope.Diff, CommandKey.Of("esc", Key.Esc),
+            () => _files.SetFocus(), "к файлам", available: () => _staging is not null);
 
         Add("branches.checkout", "Checkout ветки", CommandScope.Branches, CommandKey.Of("space", Key.Space),
             () => _ = SwitchToSelectedAsync(), "checkout", preview: () => BranchPreview(b => ["switch", "--no-guess", b.Name]), keywords: "переключить чекаут ветка");
@@ -658,7 +694,8 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     private void OpenHelp()
     {
-        using var help = new HelpDialog(Viewport.Height, _commands.All.Where(HelpLayout.IsShown).ToList());
+        using var help = new HelpDialog(Viewport.Height,
+            _commands.All.Where(c => c.Scope == CommandScope.Diff || HelpLayout.IsShown(c)).ToList());
         App!.Run(help);
     }
 
@@ -1328,6 +1365,9 @@ public sealed class MainWindow : Runnable<MainResult?>
                 _commits.SetItems(log);
                 SetStashes(stashes);
                 UpdateHints();
+                // Панель файлов перезагружает diff только в своём фокусе, в построчном stage — здесь.
+                if (_staging is not null)
+                    _ = LoadDiffAsync();
             });
             return true;
         }
@@ -1345,6 +1385,8 @@ public sealed class MainWindow : Runnable<MainResult?>
     private Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        if (_staging is not null)
+            return LoadStagingDiffAsync();
         if (_branches.HasFocus)
             return ShowBranchInfo();
         if (_stash.HasFocus)
@@ -1426,11 +1468,101 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var staged = row.Section == FileSection.Staged;
         var tag = staged ? " · staged" : row.File.IsUntracked ? " · новый файл" : "";
-        return ShowDiffAsync((row.Section, row.File.Path), $" Diff · {row.File.Path}{tag} ", async ct =>
+        return ShowDiffAsync((staged, row.File.Path), $" Diff · {row.File.Path}{tag} ", async ct =>
         {
             var lines = await _git.GetDiffAsync(row.File, staged, ct);
             return await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), ct);
         });
+    }
+
+    /// <summary>Включает построчный stage выбранного файла: фокус переходит в diff.</summary>
+    private void StartLineStaging()
+    {
+        if (_files.SelectedFile is not { } row)
+            return;
+
+        if (row.Section == FileSection.Staged && row.File.OriginalPath is not null)
+        {
+            ShowStatus($"{Theme.SymbolError} Переименованный файл не убрать из индекса по строкам: unstage его целиком (space)", Theme.Error);
+            return;
+        }
+
+        _staging = new StagingTarget(row.File.Path, row.Section == FileSection.Staged);
+        _diff.StartStaging();
+        UpdateHints();
+        _ = LoadDiffAsync();
+    }
+
+    private void StopLineStaging()
+    {
+        if (_staging is null)
+            return;
+
+        _staging = null;
+        _diff.StopStaging();
+        UpdateHints();
+    }
+
+    /// <summary>
+    /// Diff файла в построчном stage. Файл берётся из последнего статуса по пути, а не из выбора в панели:
+    /// после частичного stage новый файл становится отслеживаемым, а выбор может уйти на другую строку.
+    /// Если в нужной стороне изменений не осталось, режим выключается.
+    /// </summary>
+    private Task LoadStagingDiffAsync()
+    {
+        var target = _staging!;
+        var file = _repoStatus?.Files.FirstOrDefault(f => f.Path == target.Path
+            && (target.Staged ? f.HasStagedChanges : f.HasUnstagedChanges));
+        if (file is null)
+        {
+            var where = target.Staged ? "убраны из индекса" : "в индексе";
+            StopLineStaging();
+            _files.SetFocus();
+            ShowStatus($"{Theme.SymbolSuccess} Все изменения {target.Path} {where}", Theme.Success, autoHide: true);
+            return Task.CompletedTask;
+        }
+
+        var title = target.Staged ? $" Unstage по строкам · {file.Path} · staged " : $" Stage по строкам · {file.Path} ";
+        return ShowDiffAsync((target.Staged, file.Path), title, async ct =>
+        {
+            var lines = await _git.GetDiffAsync(file, target.Staged, ct);
+            return await Task.Run(() => DiffPanel.Prepare(lines, file.Path), ct);
+        });
+    }
+
+    /// <summary>Stage (или unstage) выбранных строк либо всего фрагмента под курсором.</summary>
+    private Task ApplyLinesAsync(bool hunk)
+    {
+        if (_busy || _staging is not { } target || _diff.Source is not { } source)
+            return Task.CompletedTask;
+
+        var chosen = (hunk ? _diff.CurrentHunkChanges : _diff.SelectedChanges).ToHashSet(ReferenceEqualityComparer.Instance);
+        if (chosen.Count == 0)
+        {
+            ShowStatus($"{Theme.SymbolError} Встань на строку с + или -", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        if (source.Any(l => l.Kind == DiffLineKind.Binary))
+        {
+            ShowStatus($"{Theme.SymbolError} Бинарный файл по строкам не добавить: используй space в панели файлов", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        // Git отдал не UTF-8 (например, windows-1251): записанный обратно патч испортил бы файл в индексе.
+        if (source.Any(l => l.Text.Contains('\uFFFD')))
+        {
+            ShowStatus($"{Theme.SymbolError} Файл не в UTF-8, построчный stage небезопасен: добавь файл целиком (space в файлах)", Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        var selected = Enumerable.Range(0, source.Count).Where(i => chosen.Contains(source[i])).ToHashSet();
+        if (PatchBuilder.Build(source, selected, target.Staged) is not { } patch)
+            return Task.CompletedTask;
+
+        var count = TextDrawing.Plural(selected.Count, "строка", "строки", "строк");
+        var done = target.Staged ? $"Убрано из индекса: {count}" : $"Добавлено в индекс: {count}";
+        return RunAsync(ct => _git.ApplyToIndexAsync(patch, target.Staged, ct), done);
     }
 
     /// <summary>Загружает и показывает diff. Для того же <paramref name="key"/>, что и сейчас, прокрутка сохраняется.</summary>

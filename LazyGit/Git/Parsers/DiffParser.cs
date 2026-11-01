@@ -19,7 +19,10 @@ public static partial class DiffParser
         var count = rawLines.Length > 0 && rawLines[^1].Length == 0 ? rawLines.Length - 1 : rawLines.Length;
         for (var i = 0; i < count; i++)
         {
-            var line = rawLines[i].TrimEnd('\r');
+            var line = rawLines[i];
+            var cr = line.EndsWith('\r');
+            if (cr)
+                line = line[..^1];
 
             if (line.StartsWith("diff --git ") || line.StartsWith("diff --cc ") || line.StartsWith("diff --combined "))
             {
@@ -55,15 +58,15 @@ public static partial class DiffParser
             var text = line.Length >= prefixWidth ? line[prefixWidth..] : "";
             if (prefix.Contains('-'))
             {
-                lines.Add(new DiffLine(DiffLineKind.Removed, text, OldNumber: oldNumber++));
+                lines.Add(new DiffLine(DiffLineKind.Removed, text, OldNumber: oldNumber++) { EndsWithCr = cr });
             }
             else if (prefix.Contains('+'))
             {
-                lines.Add(new DiffLine(DiffLineKind.Added, text, NewNumber: newNumber++));
+                lines.Add(new DiffLine(DiffLineKind.Added, text, NewNumber: newNumber++) { EndsWithCr = cr });
             }
             else
             {
-                lines.Add(new DiffLine(DiffLineKind.Context, text, oldNumber++, newNumber++));
+                lines.Add(new DiffLine(DiffLineKind.Context, text, oldNumber++, newNumber++) { EndsWithCr = cr });
             }
         }
 

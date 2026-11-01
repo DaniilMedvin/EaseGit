@@ -24,8 +24,15 @@ public sealed class CommandRegistry
         _commands.FirstOrDefault(c => c.Scope == focused && c.Key.Matches(key) && c.IsAvailable())
         ?? _commands.FirstOrDefault(c => c.Scope == CommandScope.Global && c.Key.Matches(key) && c.IsAvailable());
 
-    /// <summary>Команды для строки подсказок: сначала панели в фокусе, затем глобальные.</summary>
-    public IEnumerable<AppCommand> Hints(CommandScope focused) =>
-        _commands.Where(c => c.Hint is not null && c.IsAvailable() && c.Scope == focused)
-            .Concat(_commands.Where(c => c.Hint is not null && c.IsAvailable() && c.Scope == CommandScope.Global));
+    /// <summary>
+    /// Команды для строки подсказок: сначала панели в фокусе, затем глобальные.
+    /// Глобальная команда, чью клавишу перехватила панель (esc в diff), не показывается.
+    /// </summary>
+    public IEnumerable<AppCommand> Hints(CommandScope focused)
+    {
+        var local = _commands.Where(c => c.Hint is not null && c.IsAvailable() && c.Scope == focused).ToList();
+        var taken = _commands.Where(c => c.Scope == focused && c.IsAvailable()).Select(c => c.Key.Label).ToHashSet();
+        return local.Concat(_commands.Where(c =>
+            c.Hint is not null && c.IsAvailable() && c.Scope == CommandScope.Global && !taken.Contains(c.Key.Label)));
+    }
 }
