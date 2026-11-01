@@ -206,6 +206,35 @@ public sealed class DiffPanel : View
 
     }
 
+    /// <summary>
+    /// Вставляет сводку «что изменилось в коде» (типы и члены C#): в коммите — перед сводкой файлов, в diff файла — сверху.
+    /// Если по файлам изменений кода нет — одна строка с пояснением.
+    /// </summary>
+    public static PreparedDiff WithCodeChanges(PreparedDiff diff, IReadOnlyList<(string Path, IReadOnlyList<CodeChange> Changes)> files)
+    {
+        var block = new List<DiffLine> { new(DiffLineKind.Header, T("Что изменилось в коде", "What changed in the code")) };
+        if (files.Count == 0)
+            block.Add(new DiffLine(DiffLineKind.Message, T("  Изменений в C#-коде нет (или только форматирование и комментарии)",
+                "  No changes in C# code (or only formatting and comments)")));
+        foreach (var (path, changes) in files)
+        {
+            if (files.Count > 1)
+                block.Add(new DiffLine(DiffLineKind.Message, "  " + path));
+            block.AddRange(changes.Select(c => new DiffLine(DiffLineKind.CodeChange, c.Name) { Change = c }));
+        }
+
+        block.Add(new DiffLine(DiffLineKind.Message, ""));
+
+        var lines = diff.Lines.ToList();
+        var at = lines.FindIndex(l => l.Kind == DiffLineKind.Stat);
+        // Перед сводкой файлов стоит пустая строка-разделитель — блок идёт перед ней.
+        at = at > 0 && lines[at - 1].Kind == DiffLineKind.Message && lines[at - 1].Text.Length == 0 ? at : Math.Max(0, at);
+        var highlights = diff.Highlights.ToList();
+        lines.InsertRange(at, block);
+        highlights.InsertRange(at, Enumerable.Repeat<IReadOnlyList<HighlightSpan>?>(null, block.Count));
+        return new PreparedDiff(lines, highlights.ToArray(), diff.Source);
+    }
+
     /// <summary>Делит diff нескольких файлов на части по строкам «diff --git». Строки до первой отбрасываются.</summary>
     private static List<List<DiffLine>> SplitByFile(IReadOnlyList<DiffLine> lines)
     {
@@ -522,6 +551,20 @@ public sealed class DiffPanel : View
                 return;
             case DiffLineKind.Stat:
                 this.DrawSegments(0, row, StatSegments(line, width), width);
+                return;
+            case DiffLineKind.CodeChange when line.Change is { } change:
+                var (sign, signColor) = change.Kind switch
+                {
+                    CodeChangeKind.Added => ("+", Theme.Success),
+                    CodeChangeKind.Removed => ("−", Theme.Error),
+                    _ => ("~", Theme.Warning),
+                };
+                this.DrawSegments(1, row,
+                [
+                    new Segment($"  {sign} ", signColor, TextStyle.Bold),
+                    new Segment(change.What.PadRight(12), Theme.Muted),
+                    new Segment(change.Name, change.Kind == CodeChangeKind.Removed ? Theme.Muted : Theme.Fg),
+                ], width - 1);
                 return;
             case DiffLineKind.NoNewline:
                 this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + T("⏎ нет перевода строки в конце файла", "⏎ no newline at end of file"), Theme.Dim, TextStyle.Italic)], width);

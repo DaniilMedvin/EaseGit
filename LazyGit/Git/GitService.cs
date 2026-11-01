@@ -248,6 +248,82 @@ public sealed class GitService
         return await HasCommitsAsync(ct) ? throw new GitCommandException(result) : [];
     }
 
+    /// <summary>Пустое дерево git: «родитель» первого коммита для сравнения.</summary>
+    public const string EmptyTree = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+
+    /// <summary>Текст файла в коммите (<c>rev:path</c>) или в индексе (<paramref name="revision"/> = ""); нет такого — null.</summary>
+    public async Task<string?> GetFileTextAsync(string revision, string path, CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["show", $"{revision}:{path}"], ct);
+        return result.Success ? result.StdOut : null;
+    }
+
+    /// <summary>
+    /// Изменения кода в C#-файле рабочей копии: «Изменения» — индекс против диска, Staged — HEAD против индекса,
+    /// новый — пусто против диска. Не C# — пусто.
+    /// </summary>
+    public async Task<IReadOnlyList<CodeChange>> GetCodeChangesAsync(FileChange file, bool staged, CancellationToken ct = default)
+    {
+        if (!Highlighting.DiffHighlighter.IsSupported(file.Path))
+            return [];
+
+        string? before, after;
+        if (staged)
+        {
+            before = await GetFileTextAsync("HEAD", file.OriginalPath ?? file.Path, ct);
+            after = await GetFileTextAsync("", file.Path, ct);
+        }
+        else
+        {
+            before = file.IsUntracked ? null : await GetFileTextAsync("", file.Path, ct);
+            var full = Path.Combine(RepoRoot, file.Path);
+            after = File.Exists(full) ? await File.ReadAllTextAsync(full, ct) : null;
+        }
+
+        return Highlighting.CodeChanges.Compare(before, after);
+    }
+
+    /// <summary>
+    /// Изменения кода во всех C#-файлах между двумя ревизиями (для коммита — родитель и коммит, у первого — пустое дерево),
+    /// по файлам; файлы без изменений кода (только форматирование) пропускаются.
+    /// </summary>
+    public async Task<IReadOnlyList<(string Path, IReadOnlyList<CodeChange> Changes)>> GetCodeChangesAsync(string from, string to,
+        CancellationToken ct = default)
+    {
+        var files = CompareParser.Parse(
+            await RunCheckedAsync(["diff", "--name-status", "-z", "--find-renames", from, to, "--"], ct), "");
+        var result = new List<(string, IReadOnlyList<CodeChange>)>();
+        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsSupported(f.Path)))
+        {
+            var before = file.Status == 'A' ? null : await GetFileTextAsync(from, file.OldPath ?? file.Path, ct);
+            var after = file.Status == 'D' ? null : await GetFileTextAsync(to, file.Path, ct);
+            var changes = Highlighting.CodeChanges.Compare(before, after);
+            if (changes.Count > 0)
+                result.Add((file.Path, changes));
+        }
+
+        return result;
+    }
+
+    /// <summary>Изменения кода в staged C#-файлах (HEAD против индекса) — для подсказки сообщения коммита.</summary>
+    public async Task<IReadOnlyList<(string Path, IReadOnlyList<CodeChange> Changes)>> GetStagedCodeChangesAsync(CancellationToken ct = default)
+    {
+        var hasHead = await HasCommitsAsync(ct);
+        var files = CompareParser.Parse(
+            await RunCheckedAsync(["diff", "--cached", "--name-status", "-z", "--find-renames", "--"], ct), "");
+        var result = new List<(string, IReadOnlyList<CodeChange>)>();
+        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsSupported(f.Path)))
+        {
+            var before = file.Status == 'A' || !hasHead ? null : await GetFileTextAsync("HEAD", file.OldPath ?? file.Path, ct);
+            var after = file.Status == 'D' ? null : await GetFileTextAsync("", file.Path, ct);
+            var changes = Highlighting.CodeChanges.Compare(before, after);
+            if (changes.Count > 0)
+                result.Add((file.Path, changes));
+        }
+
+        return result;
+    }
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);

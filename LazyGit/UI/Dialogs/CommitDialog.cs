@@ -26,8 +26,12 @@ public sealed class CommitDialog : Runnable<string?>
     private readonly Label _bodyLabel;
     private readonly HintBar _hints;
 
-    public CommitDialog(int stagedCount)
+    private readonly Func<CancellationToken, Task<CommitSuggestion?>>? _suggest;
+
+    /// <param name="suggest">«По коду» (ctrl+e): предложение сообщения по изменённым классам и методам; null — недоступно.</param>
+    public CommitDialog(int stagedCount, Func<CancellationToken, Task<CommitSuggestion?>>? suggest = null)
     {
+        _suggest = suggest;
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
@@ -52,7 +56,8 @@ public sealed class CommitDialog : Runnable<string?>
         var prompt = new Label { Text = "> ", X = 0, Y = 2 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
 
-        _subject = new ClipboardTextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill() };
+        // ctrl+e поле считает «в конец строки» — здесь это «по коду», поэтому окно получает её первым.
+        _subject = new ClipboardTextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill(), BeforeKey = HandleWindowKey };
         _subject.SetScheme(Theme.Input);
         _subject.TextChanged += (_, _) => UpdatePreview();
         _subject.Accepting += (_, e) =>
@@ -73,6 +78,7 @@ public sealed class CommitDialog : Runnable<string?>
 
         _body = new ClipboardTextView
         {
+            BeforeKey = HandleWindowKey,
             X = 2,
             Y = 8,
             Width = Dim.Fill(),
@@ -97,8 +103,65 @@ public sealed class CommitDialog : Runnable<string?>
         UpdateFocusHints();
     }
 
+    /// <summary>ctrl+e — «по коду»; вызывается и из полей ввода, раньше их собственной обработки.</summary>
+    private bool HandleWindowKey(Key key)
+    {
+        if (key != Key.E.WithCtrl || _suggest is null)
+            return false;
+
+        _ = SuggestAsync();
+        return true;
+    }
+
+    /// <summary>
+    /// Подставляет сообщение по изменённому коду: заголовок и тип — только если заголовок пуст (набранное не стирается),
+    /// список изменений — в тело (дописывается к уже введённому).
+    /// </summary>
+    private async Task SuggestAsync()
+    {
+        ShowTip(new CommitTip($"{Theme.SpinnerFrames[0]} {T("Смотрю, что изменилось в коде…", "Looking at the code changes…")}", TipSeverity.Info));
+        CommitSuggestion? suggestion;
+        try
+        {
+            suggestion = await _suggest!(CancellationToken.None);
+        }
+        catch (Git.GitCommandException ex)
+        {
+            App?.Invoke(() => ShowTip(new CommitTip(GitErrors.FirstLine(ex.Result.StdErr), TipSeverity.Error)));
+            return;
+        }
+
+        App?.Invoke(() =>
+        {
+            if (suggestion is null)
+            {
+                ShowTip(new CommitTip(T("В staged C#-файлах нет изменений классов и методов", "No class or method changes in staged C# files"), TipSeverity.Warning));
+                return;
+            }
+
+            if (_subject.Text.Trim().Length == 0)
+            {
+                _types.Select(suggestion.Type);
+                _subject.Text = suggestion.Subject;
+                _subject.InsertionPoint = _subject.Text.Length;
+            }
+
+            if (suggestion.Body.Length > 0)
+            {
+                var current = _body.Text.TrimEnd();
+                _body.Text = current.Length == 0 ? suggestion.Body : current + "\n\n" + suggestion.Body;
+            }
+
+            UpdatePreview();
+            ShowTip(new CommitTip(T("Заполнено по изменённому коду — поправь под себя", "Filled from the code changes: adjust as you like"), TipSeverity.Info));
+        });
+    }
+
     protected override bool OnKeyDown(Key key)
     {
+        if (HandleWindowKey(key))
+            return true;
+
         if (key == Key.Tab)
         {
             _types.Move(+1);
@@ -213,6 +276,7 @@ public sealed class CommitDialog : Runnable<string?>
                 new Hint("↓", T("тело", "body")),
                 new Hint("tab", T("тип", "type")),
                 new Hint("ctrl+t", T("шаблон", "template")),
+                new Hint("ctrl+e", T("по коду", "from code"), Optional: true),
                 new Hint("ctrl+c/x/v", T("буфер", "clipboard")),
                 new Hint("esc", T("отмена", "cancel")),
             ]);

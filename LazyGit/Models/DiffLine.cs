@@ -28,6 +28,9 @@ public enum DiffLineKind
     /// Добавляется при подготовке к показу.
     /// </summary>
     Stat,
+
+    /// <summary>Строка сводки «что изменилось в коде»: Text — имя члена, вид и тип изменения в <see cref="DiffLine.Change"/>.</summary>
+    CodeChange,
 }
 
 /// <summary>Строка diff.</summary>
@@ -42,4 +45,7 @@ public sealed record DiffLine(DiffLineKind Kind, string Text, int? OldNumber = n
 
     /// <summary>Для <see cref="DiffLineKind.Stat"/>: сколько строк добавлено и удалено; null — бинарный файл.</summary>
     public (int Added, int Removed)? Counts { get; init; }
+
+    /// <summary>Для <see cref="DiffLineKind.CodeChange"/>: что случилось с членом кода.</summary>
+    public CodeChange? Change { get; init; }
 }

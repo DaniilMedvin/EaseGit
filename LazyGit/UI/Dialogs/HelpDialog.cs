@@ -148,6 +148,7 @@ public sealed class HelpDialog : Runnable<bool?>
             lines.Add(Heading(T("Окно коммита", "Commit window")));
             lines.Add(Keys("tab", T("тип коммита", "commit type"), "ctrl+t", T("шаблон сообщения", "message template")));
             lines.Add(Keys("↓", T("перейти в тело", "go to body"), "ctrl+s", T("создать коммит", "create commit")));
+            lines.Add(Keys("ctrl+e", T("сообщение по коду", "message from code"), "ctrl+c/x/v", T("буфер обмена", "clipboard")));
 
             foreach (var (scope, title) in new[]
                      {

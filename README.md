@@ -27,8 +27,10 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 
 - **Files**: staged / changes / new / conflicts, folder tree, stage a file, a folder or everything, discard with confirmation.
 - **Line-by-line staging**: `enter` on a file, then stage, unstage or discard single lines, selections (`v`) or hunks.
-- **Diff** with line numbers and C# syntax highlighting in the Visual Studio dark style.
-- **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`).
+- **Diff** with line numbers and C# syntax highlighting in the Visual Studio dark style;
+  `ctrl+e` adds which C# classes and methods were added, changed or removed (Roslyn, formatting-only edits are ignored).
+- **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`),
+  and on request a message drafted from the changed C# classes and methods (`ctrl+e`).
 - **Branches**: checkout, create, merge, delete (with a second confirmation for unmerged ones), cherry-pick;
   the selected branch's `git log --graph` is shown on the right in color (HEAD, branches, tags) without checkout.
 - **Commit view**: full hash, message and a `git show --stat` style summary (`path | 12 ++++----`) above the diff.

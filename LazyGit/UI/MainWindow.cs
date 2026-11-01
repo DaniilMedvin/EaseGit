@@ -3,6 +3,7 @@ using LazyGit.Commands;
 using LazyGit.Config;
 using LazyGit.Git;
 using LazyGit.GitHub;
+using LazyGit.Highlighting;
 using LazyGit.Localization;
 using LazyGit.Models;
 using LazyGit.Templates;
@@ -81,6 +82,9 @@ public sealed class MainWindow : Runnable<MainResult?>
     private bool _refreshPending;
     private RepoStatus? _repoStatus;
     private RepoOperation _repoOperation;
+
+    // «Подробнее» (ctrl+e): над diff файла, коммита и stash — какие классы и методы C# изменились. По умолчанию выключено.
+    private bool _codeDetails;
 
     // Сколько коммитов грузить в панель коммитов: растёт на LogPage, когда выбор доходит до конца списка.
     private int _logLimit = GitService.DefaultLogLimit;
@@ -610,6 +614,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("ctrl+o", Key.O.WithCtrl), () => _ = OpenCiAsync(),
             available: () => _ciRuns.Count > 0 && _ciSha == _repoStatus?.HeadHash,
             keywords: "ci actions сборка тесты проверки лог github workflow");
+        Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
+            CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
+            keywords: "подробнее методы классы что изменилось код roslyn сводка details");
         Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
             OpenHistorySearch, T("поиск", "search"), hintOptional: true,
             keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
@@ -1050,6 +1057,16 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         using var window = new HistorySearchWindow(_git);
         App!.Run(window);
+    }
+
+    private void ToggleCodeDetails()
+    {
+        _codeDetails = !_codeDetails;
+        ShowStatus(_codeDetails
+            ? T($"{Theme.SymbolSuccess} Подробно: над diff — изменённые классы и методы (ctrl+e — выключить)", $"{Theme.SymbolSuccess} Details: changed classes and methods above the diff (ctrl+e turns off)")
+            : T("Подробности о коде выключены", "Code details off"), Theme.Muted, autoHide: true);
+        _diffKey = null;
+        _ = LoadDiffAsync();
     }
 
     /// <summary>Выбор у конца загруженного лога, а коммитов там ровно сколько грузили, — значит, есть ещё: грузим следующую порцию.</summary>
@@ -1621,7 +1638,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
         }
 
-        using var dialog = new CommitDialog(stagedCount);
+        using var dialog = new CommitDialog(stagedCount, async ct => CommitSuggester.Suggest(await _git.GetStagedCodeChangesAsync(ct)));
         App!.Run(dialog);
         if (dialog.Result is not { } message)
             return;
@@ -2184,10 +2201,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             return Task.CompletedTask;
         }
 
-        return ShowDiffAsync(commit.Hash, T($" Коммит · {commit.ShortHash} ", $" Commit · {commit.ShortHash} "), async ct =>
+        var details = _codeDetails;
+        return ShowDiffAsync((commit.Hash, details), T($" Коммит · {commit.ShortHash} ", $" Commit · {commit.ShortHash} "), async ct =>
         {
             var diff = await _git.GetCommitDiffAsync(commit, ct);
-            return await Task.Run(() => DiffPanel.PrepareCommit(commit, diff, DateTimeOffset.Now), ct);
+            var prepared = await Task.Run(() => DiffPanel.PrepareCommit(commit, diff, DateTimeOffset.Now), ct);
+            return details
+                ? DiffPanel.WithCodeChanges(prepared, await _git.GetCodeChangesAsync(commit.Parents.FirstOrDefault() ?? GitService.EmptyTree, commit.Hash, ct))
+                : prepared;
         });
     }
 
@@ -2196,11 +2217,14 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_stash.Selected is not { } stash)
             return Task.CompletedTask;
 
-        return ShowDiffAsync(stash.Hash, $" Stash · {stash.Ref} ", async ct =>
+        var details = _codeDetails;
+        return ShowDiffAsync((stash.Hash, details), $" Stash · {stash.Ref} ", async ct =>
         {
             var diff = await _git.GetStashDiffAsync(stash, ct);
             var asCommit = new Commit(stash.Hash, stash.AuthorName, stash.AuthorEmail, stash.Date, stash.Message);
-            return await Task.Run(() => DiffPanel.PrepareCommit(asCommit, diff, DateTimeOffset.Now), ct);
+            var prepared = await Task.Run(() => DiffPanel.PrepareCommit(asCommit, diff, DateTimeOffset.Now), ct);
+            // Stash — коммит над состоянием, от которого спрятали: его первый родитель.
+            return details ? DiffPanel.WithCodeChanges(prepared, await _git.GetCodeChangesAsync($"{stash.Hash}^1", stash.Hash, ct)) : prepared;
         });
     }
 
@@ -2226,14 +2250,19 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var staged = row.Section == FileSection.Staged;
         var tag = staged ? " · staged" : row.File.IsUntracked ? T(" · новый файл", " · new file") : "";
-        return ShowDiffAsync((staged, row.File.Path), $" Diff · {row.File.Path}{tag} ", async ct =>
+        var details = _codeDetails;
+        return ShowDiffAsync((staged, row.File.Path, details), $" Diff · {row.File.Path}{tag} ", async ct =>
         {
             var lines = await _git.GetDiffAsync(row.File, staged, ct);
-            return await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), ct);
+            var prepared = await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), ct);
+            if (!details || !Highlighting.DiffHighlighter.IsSupported(row.File.Path))
+                return prepared;
+
+            var changes = await _git.GetCodeChangesAsync(row.File, staged, ct);
+            return DiffPanel.WithCodeChanges(prepared, changes.Count == 0 ? [] : [(row.File.Path, changes)]);
         });
     }
 
-    /// <summary>Включает построчный stage выбранного файла: фокус переходит в diff.</summary>
     /// <summary>
     /// Режим решения конфликта по блокам: файл справа целиком, ↑↓ — к блоку, o / t / b — оставить сторону.
     /// Нельзя (не UTF-8, нет маркеров, маркеры не сходятся) — объяснение и подсказка решить файл целиком.
@@ -2352,6 +2381,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         });
     }
 
+    /// <summary>Включает построчный stage выбранного файла: фокус переходит в diff.</summary>
     private void StartLineStaging()
     {
         if (_files.SelectedFile is not { } row)
