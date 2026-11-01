@@ -27,6 +27,37 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
             ["search", "prs", reviewRequested ? "--review-requested=@me" : "--author=@me", "--state=open", "--sort=updated",
              "--limit", ListLimit.ToString(), "--json", PullRequestParser.SearchFields], ct));
 
+    /// <summary>Открытые issues репозитория, свежие сверху.</summary>
+    public async Task<IReadOnlyList<Issue>> ListIssuesAsync(GitHubRepo repo, CancellationToken ct = default) =>
+        IssueParser.ParseList(await RunCheckedAsync(
+            ["issue", "list", "--repo", repo.NameWithOwner, "--state", "open", "--limit", ListLimit.ToString(), "--json", IssueParser.ListFields], ct));
+
+    /// <summary>Issue целиком: описание и комментарии.</summary>
+    public async Task<Issue?> GetIssueAsync(Issue issue, CancellationToken ct = default) =>
+        IssueParser.ParseOne(await RunCheckedAsync(
+            ["issue", "view", issue.Number.ToString(), "--repo", issue.Repo.NameWithOwner, "--json", IssueParser.ViewFields], ct));
+
+    /// <summary>Аргументы нового issue; описание — через stdin (--body-file -).</summary>
+    public static string[] CreateIssueArguments(GitHubRepo repo, string title) =>
+        ["issue", "create", "--repo", repo.NameWithOwner, "--title", title, "--body-file", "-"];
+
+    /// <summary>Создаёт issue. При успехе в stdout — его адрес.</summary>
+    public Task<GitResult> CreateIssueAsync(GitHubRepo repo, string title, string body, CancellationToken ct = default) =>
+        RunActionAsync(CreateIssueArguments(repo, title), ct, body);
+
+    public static string[] CommentIssueArguments(Issue issue) =>
+        ["issue", "comment", issue.Number.ToString(), "--repo", issue.Repo.NameWithOwner, "--body-file", "-"];
+
+    public Task<GitResult> CommentIssueAsync(Issue issue, string body, CancellationToken ct = default) =>
+        RunActionAsync(CommentIssueArguments(issue), ct, body);
+
+    public static string[] CloseIssueArguments(Issue issue) => ["issue", "close", issue.Number.ToString(), "--repo", issue.Repo.NameWithOwner];
+
+    public Task<GitResult> CloseIssueAsync(Issue issue, CancellationToken ct = default) => RunActionAsync(CloseIssueArguments(issue), ct);
+
+    public Task<GitResult> OpenIssueInBrowserAsync(Issue issue, CancellationToken ct = default) =>
+        gh.RunAsync(workingDirectory, ["issue", "view", issue.Number.ToString(), "--repo", issue.Repo.NameWithOwner, "--web"], ct);
+
     /// <summary>Свои репозитории на GitHub, недавно обновлённые первыми.</summary>
     public async Task<IReadOnlyList<RepoChoice>> ListMyReposAsync(CancellationToken ct = default) =>
         RepoChoices.ParseList(await RunCheckedAsync(["repo", "list", "--limit", ListLimit.ToString(), "--json", RepoChoices.ListFields], ct));

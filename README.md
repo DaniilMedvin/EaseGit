@@ -31,7 +31,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   Razor, JSON; NuGet version changes in project files are called out above the diff (major bumps highlighted);
   `ctrl+e` adds which C# classes and methods were added, changed or removed (Roslyn, formatting-only edits are ignored).
 - **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`),
-  and on request a message drafted from the changed C# classes and methods (`ctrl+e`).
+  on request a message drafted from the changed C# classes and methods (`ctrl+e`), and `Fixes #12` for an open issue (`ctrl+k`).
 - **Branches**: checkout, create, merge, delete (with a second confirmation for unmerged ones), cherry-pick;
   the selected branch's `git log --graph` is shown on the right in color (HEAD, branches, tags) without checkout.
 - **Commit view**: full hash, message and a `git show --stat` style summary (`path | 12 ++++----`) above the diff.
@@ -47,6 +47,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   open in browser; create a PR from the current branch (`N`) with the title and description taken from commits;
   `enter` on a PR of another project opens its local copy or clones it; `w` shows its Actions; `/` picks any repository
   (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
+- **GitHub Issues** (the Issues tab in `g`): open issues with labels, assignees and comments; create (`n`),
+  comment (`c`), close (`x`), open in browser.
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.
 - **Search history** (`ctrl+f`): by message, author, or where a line of code appeared or disappeared (`git log -S`),
   in the current branch or all branches, results as you type.

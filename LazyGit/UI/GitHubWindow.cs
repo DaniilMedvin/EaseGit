@@ -35,6 +35,9 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     private readonly Dictionary<GitHubTab, IReadOnlyList<PullRequest>> _loaded = [];
     private readonly View _tabBar;
     private readonly PullRequestsPanel _list;
+    private readonly IssuesPanel _issues;
+    private IReadOnlyList<Issue>? _loadedIssues;
+    private Issue? _fullIssue;
     private readonly DiffPanel _details;
     private readonly Label _detailsTitle;
     private readonly Label _status;
@@ -59,7 +62,9 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         _repo = repo;
         _locals = locals;
         _nearProject = nearProject;
-        _tabs = repo is null ? [GitHubTab.Mine, GitHubTab.ReviewRequested] : [GitHubTab.Repository, GitHubTab.Mine, GitHubTab.ReviewRequested];
+        _tabs = repo is null
+            ? [GitHubTab.Mine, GitHubTab.ReviewRequested]
+            : [GitHubTab.Repository, GitHubTab.Issues, GitHubTab.Mine, GitHubTab.ReviewRequested];
         _tab = _tabs.Contains(tab) ? tab : _tabs[0];
         Width = Dim.Fill();
         Height = Dim.Fill();
@@ -70,6 +75,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
         _list = new PullRequestsPanel { X = 0, Y = 1, Width = Dim.Fill(), Height = Dim.Percent(40) };
         _list.SelectionChanged += (_, _) => _ = LoadDetailsAsync();
+        _issues = new IssuesPanel { X = 0, Y = 1, Width = Dim.Fill(), Height = Dim.Percent(40), Visible = false };
+        _issues.SelectionChanged += (_, _) => _ = LoadIssueAsync();
 
         _details = new DiffPanel { X = 0, Y = Pos.Bottom(_list), Width = Dim.Fill(), Height = Dim.Fill(2) };
         _detailsTitle = BoxTitle.For(_details, "PR", Theme.Muted);
@@ -78,7 +85,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         _hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
 
         _listTitle = BoxTitle.ForFocusable(_list, repo?.NameWithOwner ?? "GitHub");
-        Add(_tabBar, _list, _listTitle, _details, _detailsTitle, _status, _hints);
+        Add(_tabBar, _list, _issues, _listTitle, _details, _detailsTitle, _status, _hints);
         _list.SetFocus();
         UpdateTabs();
     }
@@ -104,11 +111,46 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return SwitchTab(+1);
         if (key == Key.Tab.WithShift)
             return SwitchTab(-1);
-        Key[] numbers = [Key.D1, Key.D2, Key.D3, Key.D4];
+        Key[] numbers = [Key.D1, Key.D2, Key.D3, Key.D4, Key.D5];
         for (var i = 0; i < _tabs.Count; i++)
         {
             if (key == numbers[i])
                 return SelectTab(_tabs[i]);
+        }
+
+        if (_tab == GitHubTab.Issues)
+        {
+            if (key == Key.N)
+                return Handled(CreateIssueAsync());
+            if (key == Key.C)
+                return Handled(CommentIssueAsync());
+            if (key == Key.X)
+                return Handled(CloseIssueAsync());
+            if (key == Key.O && _issues.Selected is { } browse)
+            {
+                ShowStatus(T($"{Theme.SymbolSuccess} Открываю {browse.Url}", $"{Theme.SymbolSuccess} Opening {browse.Url}"), Theme.Success);
+                _ = _github.OpenIssueInBrowserAsync(browse);
+                return true;
+            }
+
+            if (key == Key.Y && _issues.Selected is { } copied)
+            {
+                SystemClipboard.SetText(copied.Url);
+                ShowStatus(T($"{Theme.SymbolSuccess} Адрес скопирован: {copied.Url}", $"{Theme.SymbolSuccess} Link copied: {copied.Url}"), Theme.Success);
+                return true;
+            }
+
+            if (key == Key.R)
+            {
+                _loadedIssues = null;
+                return Handled(LoadListAsync());
+            }
+
+            if (key == Key.D.WithCtrl)
+                return Handled(ScrollDetails(+1));
+            if (key == Key.U.WithCtrl)
+                return Handled(ScrollDetails(-1));
+            return base.OnKeyDown(key);
         }
 
         if (key == Key.Space)
@@ -195,8 +237,12 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
         _other = chosen;
         _loaded.Remove(GitHubTab.Other);
+        _loadedIssues = null;
         if (!_tabs.Contains(GitHubTab.Other))
             _tabs.Add(GitHubTab.Other);
+        // Issues — выбранного репозитория (на стартовом экране вкладка появляется только теперь).
+        if (!_tabs.Contains(GitHubTab.Issues))
+            _tabs.Add(GitHubTab.Issues);
         if (_tab == GitHubTab.Other)
         {
             UpdateTabs();
@@ -223,8 +269,12 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         GitHubTab.Repository => T("Этот репозиторий", "This repository"),
         GitHubTab.Mine => T("Мои PR", "My PRs"),
         GitHubTab.ReviewRequested => T("Ждут меня", "Review requested"),
+        GitHubTab.Issues => "Issues",
         _ => _other?.NameWithOwner ?? "",
     };
+
+    /// <summary>Репозиторий вкладки Issues: выбранный через «/», иначе открытый.</summary>
+    private GitHubRepo? IssuesRepo => _other ?? _repo;
 
     /// <summary>Строка вкладок «1 Этот репозиторий 3   2 Мои PR 5   3 Ждут меня»: текущая — плашкой, число — после загрузки.</summary>
     private void UpdateTabs()
@@ -233,7 +283,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         for (var i = 0; i < _tabs.Count; i++)
         {
             var tab = _tabs[i];
-            var count = _loaded.TryGetValue(tab, out var prs) ? $" {prs.Count}" : "";
+            var count = tab == GitHubTab.Issues ? _loadedIssues is { } loadedIssues ? $" {loadedIssues.Count}" : ""
+                : _loaded.TryGetValue(tab, out var prs) ? $" {prs.Count}" : "";
             var text = $"{i + 1} {TabTitle(tab)}{count}";
             segments.Add(tab == _tab ? Segment.Pill(text, Theme.Accent, TextStyle.Bold) : new Segment($" {text} ", Theme.Muted));
             segments.Add(new Segment("  ", Theme.Dim));
@@ -243,10 +294,15 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         _tabBar.SetNeedsDraw();
 
         _list.ShowRepo = _tab is GitHubTab.Mine or GitHubTab.ReviewRequested;
+        _list.Visible = _tab != GitHubTab.Issues;
+        _issues.Visible = _tab == GitHubTab.Issues;
+        (_tab == GitHubTab.Issues ? (View)_issues : _list).SetFocus();
+        _issues.Empty = T("Открытых issues нет. n — создать", "No open issues. n creates one");
         _listTitle.Text = $" {_tab switch
         {
             GitHubTab.Repository => _repo?.NameWithOwner,
             GitHubTab.Other => _other?.NameWithOwner,
+            GitHubTab.Issues => $"Issues {Theme.SymbolSeparator} {IssuesRepo?.NameWithOwner}",
             _ => T("Все репозитории", "All repositories"),
         }} ";
         _list.Empty = _tab switch
@@ -263,6 +319,21 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
     private void UpdateHints()
     {
+        if (_tab == GitHubTab.Issues)
+        {
+            _hints.SetHints(
+            [
+                new Hint("tab", T("вкладка", "tab")),
+                new Hint("n", T("новый issue", "new issue")),
+                new Hint("c", T("комментарий", "comment")),
+                new Hint("x", T("закрыть issue", "close issue")),
+                new Hint("o", T("браузер", "browser"), Optional: true),
+                new Hint("y", T("адрес", "link"), Optional: true),
+                new Hint("esc", T("закрыть", "close")),
+            ]);
+            return;
+        }
+
         var local = _list.Selected is { } pr && IsCurrentRepo(pr);
         var hints = new List<Hint> { new("tab", T("вкладка", "tab")), new("/", T("репозиторий", "repository")) };
         if (local)
@@ -285,6 +356,12 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     {
         _listLoading?.Cancel();
         var tab = _tab;
+        if (tab == GitHubTab.Issues)
+        {
+            await LoadIssuesAsync();
+            return;
+        }
+
         if (_loaded.TryGetValue(tab, out var cached))
         {
             _list.SetItems(cached);
@@ -368,6 +445,152 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         catch (GitCommandException ex)
         {
             App?.Invoke(() => _details.SetMessage($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}"));
+        }
+    }
+
+    private async Task LoadIssuesAsync()
+    {
+        if (IssuesRepo is not { } repo)
+            return;
+
+        if (_loadedIssues is { } cached)
+        {
+            _issues.SetItems(cached);
+            _ = LoadIssueAsync();
+            return;
+        }
+
+        var loading = new CancellationTokenSource();
+        _listLoading = loading;
+        _issues.SetItems([]);
+        _details.SetMessage("");
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T("Загрузка issues…", "Loading issues…")}", Theme.Muted);
+        try
+        {
+            var issues = await _github.ListIssuesAsync(repo, loading.Token);
+            App?.Invoke(() =>
+            {
+                if (loading.IsCancellationRequested)
+                    return;
+
+                _loadedIssues = issues;
+                ShowStatus("", Theme.Muted);
+                UpdateTabs();
+                _issues.SetItems(issues);
+                _ = LoadIssueAsync();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Выбрана другая вкладка.
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}", Theme.Error));
+        }
+    }
+
+    /// <summary>Выбранный issue целиком: описание и комментарии.</summary>
+    private async Task LoadIssueAsync()
+    {
+        _detailsLoading?.Cancel();
+        _fullIssue = null;
+        if (_issues.Selected is not { } issue)
+        {
+            _detailsTitle.Text = " Issue ";
+            _details.SetMessage("");
+            return;
+        }
+
+        var loading = new CancellationTokenSource();
+        _detailsLoading = loading;
+        _detailsTitle.Text = $" #{issue.Number} ";
+        _details.SetMessage($"{Theme.SpinnerFrames[0]} {T("Загрузка…", "Loading…")}");
+        try
+        {
+            var full = await _github.GetIssueAsync(issue, loading.Token) ?? issue;
+            App?.Invoke(() =>
+            {
+                if (loading.IsCancellationRequested)
+                    return;
+
+                _fullIssue = full;
+                _details.SetDiff(DiffPanel.PrepareIssue(full, DateTimeOffset.Now));
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Выбран другой issue.
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => _details.SetMessage($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}"));
+        }
+    }
+
+    private Task CreateIssueAsync()
+    {
+        if (_busy || IssuesRepo is not { } repo)
+            return Task.CompletedTask;
+
+        using var dialog = new IssueDialog(T($"Новый issue · {repo}", $"New issue · {repo}"),
+            T("Опиши задачу или ошибку: что ожидалось и что получилось", "Describe the task or bug: what was expected and what happened"), withTitle: true);
+        App!.Run(dialog);
+        if (dialog.Result is not { Title: { } title } text)
+            return Task.CompletedTask;
+
+        return RunIssueAsync(ct => _github.CreateIssueAsync(repo, title, text.Body, ct),
+            result => T($"Issue создан: {result.StdOut.Trim().Split('\n').LastOrDefault()}", $"Issue created: {result.StdOut.Trim().Split('\n').LastOrDefault()}"));
+    }
+
+    private Task CommentIssueAsync()
+    {
+        if (_busy || _issues.Selected is not { } issue)
+            return Task.CompletedTask;
+
+        using var dialog = new IssueDialog(T($"Комментарий к #{issue.Number}", $"Comment on #{issue.Number}"), issue.Title, withTitle: false);
+        App!.Run(dialog);
+        if (dialog.Result is not { } text)
+            return Task.CompletedTask;
+
+        return RunIssueAsync(ct => _github.CommentIssueAsync(issue, text.Body, ct), _ => T($"Комментарий к #{issue.Number} отправлен", $"Comment on #{issue.Number} posted"));
+    }
+
+    private Task CloseIssueAsync()
+    {
+        if (_busy || _issues.Selected is not { } issue)
+            return Task.CompletedTask;
+
+        if (!Confirm(T($"Закрыть issue #{issue.Number} «{issue.Title}»?", $"Close issue #{issue.Number} '{issue.Title}'?"),
+                GitHubService.CloseIssueArguments(issue),
+                T("Issue закроется на GitHub; открыть заново можно там же.", "The issue is closed on GitHub; it can be reopened there."), T("Закрыть", "Close")))
+            return Task.CompletedTask;
+
+        return RunIssueAsync(ct => _github.CloseIssueAsync(issue, ct), _ => T($"Issue #{issue.Number} закрыт", $"Issue #{issue.Number} closed"));
+    }
+
+    /// <summary>Действие с issue через gh; после успеха список issues перечитывается.</summary>
+    private async Task RunIssueAsync(Func<CancellationToken, Task<GitResult>> action, Func<GitResult, string> success)
+    {
+        _busy = true;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T("Выполняется…", "Running…")}", Theme.Muted);
+        try
+        {
+            var result = await action(CancellationToken.None);
+            App?.Invoke(() =>
+            {
+                ShowStatus(result.Success ? $"{Theme.SymbolSuccess} {success(result)}" : $"{Theme.SymbolError} {GitErrors.Explain(result)}",
+                    result.Success ? Theme.Success : Theme.Error);
+                if (result.Success)
+                {
+                    _loadedIssues = null;
+                    _ = LoadIssuesAsync();
+                }
+            });
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

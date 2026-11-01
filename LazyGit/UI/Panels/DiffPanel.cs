@@ -153,6 +153,51 @@ public sealed class DiffPanel : View
         return new PreparedDiff(lines, highlights.ToArray());
     }
 
+    /// <summary>Issue: «репо#12 · автор · создан», метки и исполнители, заголовок, описание, затем комментарии с авторами.</summary>
+    public static PreparedDiff PrepareIssue(Issue issue, DateTimeOffset now)
+    {
+        var lines = new List<DiffLine>();
+        var created = issue.CreatedAt ?? issue.UpdatedAt;
+        lines.Add(new DiffLine(DiffLineKind.Header,
+            $"{issue.Repo}#{issue.Number} {Theme.SymbolSeparator} {issue.Author} {Theme.SymbolSeparator} {created.ToLocalTime():dd.MM.yyyy HH:mm} ({RelativeTime.Ago(created, now)})"));
+        var meta = new List<string> { issue.State == "CLOSED" ? T("закрыт", "closed") : T("открыт", "open") };
+        if (issue.Labels.Count > 0)
+            meta.Add(T($"метки: {string.Join(", ", issue.Labels)}", $"labels: {string.Join(", ", issue.Labels)}"));
+        if (issue.Assignees.Count > 0)
+            meta.Add(T($"исполнители: {string.Join(", ", issue.Assignees)}", $"assignees: {string.Join(", ", issue.Assignees)}"));
+        lines.Add(new DiffLine(DiffLineKind.Note, string.Join($" {Theme.SymbolSeparator} ", meta)));
+        lines.Add(new DiffLine(DiffLineKind.Message, issue.Title));
+        AddMarkdown(lines, issue.Body);
+
+        foreach (var comment in issue.Comments)
+        {
+            lines.Add(new DiffLine(DiffLineKind.Message, ""));
+            lines.Add(new DiffLine(DiffLineKind.File, $"{comment.Author} {Theme.SymbolSeparator} {comment.CreatedAt.ToLocalTime():dd.MM.yyyy HH:mm} ({RelativeTime.Ago(comment.CreatedAt, now)})"));
+            AddMarkdown(lines, comment.Body);
+        }
+
+        if (issue.Comments.Count == 0)
+        {
+            lines.Add(new DiffLine(DiffLineKind.Message, ""));
+            lines.Add(new DiffLine(DiffLineKind.Header, T("Комментариев нет. c — написать", "No comments. c writes one")));
+        }
+
+        return new PreparedDiff(lines, new IReadOnlyList<HighlightSpan>?[lines.Count]);
+    }
+
+    /// <summary>Текст Markdown строками сообщения: комментарии &lt;!-- --&gt; скрыты, пачки пустых строк — по одной.</summary>
+    private static void AddMarkdown(List<DiffLine> lines, string? markdown)
+    {
+        var text = Regex.Replace(markdown ?? "", "<!--.*?-->", "", RegexOptions.Singleline).Replace("\r", "");
+        text = Regex.Replace(text, "\n[ \t]*(\n[ \t]*)+\n", "\n\n").Trim();
+        if (text.Length == 0)
+            return;
+
+        lines.Add(new DiffLine(DiffLineKind.Message, ""));
+        foreach (var line in text.Split('\n'))
+            lines.Add(new DiffLine(DiffLineKind.Message, line));
+    }
+
     /// <summary>«✓ CI · ● нужно ревью · ✓ можно влить» — то, что решает, можно ли вливать PR.</summary>
     public static string PullRequestState(PullRequest pr)
     {

@@ -1787,7 +1787,11 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
         }
 
-        using var dialog = new CommitDialog(stagedCount, async ct => CommitSuggester.Suggest(await _git.GetStagedCodeChangesAsync(ct)));
+        // Без gh или GitHub-remote ctrl+k просто не предлагается — сообщать об этом при каждом коммите незачем.
+        var issues = _auth is { GhInstalled: true, IsAuthorized: true } && _gitHubRepo is { } repo
+            ? new IssueSource(repo, ct => CreateGitHubService().ListIssuesAsync(repo, ct))
+            : null;
+        using var dialog = new CommitDialog(stagedCount, async ct => CommitSuggester.Suggest(await _git.GetStagedCodeChangesAsync(ct)), issues);
         App!.Run(dialog);
         if (dialog.Result is not { } message)
             return;

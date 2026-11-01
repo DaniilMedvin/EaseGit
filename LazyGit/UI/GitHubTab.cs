@@ -14,4 +14,7 @@ public enum GitHubTab
 
     /// <summary>PR репозитория, выбранного через «/».</summary>
     Other,
+
+    /// <summary>Открытые issues репозитория (выбранного через «/» или текущего).</summary>
+    Issues,
 }

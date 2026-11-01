@@ -118,4 +118,23 @@ public class CommitMessageTests
 
         Assert.Equal(expected, lengthTip?.Severity);
     }
+
+    [Theory]
+    [InlineData("", "fix", "Fixes #12")]
+    [InlineData("", "feat", "Closes #12")]
+    [InlineData("", null, "Closes #12")]
+    [InlineData("Описание\n\n", "fix", "Описание\n\nFixes #12")]
+    [InlineData("Описание\nCloses #3", "feat", "Описание\nCloses #3\nCloses #12")]
+    public void LinkIssue_AppendsLinkAsLastParagraph(string body, string? type, string expected)
+    {
+        Assert.Equal(expected, CommitMessage.LinkIssue(body, type, 12));
+    }
+
+    [Theory]
+    [InlineData("Fixes #12")]
+    [InlineData("Текст\n\ncloses #12")]
+    public void LinkIssue_AlreadyLinked_KeepsBody(string body)
+    {
+        Assert.Equal(body, CommitMessage.LinkIssue(body, "fix", 12));
+    }
 }

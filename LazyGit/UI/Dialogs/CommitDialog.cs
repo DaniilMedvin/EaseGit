@@ -27,11 +27,14 @@ public sealed class CommitDialog : Runnable<string?>
     private readonly HintBar _hints;
 
     private readonly Func<CancellationToken, Task<CommitSuggestion?>>? _suggest;
+    private readonly IssueSource? _issues;
 
     /// <param name="suggest">«По коду» (ctrl+e): предложение сообщения по изменённым классам и методам; null — недоступно.</param>
-    public CommitDialog(int stagedCount, Func<CancellationToken, Task<CommitSuggestion?>>? suggest = null)
+    /// <param name="issues">Issues репозитория для ссылки (ctrl+k); null — репозиторий не на GitHub или gh не готов.</param>
+    public CommitDialog(int stagedCount, Func<CancellationToken, Task<CommitSuggestion?>>? suggest = null, IssueSource? issues = null)
     {
         _suggest = suggest;
+        _issues = issues;
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
@@ -103,14 +106,34 @@ public sealed class CommitDialog : Runnable<string?>
         UpdateFocusHints();
     }
 
-    /// <summary>ctrl+e — «по коду»; вызывается и из полей ввода, раньше их собственной обработки.</summary>
+    /// <summary>ctrl+e — «по коду», ctrl+k — ссылка на issue; вызывается и из полей ввода, раньше их собственной обработки.</summary>
     private bool HandleWindowKey(Key key)
     {
+        if (key == Key.K.WithCtrl && _issues is not null)
+        {
+            LinkIssue();
+            return true;
+        }
+
         if (key != Key.E.WithCtrl || _suggest is null)
             return false;
 
         _ = SuggestAsync();
         return true;
+    }
+
+    /// <summary>Выбор issue и «Fixes #12» / «Closes #12» в конец тела: issue закроется, когда коммит попадёт в main.</summary>
+    private void LinkIssue()
+    {
+        using var picker = new IssuePickerDialog(_issues!.Repo, _issues.Load);
+        App?.Run(picker);
+        if (picker.Result is not { } issue)
+            return;
+
+        _body.Text = CommitMessage.LinkIssue(_body.Text, _types.Selected, issue.Number);
+        UpdatePreview();
+        ShowTip(new CommitTip(T($"Issue #{issue.Number} закроется, когда коммит попадёт в основную ветку",
+            $"Issue #{issue.Number} closes once the commit reaches the default branch"), TipSeverity.Info));
     }
 
     /// <summary>
@@ -277,6 +300,7 @@ public sealed class CommitDialog : Runnable<string?>
                 new Hint("tab", T("тип", "type")),
                 new Hint("ctrl+t", T("шаблон", "template")),
                 new Hint("ctrl+e", T("по коду", "from code"), Optional: true),
+                .. _issues is null ? Array.Empty<Hint>() : [new Hint("ctrl+k", "issue", Optional: true)],
                 new Hint("ctrl+c/x/v", T("буфер", "clipboard")),
                 new Hint("esc", T("отмена", "cancel")),
             ]);

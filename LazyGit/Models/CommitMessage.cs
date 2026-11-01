@@ -50,6 +50,25 @@ public static partial class CommitMessage
     }
 
     /// <summary>Подсказки по телу коммита.</summary>
+    /// <summary>
+    /// Дописывает в конец тела ссылку на issue: «Fixes #12» для типа fix, иначе «Closes #12» — GitHub закроет issue,
+    /// когда коммит попадёт в основную ветку. Ссылка встаёт отдельным абзацем, к уже стоящим ссылкам — без пустой строки;
+    /// если такая уже есть, тело не меняется.
+    /// </summary>
+    public static string LinkIssue(string body, string? type, int number)
+    {
+        var lines = body.ReplaceLineEndings("\n").TrimEnd().Split('\n').ToList();
+        if (lines.Any(l => IssueLinkRegex().Match(l) is { Success: true } m && m.Groups[1].Value == number.ToString()))
+            return body;
+
+        var link = $"{(type == "fix" ? "Fixes" : "Closes")} #{number}";
+        if (lines is [""])
+            return link;
+        return IssueLinkRegex().IsMatch(lines[^1])
+            ? $"{string.Join('\n', lines)}\n{link}"
+            : $"{string.Join('\n', lines)}\n\n{link}";
+    }
+
     public static IReadOnlyList<CommitTip> CheckBody(string body)
     {
         var tips = new List<CommitTip>();
@@ -109,4 +128,8 @@ public static partial class CommitMessage
 
     [GeneratedRegex(@"\p{IsCyrillic}")]
     private static partial Regex CyrillicRegex();
+
+    /// <summary>Строка-ссылка на issue: «Fixes #12», «closes #3», «Resolved #7».</summary>
+    [GeneratedRegex(@"^\s*(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\s*$", RegexOptions.IgnoreCase)]
+    private static partial Regex IssueLinkRegex();
 }

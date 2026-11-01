@@ -78,4 +78,14 @@ public sealed class GitHubServiceTests
     {
         Assert.Contains(expected, GitErrors.Explain(new GitResult("gh pr create", 1, "", stderr)));
     }
+
+    [Fact]
+    public void IssueArguments_PassRepoAndBodyViaStdin()
+    {
+        var issue = new Issue(new GitHubRepo("o", "r"), 7, "Падает", "anna", "https://github.com/o/r/issues/7", DateTimeOffset.Now);
+
+        Assert.Equal(["issue", "create", "--repo", "o/r", "--title", "Новый", "--body-file", "-"], GitHubService.CreateIssueArguments(issue.Repo, "Новый"));
+        Assert.Equal(["issue", "comment", "7", "--repo", "o/r", "--body-file", "-"], GitHubService.CommentIssueArguments(issue));
+        Assert.Equal(["issue", "close", "7", "--repo", "o/r"], GitHubService.CloseIssueArguments(issue));
+    }
 }
