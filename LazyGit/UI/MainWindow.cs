@@ -287,7 +287,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         void Add(string id, string title, CommandScope scope, CommandKey shortcut, Action execute, string? hint = null,
             bool hintOptional = false, Func<string?>? preview = null, bool dangerous = false, bool hidden = false,
-            Func<bool>? available = null, string keywords = "")
+            Func<bool>? available = null, string keywords = "", string? unavailableNote = null)
         {
             if (keyOverrides.TryGetValue(id, out var text))
             {
@@ -315,6 +315,7 @@ public sealed class MainWindow : Runnable<MainResult?>
                 HiddenInPalette = hidden,
                 IsAvailable = available ?? (() => true),
                 Keywords = keywords,
+                UnavailableNote = unavailableNote,
             });
         }
 
@@ -387,12 +388,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
         Add("repo.createGitIgnore", "Создать .gitignore (Visual Studio)", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
             () => _ = CreateGitIgnoreAsync(),
-            ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
-            keywords: "гитигнор игнор visual studio шаблон создать файл ignore");
+            ".gitignore", preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
+            keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: "уже есть");
         Add("repo.createReadme", "Создать README.md", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
             () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, "Добавить README"),
             "README", hintOptional: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
-            keywords: "ридми readme описание создать файл");
+            keywords: "ридми readme описание создать файл", unavailableNote: "уже есть");
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
             () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
         Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
@@ -657,7 +658,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     private void OpenHelp()
     {
-        using var help = new HelpDialog(Viewport.Height, _commands.All.Where(c => c.IsAvailable()).ToList());
+        using var help = new HelpDialog(Viewport.Height, _commands.All.Where(HelpLayout.IsShown).ToList());
         App!.Run(help);
     }
 

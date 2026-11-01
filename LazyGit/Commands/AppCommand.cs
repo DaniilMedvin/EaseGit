@@ -37,6 +37,12 @@ public sealed class AppCommand
     /// <summary>Можно ли выполнить сейчас. Недоступная команда не ловит клавишу и не видна в палитре.</summary>
     public Func<bool> IsAvailable { get; init; } = () => true;
 
+    /// <summary>
+    /// Пояснение, почему команда сейчас недоступна («уже есть»). Если задано, недоступная команда
+    /// всё равно видна в справке (серым, с пояснением), чтобы о функции можно было узнать.
+    /// </summary>
+    public string? UnavailableNote { get; init; }
+
     /// <summary>Git-команда, которая будет выполнена, — для палитры. null — не git-команда.</summary>
     public Func<string?>? Preview { get; init; }
 

@@ -165,7 +165,7 @@ public sealed class HelpDialog : Runnable<bool?>
                 lines.Add([]);
                 lines.Add(Heading(title));
                 foreach (var (first, second) in HelpLayout.Arrange(inScope, SecondColumn))
-                    lines.Add(Keys(first.Key.Label, first.Title, second?.Key.Label ?? "", second?.Title ?? ""));
+                    lines.Add(Keys(first, second));
             }
 
             return lines;
@@ -188,14 +188,30 @@ public sealed class HelpDialog : Runnable<bool?>
             new(new string(' ', Math.Max(1, 16 - title.Length)) + description, Theme.Muted),
         ];
 
-        private static Segment[] Keys(string key1, string description1, string key2, string description2)
+        private static Segment[] Keys(string key1, string description1, string key2, string description2) =>
+            Keys(key1, description1, Theme.Fg, Theme.Muted, key2, description2, Theme.Fg, Theme.Muted);
+
+        /// <summary>Строка из одной-двух команд. Недоступная (с пояснением) рисуется серым.</summary>
+        private static Segment[] Keys(AppCommand first, AppCommand? second)
+        {
+            var (key1, text1) = Colors(first);
+            var (key2, text2) = second is null ? (Theme.Fg, Theme.Muted) : Colors(second);
+            return Keys(first.Key.Label, HelpLayout.Title(first), key1, text1,
+                second?.Key.Label ?? "", second is null ? "" : HelpLayout.Title(second), key2, text2);
+
+            static (Color Key, Color Text) Colors(AppCommand command) =>
+                command.IsAvailable() ? (Theme.Fg, Theme.Muted) : (Theme.Dim, Theme.Dim);
+        }
+
+        private static Segment[] Keys(string key1, string description1, Color keyColor1, Color textColor1,
+            string key2, string description2, Color keyColor2, Color textColor2)
         {
             return
             [
-                new("  " + key1.PadRight(KeyColumn), Theme.Fg, TextStyle.Bold),
-                new(description1.PadRight(Math.Max(0, SecondColumn - HelpLayout.Indent - KeyColumn)), Theme.Muted),
-                new(key2.PadRight(KeyColumn), Theme.Fg, TextStyle.Bold),
-                new(description2, Theme.Muted),
+                new("  " + key1.PadRight(KeyColumn), keyColor1, TextStyle.Bold),
+                new(description1.PadRight(Math.Max(0, SecondColumn - HelpLayout.Indent - KeyColumn)), textColor1),
+                new(key2.PadRight(KeyColumn), keyColor2, TextStyle.Bold),
+                new(description2, textColor2),
             ];
         }
     }

@@ -51,4 +51,38 @@ public class HelpLayoutTests
     {
         Assert.Empty(HelpLayout.Arrange([], Column));
     }
+
+    [Fact]
+    public void Title_UnavailableWithNote_AppendsNote()
+    {
+        var command = new AppCommand
+        {
+            Id = "repo.createGitIgnore",
+            Title = "Создать .gitignore",
+            Scope = CommandScope.Global,
+            Key = CommandKey.Of("I", Key.I.WithShift),
+            Execute = () => { },
+            IsAvailable = () => false,
+            UnavailableNote = "уже есть",
+        };
+
+        Assert.True(HelpLayout.IsShown(command));
+        Assert.Equal("Создать .gitignore — уже есть", HelpLayout.Title(command));
+    }
+
+    [Fact]
+    public void IsShown_UnavailableWithoutNote_ReturnsFalse()
+    {
+        var command = new AppCommand
+        {
+            Id = "operation.abort",
+            Title = "Прервать",
+            Scope = CommandScope.Global,
+            Key = CommandKey.Of("A", Key.A.WithShift),
+            Execute = () => { },
+            IsAvailable = () => false,
+        };
+
+        Assert.False(HelpLayout.IsShown(command));
+    }
 }

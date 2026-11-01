@@ -108,6 +108,7 @@ public sealed class AppCommand
     public string? Hint { get; init; }                // подпись в строке подсказок или null
     public bool HintOptional { get; init; }           // убирается первой, если не помещается
     public Func<bool> IsAvailable { get; init; }      // недоступная не ловит клавишу и скрыта
+    public string? UnavailableNote { get; init; }     // "уже есть" — недоступная всё равно видна в справке серым
     public Func<string?>? Preview { get; init; }      // "git add -- Program.cs" — в палитре
     public bool IsDangerous { get; init; }            // ⚠ в палитре
     public string Keywords { get; init; }             // "мерж слить" — поиск в палитре

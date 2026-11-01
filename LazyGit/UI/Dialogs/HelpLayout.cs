@@ -11,7 +11,14 @@ public static class HelpLayout
     public const int KeyColumn = 11;
 
     /// <summary>Ширина одной ячейки: отступ + клавиша + название.</summary>
-    public static int CellWidth(AppCommand command) => Indent + KeyColumn + command.Title.Length;
+    public static int CellWidth(AppCommand command) => Indent + KeyColumn + Title(command).Length;
+
+    /// <summary>Видна ли команда в справке: доступная или недоступная с пояснением.</summary>
+    public static bool IsShown(AppCommand command) => command.UnavailableNote is not null || command.IsAvailable();
+
+    /// <summary>Название в справке: у недоступной команды к нему добавляется пояснение.</summary>
+    public static string Title(AppCommand command) =>
+        command.UnavailableNote is { } note && !command.IsAvailable() ? $"{command.Title} — {note}" : command.Title;
 
     /// <summary>
     /// Строки раздела. Если названия всех команд помещаются в половину ширины (<paramref name="columnWidth"/>),
