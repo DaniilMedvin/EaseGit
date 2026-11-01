@@ -46,6 +46,24 @@ public class LogParserTests
     }
 
     [Fact]
+    public void Parse_NewlineBetweenRecords_DoesNotBreakHash()
+    {
+        var output = Record(Hash1, "a") + "\0\n" + Record(Hash2, "b") + "\0";
+
+        var commits = LogParser.Parse(output);
+
+        Assert.Equal(Hash2, commits[1].Hash);
+    }
+
+    [Fact]
+    public void Parse_IncompleteRecord_IsSkipped()
+    {
+        var commits = LogParser.Parse("abc\u001fname\0" + Record(Hash1, "ok") + "\0");
+
+        Assert.Equal(Hash1, Assert.Single(commits).Hash);
+    }
+
+    [Fact]
     public void Parse_EmptyOutput_ReturnsNoCommits()
     {
         Assert.Empty(LogParser.Parse(""));

@@ -19,6 +19,37 @@ public class StashParserTests
     }
 
     [Fact]
+    public void Parse_MessageWithColon_SplitsOnlyOnFirstSeparator()
+    {
+        var output = "stash@{3}\u001fccc\u001fA\u001fa@e\u001f2026-11-01T00:19:17+02:00\u001fOn main: fix: a: b\0";
+
+        var entry = Assert.Single(StashParser.Parse(output));
+
+        Assert.Equal((3, "fix: a: b", "main"), (entry.Index, entry.Message, entry.Branch));
+    }
+
+    [Fact]
+    public void Parse_UnknownSubjectFormat_KeepsWholeMessageWithoutBranch()
+    {
+        var output = "stash@{0}\u001fccc\u001fA\u001fa@e\u001f2026-11-01T00:19:17+02:00\u001fСвободный текст\0";
+
+        var entry = Assert.Single(StashParser.Parse(output));
+
+        Assert.Equal("Свободный текст", entry.Message);
+        Assert.Null(entry.Branch);
+    }
+
+    [Fact]
+    public void Parse_BranchWithCyrillicAndSpaces_KeepsBranch()
+    {
+        var output = "stash@{0}\u001fccc\u001fA\u001fa@e\u001f2026-11-01T00:19:17+02:00\u001fOn фича/панель: тест\0";
+
+        var entry = Assert.Single(StashParser.Parse(output));
+
+        Assert.Equal("фича/панель", entry.Branch);
+    }
+
+    [Fact]
     public void Parse_Empty_ReturnsEmpty()
     {
         Assert.Empty(StashParser.Parse(""));
