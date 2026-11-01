@@ -588,6 +588,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("ctrl+o", Key.O.WithCtrl), () => _ = OpenCiAsync(),
             available: () => _ciRuns.Count > 0 && _ciSha == _repoStatus?.HeadHash,
             keywords: "ci actions сборка тесты проверки лог github workflow");
+        Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
+            OpenHistorySearch, T("поиск", "search"), hintOptional: true,
+            keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
         Add("view.fileHistory", T("История любого файла…", "History of any file…"), CommandScope.Global, CommandKey.Of("F", Key.F.WithShift),
             PickFileHistory, keywords: "история файла лог найти файл history log file");
         Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
@@ -949,6 +952,15 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
 
         using var window = new CompareWindow(_git, commit.Hash, "HEAD");
+        App!.Run(window);
+    }
+
+    private void OpenHistorySearch()
+    {
+        if (_busy)
+            return;
+
+        using var window = new HistorySearchWindow(_git);
         App!.Run(window);
     }
 

@@ -14,10 +14,16 @@ public sealed class CommitsPanel : ListPanel<Commit>
     private IReadOnlyList<Commit>? _graphFor;
     private Dictionary<string, IReadOnlyList<GraphCell>> _graph = [];
 
-    protected override string EmptyText => T("Коммитов пока нет", "No commits yet");
+    protected override string EmptyText => Empty ?? T("Коммитов пока нет", "No commits yet");
 
     /// <summary>Колонка автора перед давностью — для широкого окна графа.</summary>
     public bool ShowAuthor { get; init; }
+
+    /// <summary>Граф слева. Без него — для коммитов не подряд (результаты поиска): линии были бы бессмысленны.</summary>
+    public bool ShowGraph { get; init; } = true;
+
+    /// <summary>Подпись пустого списка; по умолчанию — «Коммитов пока нет».</summary>
+    public string? Empty { get; set; }
 
     protected override bool KeepSelection(IReadOnlyList<Commit> items)
     {
@@ -42,7 +48,8 @@ public sealed class CommitsPanel : ListPanel<Commit>
         var textWidth = Viewport.Width - 1 - (showAge ? age.Length + 2 : 1);
 
         var segments = new List<Segment> { Marker(selected) };
-        segments.AddRange(GraphSegments(commit, textWidth / 3));
+        if (ShowGraph)
+            segments.AddRange(GraphSegments(commit, textWidth / 3));
         segments.Add(new Segment(commit.ShortHash, Theme.Muted));
         foreach (var reference in commit.Refs.OrderBy(RefOrder))
             segments.Add(RefSegment(reference));

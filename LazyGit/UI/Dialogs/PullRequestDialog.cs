@@ -52,7 +52,7 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
 
         var prompt = new Label { Text = "> ", X = 0, Y = 2 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
-        _title = new ClipboardTextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill(), Text = title };
+        _title = new ClipboardTextField { X = Pos.Right(prompt), Y = 2, Width = Dim.Fill(), Text = title, BeforeKey = HandleWindowKey };
         _title.SetScheme(Theme.Input);
         _title.Accepting += (_, e) =>
         {
@@ -74,6 +74,8 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
             TabKeyAddsTab = false,
             WordWrap = true,
             Text = body,
+            // ctrl+d поле считает «удалить символ», ctrl+s — своим; здесь это черновик и «создать».
+            BeforeKey = HandleWindowKey,
         };
         _body.SetScheme(Theme.Input);
         _body.HasFocusChanged += (_, _) => UpdateHints();
@@ -90,18 +92,8 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
 
     protected override bool OnKeyDown(Key key)
     {
-        if (key == Key.S.WithCtrl)
-        {
-            Submit();
+        if (HandleWindowKey(key))
             return true;
-        }
-
-        if (key == Key.D.WithCtrl)
-        {
-            _isDraft = !_isDraft;
-            UpdateDraft();
-            return true;
-        }
 
         if (_title.HasFocus && key == Key.CursorDown)
         {
@@ -116,6 +108,25 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
         }
 
         return base.OnKeyDown(key);
+    }
+
+    /// <summary>ctrl+s — создать, ctrl+d — черновик; вызывается и из полей ввода, раньше их собственной обработки.</summary>
+    private bool HandleWindowKey(Key key)
+    {
+        if (key == Key.S.WithCtrl)
+        {
+            Submit();
+            return true;
+        }
+
+        if (key == Key.D.WithCtrl)
+        {
+            _isDraft = !_isDraft;
+            UpdateDraft();
+            return true;
+        }
+
+        return false;
     }
 
     private void Submit()

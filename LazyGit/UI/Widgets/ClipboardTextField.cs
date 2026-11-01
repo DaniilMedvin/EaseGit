@@ -10,8 +10,17 @@ namespace LazyGit.UI.Widgets;
 /// </summary>
 public sealed class ClipboardTextField : TextField
 {
+    /// <summary>
+    /// Клавиши, которые окно хочет обработать раньше поля (например, ctrl+a, которое поле считает «выделить всё»).
+    /// Вернула true — поле клавишу не получает.
+    /// </summary>
+    public Func<Key, bool>? BeforeKey { get; init; }
+
     protected override bool OnKeyDown(Key key)
     {
+        if (BeforeKey?.Invoke(key) == true)
+            return true;
+
         if (key == Key.V.WithCtrl)
         {
             Paste(SystemClipboard.GetText());

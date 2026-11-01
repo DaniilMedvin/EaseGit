@@ -44,6 +44,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   `enter` on a PR of another project opens its local copy or clones it; `/` picks any repository
   (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.
+- **Search history** (`ctrl+f`): by message, author, or where a line of code appeared or disappeared (`git log -S`),
+  in the current branch or all branches, results as you type.
 - **Compare** branches or commits (`=`): files with +/− and diffs, commits only on one side; from the merge base
   (what a PR would contain) or between tips.
 - **Blame** (`B` on a file, `b` in file history): who wrote each line and in which commit; `p` jumps to the version

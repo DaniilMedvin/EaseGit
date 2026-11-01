@@ -229,6 +229,25 @@ public sealed class GitService
         return result.Success ? result.StdOut.Trim() : null;
     }
 
+    /// <summary>Отбор коммитов для поиска: текст ищется как есть (точки и скобки — обычные символы), без учёта регистра.</summary>
+    public static string[] SearchFilters(string query, HistorySearchMode mode) => mode switch
+    {
+        HistorySearchMode.Message => ["--regexp-ignore-case", "--fixed-strings", $"--grep={query}"],
+        HistorySearchMode.Author => ["--regexp-ignore-case", "--fixed-strings", $"--author={query}"],
+        // -S — строка как есть: коммиты, где число её вхождений в коде изменилось (появилась или исчезла).
+        _ => [$"-S{query}"],
+    };
+
+    /// <summary>Коммиты текущей ветки (или всех, с <paramref name="allBranches"/>), подходящие под запрос, новые первыми.</summary>
+    public async Task<IReadOnlyList<Commit>> SearchLogAsync(string query, HistorySearchMode mode, bool allBranches,
+        CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, LogParser.Arguments(GraphLogLimit, allBranches, filters: SearchFilters(query, mode)), ct);
+        if (result.Success)
+            return LogParser.Parse(result.StdOut);
+        return await HasCommitsAsync(ct) ? throw new GitCommandException(result) : [];
+    }
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);

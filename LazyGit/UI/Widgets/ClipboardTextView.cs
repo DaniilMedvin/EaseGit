@@ -12,8 +12,14 @@ namespace LazyGit.UI.Widgets;
 public sealed class ClipboardTextView : TextView
 #pragma warning restore CS0618
 {
+    /// <summary>Клавиши, которые окно обрабатывает раньше поля (ctrl+d — не «удалить символ»). Вернула true — поле их не получает.</summary>
+    public Func<Key, bool>? BeforeKey { get; init; }
+
     protected override bool OnKeyDown(Key key)
     {
+        if (BeforeKey?.Invoke(key) == true)
+            return true;
+
         if (key == Key.V.WithCtrl)
         {
             var text = SystemClipboard.GetText().ReplaceLineEndings("\n");

@@ -14,7 +14,8 @@ public static class LogParser
 
     /// <param name="allBranches">История всех локальных и удалённых веток и тегов, а не только HEAD. Stash не входит.</param>
     /// <param name="range">Диапазон вместо HEAD, например «main..feature» — коммиты, которые есть только в feature.</param>
-    public static string[] Arguments(int limit, bool allBranches = false, string? range = null) =>
+    /// <param name="filters">Отбор коммитов: --grep, --author, -S.</param>
+    public static string[] Arguments(int limit, bool allBranches = false, string? range = null, IReadOnlyList<string>? filters = null) =>
     [
         "log",
         "-z",
@@ -23,6 +24,7 @@ public static class LogParser
         // Полные имена ссылок: иначе локальную ветку feature/x не отличить от удалённой origin/x.
         "--decorate=full",
         "--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s%x1f%P%x1f%D",
+        .. filters ?? [],
         .. allBranches ? (string[])["--branches", "--remotes", "--tags", "HEAD"] : [],
         .. range is null ? (string[])[] : [range, "--"],
     ];
