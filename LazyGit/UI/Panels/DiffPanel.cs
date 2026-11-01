@@ -410,7 +410,8 @@ public sealed class DiffPanel : View
     private int ChunkWidth(DiffLine line) => line.Kind switch
     {
         DiffLineKind.Context or DiffLineKind.Added or DiffLineKind.Removed => Math.Max(10, Viewport.Width - CodePrefix),
-        DiffLineKind.Message => Math.Max(10, Viewport.Width - 1),
+        // Служебные строки тоже переносятся: длинный «@@ … @@ контекст», строка автора, заметка NuGet.
+        DiffLineKind.Message or DiffLineKind.Header or DiffLineKind.Hunk or DiffLineKind.Note or DiffLineKind.Binary => Math.Max(10, Viewport.Width - 1),
         _ => 0,
     };
 
@@ -682,11 +683,18 @@ public sealed class DiffPanel : View
         var line = _lines[index];
         var highlight = _highlights[index];
         var width = Viewport.Width;
-        if (line.Kind == DiffLineKind.Message && _wrap)
+        if (_wrap && length != int.MaxValue && line.Kind is DiffLineKind.Message or DiffLineKind.Header or DiffLineKind.Hunk
+                or DiffLineKind.Note or DiffLineKind.Binary)
         {
             var subjectLine = index == 0 || _lines[index - 1].Kind != DiffLineKind.Message;
-            this.DrawSegments(1, row, Slice([new Segment(ExpandTabs(line.Text), Theme.Fg, subjectLine ? TextStyle.Bold : TextStyle.None)],
-                start, length), width - 1);
+            var (textColor, style) = line.Kind switch
+            {
+                DiffLineKind.Message => (Theme.Fg, subjectLine ? TextStyle.Bold : TextStyle.None),
+                DiffLineKind.Hunk => (Theme.Info, TextStyle.None),
+                DiffLineKind.Note => (line.IsWarning ? Theme.Warning : Theme.Info, TextStyle.Bold),
+                _ => (Theme.Muted, TextStyle.Italic),
+            };
+            this.DrawSegments(1, row, Slice([new Segment(ExpandTabs(line.Text), textColor, style)], start, length), width - 1);
             return;
         }
 

@@ -631,8 +631,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("ctrl+o", Key.O.WithCtrl), OpenActions,
             available: () => _gitHubRepo is not null && _auth.IsAuthorized,
             keywords: "ci actions сборка тесты проверки лог github workflow");
-        Add("view.wrap", T("Перенос длинных строк в diff", "Wrap long lines in the diff"), CommandScope.Global, CommandKey.Of("w", Key.W),
-            ToggleWrap, keywords: "перенос строки длинные wrap не влезает ширина");
+        // Две команды на одну клавишу: подсказка «w перенос» внизу видна, только когда перенос выключен — так понятно,
+        // в каком он состоянии и что w его включит (а не выключит).
+        Add("view.wrapOn", T("Включить перенос длинных строк в diff", "Wrap long lines in the diff"), CommandScope.Global, CommandKey.Of("w", Key.W),
+            ToggleWrap, T("перенос", "wrap"), available: () => !_diff.Wrap, keywords: "перенос строки длинные wrap не влезает ширина");
+        Add("view.wrapOff", T("Выключить перенос строк (обрезать по ширине)", "Stop wrapping lines (cut at the width)"), CommandScope.Global,
+            CommandKey.Of("w", Key.W), ToggleWrap, available: () => _diff.Wrap, keywords: "перенос строки обрезать wrap");
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
             CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
             keywords: "подробнее методы классы что изменилось код roslyn сводка details");
@@ -1099,6 +1103,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         _diff.Wrap = !_diff.Wrap;
         _config.Save(_config.Load() with { WrapDiff = _diff.Wrap });
+        UpdateHints();
         ShowStatus(_diff.Wrap ? T("Длинные строки в diff переносятся (w — обрезать)", "Long lines in the diff wrap (w to cut)")
             : T("Длинные строки в diff обрезаются (w — переносить)", "Long lines in the diff are cut (w to wrap)"), Theme.Muted, autoHide: true);
     }
