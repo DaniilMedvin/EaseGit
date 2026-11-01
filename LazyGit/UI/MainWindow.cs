@@ -2277,7 +2277,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             var lines = await _git.GetDiffAsync(row.File, staged, ct);
             var prepared = await Task.Run(() => DiffPanel.Prepare(lines, row.File.Path), ct);
-            if (!details || !Highlighting.DiffHighlighter.IsSupported(row.File.Path))
+            if (!details || !Highlighting.DiffHighlighter.IsCSharp(row.File.Path))
                 return prepared;
 
             var changes = await _git.GetCodeChangesAsync(row.File, staged, ct);

@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using LazyGit.Config;
+using LazyGit.DotNet;
 using LazyGit.Highlighting;
 using LazyGit.Models;
 using LazyGit.UI.Widgets;
@@ -59,8 +60,26 @@ public sealed class DiffPanel : View
     public static PreparedDiff Prepare(IReadOnlyList<DiffLine> lines, string path)
     {
         var simplified = lines.Select(Simplify).OfType<DiffLine>().ToList();
-        return new PreparedDiff(simplified, DiffHighlighter.Highlight(simplified, path), lines);
+        var highlights = DiffHighlighter.Highlight(simplified, path);
+        if (!PackageChanges.IsProjectFile(path) || PackageChanges.Detect(lines) is not { Count: > 0 } packages)
+            return new PreparedDiff(simplified, highlights, lines);
+
+        // Над diff файла проекта — какие пакеты обновились, добавились, убраны.
+        var notes = packages.Select(PackageNote).ToList();
+        return new PreparedDiff([.. notes, .. simplified], [.. notes.Select(_ => (IReadOnlyList<HighlightSpan>?)null), .. highlights], lines);
     }
+
+    private static DiffLine PackageNote(PackageChange package) => new(DiffLineKind.Note, package switch
+    {
+        { From: null } => $"NuGet: + {package.Name} {package.To}",
+        { To: null } => $"NuGet: − {package.Name} {package.From}",
+        { IsMajor: true } => T($"NuGet: {package.Name} {package.From} → {package.To}  {Theme.SymbolWarning} мажорная версия: возможны ломающие изменения",
+            $"NuGet: {package.Name} {package.From} → {package.To}  {Theme.SymbolWarning} major version: breaking changes are possible"),
+        _ => $"NuGet: {package.Name} {package.From} → {package.To}",
+    })
+    {
+        IsWarning = package.IsMajor,
+    };
 
     /// <summary>
     /// Подготовка коммита: строка «хеш · автор · дата», сообщение, затем изменения каждого файла
@@ -551,6 +570,9 @@ public sealed class DiffPanel : View
                 return;
             case DiffLineKind.Stat:
                 this.DrawSegments(0, row, StatSegments(line, width), width);
+                return;
+            case DiffLineKind.Note:
+                this.DrawSegments(1, row, [new Segment(line.Text, line.IsWarning ? Theme.Warning : Theme.Info, TextStyle.Bold)], width - 1);
                 return;
             case DiffLineKind.CodeChange when line.Change is { } change:
                 var (sign, signColor) = change.Kind switch

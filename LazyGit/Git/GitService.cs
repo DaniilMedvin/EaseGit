@@ -264,7 +264,7 @@ public sealed class GitService
     /// </summary>
     public async Task<IReadOnlyList<CodeChange>> GetCodeChangesAsync(FileChange file, bool staged, CancellationToken ct = default)
     {
-        if (!Highlighting.DiffHighlighter.IsSupported(file.Path))
+        if (!Highlighting.DiffHighlighter.IsCSharp(file.Path))
             return [];
 
         string? before, after;
@@ -293,7 +293,7 @@ public sealed class GitService
         var files = CompareParser.Parse(
             await RunCheckedAsync(["diff", "--name-status", "-z", "--find-renames", from, to, "--"], ct), "");
         var result = new List<(string, IReadOnlyList<CodeChange>)>();
-        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsSupported(f.Path)))
+        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsCSharp(f.Path)))
         {
             var before = file.Status == 'A' ? null : await GetFileTextAsync(from, file.OldPath ?? file.Path, ct);
             var after = file.Status == 'D' ? null : await GetFileTextAsync(to, file.Path, ct);
@@ -312,7 +312,7 @@ public sealed class GitService
         var files = CompareParser.Parse(
             await RunCheckedAsync(["diff", "--cached", "--name-status", "-z", "--find-renames", "--"], ct), "");
         var result = new List<(string, IReadOnlyList<CodeChange>)>();
-        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsSupported(f.Path)))
+        foreach (var file in files.Where(f => Highlighting.DiffHighlighter.IsCSharp(f.Path)))
         {
             var before = file.Status == 'A' || !hasHead ? null : await GetFileTextAsync("HEAD", file.OldPath ?? file.Path, ct);
             var after = file.Status == 'D' ? null : await GetFileTextAsync("", file.Path, ct);
