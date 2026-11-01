@@ -49,6 +49,15 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly StashPanel _stash;
     private readonly Label _stashTitle;
     private readonly DiffPanel _diff;
+
+    // git log --graph выбранной ветки на месте diff, пока в фокусе панель веток.
+    private readonly GraphLogPanel _branchLog;
+
+    // Ветка, лог которой показан справа: при обновлении той же ветки прокрутка сохраняется.
+    private string? _branchLogFor;
+    private readonly Label _filesTitle;
+    private readonly Label _branchesTitle;
+    private readonly Label _commitsTitle;
     private readonly CommandLogPanel _log;
     private readonly Label _logTitle;
     private readonly Label _diffTitle;
@@ -132,6 +141,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         };
         _stash.SelectionChanged += (_, _) =>
         {
+            UpdateTitles();
             if (_stash.HasFocus)
                 _ = LoadDiffAsync();
         };
@@ -147,11 +157,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         };
         _branches.SelectionChanged += (_, _) =>
         {
+            UpdateTitles();
             if (_branches.HasFocus)
                 _ = LoadDiffAsync();
         };
         _commits.SelectionChanged += (_, _) =>
         {
+            UpdateTitles();
             if (_commits.HasFocus)
                 _ = LoadDiffAsync();
         };
@@ -164,6 +176,15 @@ public sealed class MainWindow : Runnable<MainResult?>
             Height = Dim.Fill(2),
         };
         _diffTitle = BoxTitle.For(_diff, "Diff", Theme.Muted);
+
+        _branchLog = new GraphLogPanel
+        {
+            X = Pos.Right(_files),
+            Y = Pos.Top(_files),
+            Width = Dim.Fill(),
+            Height = Dim.Fill(2),
+            Visible = false,
+        };
         _diff.Mascot = config.Load().Mascot;
 
         _log = new CommandLogPanel
@@ -184,11 +205,11 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
-            _files, BoxTitle.ForFocusable(_files, T("[1] Файлы", "[1] Files")),
-            _branches, BoxTitle.ForFocusable(_branches, T("[2] Ветки", "[2] Branches")),
-            _commits, BoxTitle.ForFocusable(_commits, T("[3] Коммиты", "[3] Commits")),
+            _files, _filesTitle = BoxTitle.ForFocusable(_files, T("[1] Файлы", "[1] Files")),
+            _branches, _branchesTitle = BoxTitle.ForFocusable(_branches, T("[2] Ветки", "[2] Branches")),
+            _commits, _commitsTitle = BoxTitle.ForFocusable(_commits, T("[3] Коммиты", "[3] Commits")),
             _stash, _stashTitle = BoxTitle.ForFocusable(_stash, "[4] Stash"),
-            _diff, _diffTitle,
+            _diff, _branchLog, _diffTitle,
             _log, _logTitle,
             _status, _hints);
         // Справа — контекст панели в фокусе: diff файла, ветка или содержимое коммита.
@@ -471,9 +492,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("nav.stash", T("Панель stash", "Stash panel"), CommandScope.Global, CommandKey.Of("4", Key.D4), () => _stash.SetFocus(), hidden: true,
             available: () => _stash.Visible);
         Add("view.diffDown", T("Листать diff вниз", "Scroll diff down"), CommandScope.Global, CommandKey.Of("ctrl+d", Key.D.WithCtrl),
-            () => _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
+            () => ScrollRight(+1), hidden: true);
         Add("view.diffUp", T("Листать diff вверх", "Scroll diff up"), CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
-            () => _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
+            () => ScrollRight(-1), hidden: true);
         Add("history.undo", T("Отменить последнее действие", "Undo last action"), CommandScope.Global, CommandKey.Of("z", Key.Z),
             () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
         Add("view.refresh", T("Обновить", "Refresh"), CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
@@ -847,6 +868,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         _log.Visible = visible;
         _logTitle.Visible = visible;
         _diff.Height = Dim.Fill(visible ? 2 + LogHeight : 2);
+        _branchLog.Height = _diff.Height;
     }
 
     /// <summary>Окно настроек; выбор сразу применяется и сохраняется в конфиг.</summary>
@@ -1478,7 +1500,11 @@ public sealed class MainWindow : Runnable<MainResult?>
                 _branches.SetItems(branches);
                 _commits.SetItems(log);
                 SetStashes(stashes);
+                UpdateTitles();
                 UpdateHints();
+                // Лог ветки справа перечитывается: в ней могли появиться коммиты.
+                if (_branches.HasFocus)
+                    _ = LoadDiffAsync();
                 // Панель файлов перезагружает diff только в своём фокусе, в построчном stage — здесь.
                 if (_staging is not null)
                     _ = LoadDiffAsync();
@@ -1499,35 +1525,94 @@ public sealed class MainWindow : Runnable<MainResult?>
     private Task LoadDiffAsync()
     {
         _diffLoading?.Cancel();
+        // Справа лог ветки, пока в фокусе ветки, иначе diff.
+        var branchLog = _staging is null && _branches.HasFocus;
+        _branchLog.Visible = branchLog;
+        _diff.Visible = !branchLog;
         if (_staging is not null)
             return LoadStagingDiffAsync();
-        if (_branches.HasFocus)
-            return ShowBranchInfo();
+        if (branchLog)
+            return LoadBranchLogAsync();
         if (_stash.HasFocus)
             return LoadStashDiffAsync();
         return _commits.HasFocus ? LoadCommitDiffAsync() : LoadFileDiffAsync();
     }
 
-    private Task ShowBranchInfo()
+    /// <summary>
+    /// git log --graph выбранной ветки справа, как в lazygit, но в цветах приложения — без checkout.
+    /// Видно, где HEAD и чем ветка отличается от текущей. В заголовке upstream и ↑↓.
+    /// </summary>
+    private async Task LoadBranchLogAsync()
     {
         _diffKey = null;
         if (_branches.Selected is not { } branch)
         {
+            _branchLog.Visible = false;
+            _diff.Visible = true;
             _diffTitle.Text = T(" Ветка ", " Branch ");
             _diff.SetMessage(T("Веток пока нет: сделай первый коммит", "No branches yet: make the first commit"));
-            return Task.CompletedTask;
+            return;
         }
 
-        _diffTitle.Text = T($" Ветка {Theme.SymbolSeparator} {branch.Name} ", $" Branch {Theme.SymbolSeparator} {branch.Name} ");
         var upstream = branch switch
         {
             { IsUpstreamGone: true } => T($"upstream {branch.Upstream} удалён на сервере", $"upstream {branch.Upstream} deleted on the server"),
-            { Upstream: { } name } => $"upstream {name} {Theme.SymbolAhead}{branch.Ahead} {Theme.SymbolBehind}{branch.Behind}",
+            { Upstream: { } name } => $"{name} {Theme.SymbolAhead}{branch.Ahead} {Theme.SymbolBehind}{branch.Behind}",
             _ => T("без upstream", "no upstream"),
         };
-        var action = branch.IsCurrent ? T("текущая ветка", "current branch") : T("space — переключиться", "space switches");
-        _diff.SetMessage($"{Theme.SymbolBranch} {branch.Name} {Theme.SymbolSeparator} {upstream} {Theme.SymbolSeparator} {action}");
-        return Task.CompletedTask;
+        _diffTitle.Text = $" {Theme.SymbolBranch} {branch.Name} {Theme.SymbolSeparator} {upstream} ";
+
+        // Без using: следующая загрузка отменяет этот токен, а отмена освобождённого бросила бы исключение.
+        var loading = new CancellationTokenSource();
+        _diffLoading = loading;
+        try
+        {
+            var log = await _git.GetBranchGraphLogAsync(branch, ct: loading.Token);
+            App?.Invoke(() =>
+            {
+                if (loading.IsCancellationRequested)
+                    return;
+
+                _branchLog.SetLines(log, keepScroll: _branchLogFor == branch.Name);
+                _branchLogFor = branch.Name;
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // Выбрали другую ветку — загрузится она.
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.FirstLine(ex.Result.StdErr)}", Theme.Error));
+        }
+    }
+
+    /// <summary>ctrl+d / ctrl+u: на пол-экрана в diff или в логе ветки — что сейчас справа.</summary>
+    private void ScrollRight(int direction)
+    {
+        View view = _branchLog.Visible ? _branchLog : _diff;
+        var step = direction * Math.Max(1, view.Viewport.Height / 2);
+        if (_branchLog.Visible)
+            _branchLog.ScrollBy(step);
+        else
+            _diff.ScrollBy(step);
+    }
+
+    /// <summary>
+    /// Счётчики в заголовках панелей: «[1] Файлы · 5», «[2] Ветки · 1/3», «[3] Коммиты · 4/200+».
+    /// «+» — лог показан не целиком: коммитов больше, чем загружено.
+    /// </summary>
+    private void UpdateTitles()
+    {
+        static string Position<TItem>(ListPanel<TItem> panel, int limit = int.MaxValue) where TItem : class =>
+            panel.Items.Count == 0 ? ""
+            : $" {Theme.SymbolSeparator} {panel.SelectedIndex + 1}/{panel.Items.Count}{(panel.Items.Count >= limit ? "+" : "")}";
+
+        var files = _files.Entries.Select(e => e.File.Path).Distinct().Count();
+        _filesTitle.Text = $" {T("[1] Файлы", "[1] Files")}{(files > 0 ? $" {Theme.SymbolSeparator} {files}" : "")} ";
+        _branchesTitle.Text = $" {T("[2] Ветки", "[2] Branches")}{Position(_branches)} ";
+        _commitsTitle.Text = $" {T("[3] Коммиты", "[3] Commits")}{Position(_commits, GitService.DefaultLogLimit)} ";
+        _stashTitle.Text = $" [4] Stash{Position(_stash)} ";
     }
 
     private Task LoadCommitDiffAsync()

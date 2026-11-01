@@ -92,4 +92,5 @@ public class LogParserTests
     {
         Assert.Equal([new CommitRef("HEAD", RefKind.Head)], LogParser.ParseRefs("HEAD"));
     }
+
 }

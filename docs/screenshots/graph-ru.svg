@@ -8,33 +8,33 @@
 <rect x="24.4" y="64" width="991.7" height="18" fill="#2C2E33"/>
 <text x="16.0" y="77.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="32.8" y="77.3" fill="#A6DBFF" textLength="25.2" lengthAdjust="spacingAndGlyphs" font-weight="bold">❯ ●</text>
-<text x="66.4" y="77.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">1d3ac73</text>
+<text x="66.4" y="77.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">2e46593</text>
 <text x="133.6" y="77.3" fill="#8CF8F7" textLength="50.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">⎇ main</text>
 <text x="192.4" y="77.3" fill="#D4D4D4" textLength="142.8" lengthAdjust="spacingAndGlyphs">fix: review notes</text>
 <text x="805.6" y="77.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin     40 мин</text>
 <text x="1015.6" y="77.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="95.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="95.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="66.4" y="95.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">6b154de</text>
+<text x="66.4" y="95.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">6fb52b1</text>
 <text x="133.6" y="95.3" fill="#D4D4D4" textLength="25.2" lengthAdjust="spacingAndGlyphs">wip</text>
 <text x="805.6" y="95.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin        1 ч</text>
 <text x="1015.6" y="95.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="113.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="113.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="66.4" y="113.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">56bf6fd</text>
+<text x="66.4" y="113.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">9f7eac7</text>
 <text x="133.6" y="113.3" fill="#D4D4D4" textLength="184.8" lengthAdjust="spacingAndGlyphs">fix: typo in help text</text>
 <text x="805.6" y="113.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin        3 ч</text>
 <text x="1015.6" y="113.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="131.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="131.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="66.4" y="131.3" fill="#9B9EA4" textLength="159.6" lengthAdjust="spacingAndGlyphs">a81f928 origin/main</text>
+<text x="66.4" y="131.3" fill="#9B9EA4" textLength="159.6" lengthAdjust="spacingAndGlyphs">bb2475d origin/main</text>
 <text x="234.4" y="131.3" fill="#D4D4D4" textLength="252.0" lengthAdjust="spacingAndGlyphs">docs: usage examples in README</text>
 <text x="805.6" y="131.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin       1 дн</text>
 <text x="1015.6" y="131.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="149.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="149.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="66.4" y="149.3" fill="#8CF8F7" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="83.2" y="149.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">46fd55d</text>
+<text x="83.2" y="149.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">ae4f8cc</text>
 <text x="150.4" y="149.3" fill="#B3F6C0" textLength="126.0" lengthAdjust="spacingAndGlyphs">⎇ feature/cache</text>
 <text x="284.8" y="149.3" fill="#9B9EA4" textLength="168.0" lengthAdjust="spacingAndGlyphs">origin/feature/cache</text>
 <text x="461.2" y="149.3" fill="#D4D4D4" textLength="302.4" lengthAdjust="spacingAndGlyphs">feat: cache responses for 10 minutes</text>
@@ -43,7 +43,7 @@
 <text x="16.0" y="167.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="167.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
 <text x="58.0" y="167.3" fill="#8CF8F7" textLength="16.8" lengthAdjust="spacingAndGlyphs">─╯</text>
-<text x="83.2" y="167.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">a3615df</text>
+<text x="83.2" y="167.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">e0934a1</text>
 <text x="150.4" y="167.3" fill="#FCE094" textLength="58.8" lengthAdjust="spacingAndGlyphs">#v0.1.0</text>
 <text x="217.6" y="167.3" fill="#D4D4D4" textLength="252.0" lengthAdjust="spacingAndGlyphs">fix: handle empty api response</text>
 <text x="805.6" y="167.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin       4 дн</text>
@@ -51,14 +51,14 @@
 <text x="16.0" y="185.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="185.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">◉</text>
 <text x="58.0" y="185.3" fill="#B3F6C0" textLength="16.8" lengthAdjust="spacingAndGlyphs">─╮</text>
-<text x="83.2" y="185.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">ec1bb53</text>
+<text x="83.2" y="185.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">a16f26d</text>
 <text x="150.4" y="185.3" fill="#D4D4D4" textLength="235.2" lengthAdjust="spacingAndGlyphs">Merge branch &#x27;feature/units&#x27;</text>
 <text x="805.6" y="185.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin       5 дн</text>
 <text x="1015.6" y="185.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="203.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="203.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="66.4" y="203.3" fill="#B3F6C0" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="83.2" y="203.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">8aba209</text>
+<text x="83.2" y="203.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">ecb46db</text>
 <text x="150.4" y="203.3" fill="#B3F6C0" textLength="126.0" lengthAdjust="spacingAndGlyphs">⎇ feature/units</text>
 <text x="284.8" y="203.3" fill="#D4D4D4" textLength="226.8" lengthAdjust="spacingAndGlyphs">test: cover unit conversion</text>
 <text x="805.6" y="203.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin       6 дн</text>
@@ -66,26 +66,26 @@
 <text x="16.0" y="221.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="221.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="66.4" y="221.3" fill="#B3F6C0" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="83.2" y="221.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">aca1fd2</text>
+<text x="83.2" y="221.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">e2f41d8</text>
 <text x="150.4" y="221.3" fill="#D4D4D4" textLength="285.6" lengthAdjust="spacingAndGlyphs">feat: celsius and fahrenheit units</text>
 <text x="805.6" y="221.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin      1 нед</text>
 <text x="1015.6" y="221.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
 <text x="58.0" y="239.3" fill="#B3F6C0" textLength="16.8" lengthAdjust="spacingAndGlyphs">─╯</text>
-<text x="83.2" y="239.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">3f6cc6b</text>
+<text x="83.2" y="239.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">916d5aa</text>
 <text x="150.4" y="239.3" fill="#D4D4D4" textLength="268.8" lengthAdjust="spacingAndGlyphs">feat: render forecast as a table</text>
 <text x="805.6" y="239.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin      1 нед</text>
 <text x="1015.6" y="239.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="257.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="257.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="66.4" y="257.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">106f360</text>
+<text x="66.4" y="257.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">a94d478</text>
 <text x="133.6" y="257.3" fill="#D4D4D4" textLength="302.4" lengthAdjust="spacingAndGlyphs">feat: fetch forecast from open-meteo</text>
 <text x="805.6" y="257.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin      1 нед</text>
 <text x="1015.6" y="257.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="49.6" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">●</text>
-<text x="66.4" y="275.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">ab1ca6f</text>
+<text x="66.4" y="275.3" fill="#9B9EA4" textLength="58.8" lengthAdjust="spacingAndGlyphs">d606dba</text>
 <text x="133.6" y="275.3" fill="#D4D4D4" textLength="176.4" lengthAdjust="spacingAndGlyphs">chore: initial commit</text>
 <text x="805.6" y="275.3" fill="#4F5258" textLength="201.6" lengthAdjust="spacingAndGlyphs">Daniil Medvin      1 нед</text>
 <text x="1015.6" y="275.3" fill="#A6DBFF" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
@@ -95,43 +95,43 @@
 <text x="16.0" y="347.3" fill="#A6DBFF" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
 <text x="16.0" y="365.3" fill="#A6DBFF" textLength="1008.0" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
 <text x="16.0" y="383.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">╭─</text>
-<text x="41.2" y="383.3" fill="#9B9EA4" textLength="134.4" lengthAdjust="spacingAndGlyphs">Коммит · 1d3ac73</text>
+<text x="41.2" y="383.3" fill="#9B9EA4" textLength="134.4" lengthAdjust="spacingAndGlyphs">Коммит · 2e46593</text>
 <text x="184.0" y="383.3" fill="#4F5258" textLength="840.0" lengthAdjust="spacingAndGlyphs">───────────────────────────────────────────────────────────────────────────────────────────────────╮</text>
 <text x="16.0" y="401.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="32.8" y="401.3" fill="#9B9EA4" textLength="478.8" lengthAdjust="spacingAndGlyphs" font-style="italic">1d3ac73 · Daniil Medvin · 01.11.2026 20:07 (40 мин назад)</text>
+<text x="32.8" y="401.3" fill="#9B9EA4" textLength="336.0" lengthAdjust="spacingAndGlyphs" font-style="italic">2e46593dead62559de240b616bc0ad809175739f</text>
 <text x="1015.6" y="401.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="419.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="32.8" y="419.3" fill="#D4D4D4" textLength="142.8" lengthAdjust="spacingAndGlyphs" font-weight="bold">fix: review notes</text>
+<text x="32.8" y="419.3" fill="#9B9EA4" textLength="394.8" lengthAdjust="spacingAndGlyphs" font-style="italic">Daniil Medvin · 01.11.2026 21:11 (40 мин назад)</text>
 <text x="1015.6" y="419.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="16.0" y="437.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
-<rect x="24.4" y="442" width="991.7" height="18" fill="#2C2E33"/>
-<text x="16.0" y="455.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="32.8" y="455.3" fill="#D4D4D4" textLength="75.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">README.md</text>
-<text x="1015.6" y="455.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="437.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="437.3" fill="#D4D4D4" textLength="142.8" lengthAdjust="spacingAndGlyphs" font-weight="bold">fix: review notes</text>
+<text x="1015.6" y="437.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="455.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
 <text x="16.0" y="473.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="32.8" y="473.3" fill="#8CF8F7" textLength="403.2" lengthAdjust="spacingAndGlyphs">@@ -7,3 +7,5 @@ Forecast in your terminal, fast.</text>
+<text x="32.8" y="473.3" fill="#D4D4D4" textLength="75.6" lengthAdjust="spacingAndGlyphs">README.md</text>
+<text x="116.8" y="473.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">|</text>
+<text x="133.6" y="473.3" fill="#9B9EA4" textLength="8.4" lengthAdjust="spacingAndGlyphs">2</text>
+<text x="150.4" y="473.3" fill="#B3F6C0" textLength="16.8" lengthAdjust="spacingAndGlyphs">++</text>
 <text x="1015.6" y="473.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="16.0" y="491.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  7   7</text>
-<text x="142.0" y="491.3" fill="#D4D4D4" textLength="210.0" lengthAdjust="spacingAndGlyphs">weather --unit fahrenheit</text>
+<text x="16.0" y="491.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="491.3" fill="#9B9EA4" textLength="201.6" lengthAdjust="spacingAndGlyphs" font-style="italic">1 файл изменён · +2 · -0</text>
 <text x="1015.6" y="491.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="16.0" y="509.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  8   8</text>
-<text x="1015.6" y="509.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="16.0" y="527.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  9   9</text>
-<text x="108.4" y="527.3" fill="#D4D4D4" textLength="84.0" lengthAdjust="spacingAndGlyphs">## Install</text>
+<text x="16.0" y="509.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
+<rect x="24.4" y="514" width="991.7" height="18" fill="#2C2E33"/>
+<text x="16.0" y="527.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="32.8" y="527.3" fill="#D4D4D4" textLength="75.6" lengthAdjust="spacingAndGlyphs" font-weight="bold">README.md</text>
 <text x="1015.6" y="527.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<rect x="24.4" y="532" width="991.7" height="18" fill="#1D2F25"/>
 <text x="16.0" y="545.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="66.4" y="545.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">10</text>
-<text x="91.6" y="545.3" fill="#B3F6C0" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">+</text>
+<text x="32.8" y="545.3" fill="#8CF8F7" textLength="403.2" lengthAdjust="spacingAndGlyphs">@@ -7,3 +7,5 @@ Forecast in your terminal, fast.</text>
 <text x="1015.6" y="545.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<rect x="24.4" y="550" width="991.7" height="18" fill="#1D2F25"/>
-<text x="16.0" y="563.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="66.4" y="563.3" fill="#4F5258" textLength="16.8" lengthAdjust="spacingAndGlyphs">11</text>
-<text x="91.6" y="563.3" fill="#B3F6C0" textLength="8.4" lengthAdjust="spacingAndGlyphs" font-weight="bold">+</text>
-<text x="142.0" y="563.3" fill="#B3F6C0" textLength="226.8" lengthAdjust="spacingAndGlyphs">dotnet tool install weather</text>
+<text x="16.0" y="563.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  7   7</text>
+<text x="142.0" y="563.3" fill="#D4D4D4" textLength="210.0" lengthAdjust="spacingAndGlyphs">weather --unit fahrenheit</text>
 <text x="1015.6" y="563.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
-<text x="16.0" y="581.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
-<text x="16.0" y="599.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">│                                                                                                                      │</text>
+<text x="16.0" y="581.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  8   8</text>
+<text x="1015.6" y="581.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
+<text x="16.0" y="599.3" fill="#4F5258" textLength="67.2" lengthAdjust="spacingAndGlyphs">│  9   9</text>
+<text x="108.4" y="599.3" fill="#D4D4D4" textLength="84.0" lengthAdjust="spacingAndGlyphs">## Install</text>
+<text x="1015.6" y="599.3" fill="#4F5258" textLength="8.4" lengthAdjust="spacingAndGlyphs">│</text>
 <text x="16.0" y="617.3" fill="#4F5258" textLength="1008.0" lengthAdjust="spacingAndGlyphs">╰──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────╯</text>
 <text x="24.4" y="635.3" fill="#9B9EA4" textLength="260.4" lengthAdjust="spacingAndGlyphs">12 коммитов · 3 локальные ветки</text>
 <text x="24.4" y="653.3" fill="#D4D4D4" textLength="42.0" lengthAdjust="spacingAndGlyphs">space</text>

@@ -22,6 +22,12 @@ public enum DiffLineKind
 
     /// <summary>Строка сообщения коммита. Добавляется при подготовке к показу.</summary>
     Message,
+
+    /// <summary>
+    /// Строка сводки коммита «путь | 12 +++---» (как git show --stat): Text — путь, счётчики в <see cref="DiffLine.Counts"/>.
+    /// Добавляется при подготовке к показу.
+    /// </summary>
+    Stat,
 }
 
 /// <summary>Строка diff.</summary>
@@ -33,4 +39,7 @@ public sealed record DiffLine(DiffLineKind Kind, string Text, int? OldNumber = n
 {
     /// <summary>Строка в файле кончается на \r (CRLF). Не показывается, но нужна, чтобы патч из строк совпал с файлом.</summary>
     public bool EndsWithCr { get; init; }
+
+    /// <summary>Для <see cref="DiffLineKind.Stat"/>: сколько строк добавлено и удалено; null — бинарный файл.</summary>
+    public (int Added, int Removed)? Counts { get; init; }
 }

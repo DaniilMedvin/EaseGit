@@ -29,7 +29,10 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **Line-by-line staging**: `enter` on a file, then stage, unstage or discard single lines, selections (`v`) or hunks.
 - **Diff** with line numbers and C# syntax highlighting in the Visual Studio dark style.
 - **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`).
-- **Branches**: checkout, create, merge, delete (with a second confirmation for unmerged ones), cherry-pick.
+- **Branches**: checkout, create, merge, delete (with a second confirmation for unmerged ones), cherry-pick;
+  the selected branch's `git log --graph` is shown on the right in color (HEAD, branches, tags) without checkout.
+- **Commit view**: full hash, message and a `git show --stat` style summary (`path | 12 ++++----`) above the diff.
+- **Mouse wheel** scrolls the diff; panel titles show counts and the position (`[3] Commits · 4/120`).
 - **History**: amend, reset soft / mixed / hard, revert, cherry-pick, **interactive rebase** (pick, reword, edit, squash, fixup, drop, reorder).
 - **Graph of all branches** (`G`) with per-branch colors, tags and actions on any commit.
 - **Sync**: fetch, pull, push with `↑ahead ↓behind`, a spinner, `esc` to cancel, and a guided `push -u` for new branches.

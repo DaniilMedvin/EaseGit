@@ -21,8 +21,9 @@ public class DiffPanelTests
     {
         var prepared = Prepare("feat: add a\n\n- explain why");
 
-        Assert.StartsWith("a1b2c3d · Тест Юзер · ", prepared.Lines[0].Text);
-        Assert.EndsWith("(3 ч назад)", prepared.Lines[0].Text);
+        Assert.Equal("a1b2c3d4e5f6", prepared.Lines[0].Text);
+        Assert.StartsWith("Тест Юзер · ", prepared.Lines[1].Text);
+        Assert.EndsWith("(3 ч назад)", prepared.Lines[1].Text);
         Assert.Equal(["feat: add a", "", "- explain why"], Texts(prepared, DiffLineKind.Message).Take(3));
     }
 
@@ -79,5 +80,38 @@ public class DiffPanelTests
         var prepared = Prepare("chore: empty");
 
         Assert.Contains("В коммите нет изменений файлов", prepared.Lines.Select(l => l.Text));
+    }
+
+    [Fact]
+    public void PrepareCommit_SeveralFiles_ListsStatWithCountsAndSummary()
+    {
+        var prepared = Prepare("feat: change files",
+            "diff --git a/a.txt b/a.txt",
+            "--- a/a.txt",
+            "+++ b/a.txt",
+            "@@ -1,2 +1,3 @@",
+            "-old",
+            "+new",
+            "+more",
+            " same",
+            "diff --git a/img.png b/img.png",
+            "Binary files a/img.png and b/img.png differ");
+
+        var stats = prepared.Lines.Where(l => l.Kind == DiffLineKind.Stat).ToList();
+        Assert.Equal(["a.txt", "img.png"], stats.Select(l => l.Text));
+        Assert.Equal((2, 1), stats[0].Counts);
+        Assert.Null(stats[1].Counts);
+        Assert.Contains(prepared.Lines, l => l.Kind == DiffLineKind.Header && l.Text == "2 файла изменено · +2 · -1");
+        // Сводка идёт до самих изменений.
+        var lines = prepared.Lines.ToList();
+        Assert.True(lines.IndexOf(stats[^1]) < lines.FindIndex(l => l.Kind == DiffLineKind.File));
+    }
+
+    [Fact]
+    public void PrepareCommit_NoFiles_HasNoStat()
+    {
+        var prepared = Prepare("chore: empty");
+
+        Assert.DoesNotContain(prepared.Lines, l => l.Kind == DiffLineKind.Stat);
     }
 }

@@ -82,7 +82,7 @@ public sealed class CommitsPanel : ListPanel<Commit>
     }
 
     /// <summary>Цвета веток по кругу: ветки, появившиеся рядом, различаются.</summary>
-    private static Color BranchColor(int color) => (color % 5) switch
+    public static Color BranchColor(int color) => (color % 5) switch
     {
         0 => Theme.Accent,
         1 => Theme.Cyan,

@@ -23,4 +23,11 @@ public static class RelativeTime
             return T($"{(int)(elapsed.TotalDays / 30)} мес", $"{(int)(elapsed.TotalDays / 30)}mo");
         return T($"{(int)(elapsed.TotalDays / 365)} г", $"{(int)(elapsed.TotalDays / 365)}y");
     }
+
+    /// <summary>Для подписи даты: «только что», «3 ч назад».</summary>
+    public static string Ago(DateTimeOffset date, DateTimeOffset now)
+    {
+        var age = Format(date, now);
+        return age == T("сейчас", "now") ? T("только что", "just now") : T($"{age} назад", $"{age} ago");
+    }
 }

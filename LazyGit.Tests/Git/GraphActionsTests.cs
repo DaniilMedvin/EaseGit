@@ -100,4 +100,19 @@ public sealed class GraphActionsTests : IAsyncLifetime
         Assert.Equal(["switch", "--detach", "abc123"], GitService.CheckoutArguments(null, commit));
         Assert.Equal(["switch", "--no-guess", "main"], GitService.CheckoutArguments(new CommitRef("main", RefKind.Branch), commit));
     }
+
+    [Fact]
+    public async Task GetBranchGraphLog_OtherBranch_ReturnsItsCommitsWithoutCheckout()
+    {
+        await _repo.RunAsync("switch", "-c", "feature/log");
+        _repo.Write("feature.txt", "f\n");
+        await _repo.CommitAsync("feat: only in feature");
+        await _repo.RunAsync("switch", "main");
+
+        var branch = (await _service.GetBranchesAsync()).Single(b => b.Name == "feature/log");
+        var log = await _service.GetBranchGraphLogAsync(branch);
+
+        Assert.Equal("feat: only in feature", log.First(l => l.Kind == GraphLogLineKind.Commit).Text);
+        Assert.Equal("main", (await _service.GetStatusAsync()).Branch);
+    }
 }

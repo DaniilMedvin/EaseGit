@@ -67,6 +67,11 @@ public sealed class GitService
         throw new GitCommandException(result);
     }
 
+    /// <summary>git log --graph ветки <paramref name="branch"/>, новые сверху: для просмотра ветки без checkout.</summary>
+    public async Task<IReadOnlyList<GraphLogLine>> GetBranchGraphLogAsync(Branch branch, int limit = DefaultLogLimit,
+        CancellationToken ct = default) =>
+        GraphLogParser.Parse(await RunCheckedAsync(GraphLogParser.Arguments(branch.Name, limit), ct));
+
     /// <summary>Есть ли в репозитории хотя бы один коммит (HEAD указывает на коммит).</summary>
     public async Task<bool> HasCommitsAsync(CancellationToken ct = default)
     {

@@ -33,6 +33,11 @@ public sealed class DiffPanel : View
     private string? _message;
     private int _scroll;
     private int _numberWidth = 3;
+
+    // Ширина колонки путей и самое большое число изменений среди строк Stat: по ним выравнивается сводка.
+    private int _statPathWidth;
+    private int _statMaxTotal;
+    private int _statCountWidth;
     private Mascot _mascot;
     private IReadOnlyList<DiffLine>? _source;
     private bool _staging;
@@ -71,14 +76,34 @@ public sealed class DiffPanel : View
         }
 
         var date = commit.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
-        var age = RelativeTime.Format(commit.Date, now);
-        var ago = age == T("сейчас", "now") ? T("только что", "just now") : T($"{age} назад", $"{age} ago");
-        Add(new DiffLine(DiffLineKind.Header,
-            $"{commit.ShortHash} {Theme.SymbolSeparator} {commit.AuthorName} {Theme.SymbolSeparator} {date} ({ago})"));
+        var ago = RelativeTime.Ago(commit.Date, now);
+        // Полный хеш отдельной строкой: его можно скопировать для git checkout / cherry-pick, и он не теснит дату.
+        Add(new DiffLine(DiffLineKind.Header, commit.Hash));
+        Add(new DiffLine(DiffLineKind.Header, $"{commit.AuthorName} {Theme.SymbolSeparator} {date} ({ago})"));
         foreach (var text in diff.Message.Split('\n'))
             Add(new DiffLine(DiffLineKind.Message, text.TrimEnd('\r')));
 
         var files = SplitByFile(diff.Lines);
+        if (files.Count > 0)
+        {
+            // Сводка как в git show --stat: какие файлы изменены и насколько.
+            Add(new DiffLine(DiffLineKind.Message, ""));
+            int added = 0, removed = 0;
+            foreach (var file in files)
+            {
+                var counts = file.Any(l => l.Kind == DiffLineKind.Binary)
+                    ? ((int, int)?)null
+                    : (file.Count(l => l.Kind == DiffLineKind.Added), file.Count(l => l.Kind == DiffLineKind.Removed));
+                added += counts?.Item1 ?? 0;
+                removed += counts?.Item2 ?? 0;
+                Add(new DiffLine(DiffLineKind.Stat, FilePath(file)) { Counts = counts });
+            }
+
+            Add(new DiffLine(DiffLineKind.Header,
+                $"{Plural(files.Count, "файл изменён", "файла изменено", "файлов изменено", "file changed", "files changed")}" +
+                $" {Theme.SymbolSeparator} +{added} {Theme.SymbolSeparator} -{removed}"));
+        }
+
         foreach (var file in files)
         {
             var path = FilePath(file);
@@ -155,6 +180,12 @@ public sealed class DiffPanel : View
             _cursor = NearestChange(keepScroll && _cursor >= 0 ? _cursor : _scroll);
             EnsureCursorVisible();
         }
+
+        var stats = _lines.Where(l => l.Kind == DiffLineKind.Stat).ToList();
+        _statPathWidth = stats.Select(l => l.Text.Length).DefaultIfEmpty(0).Max();
+        _statMaxTotal = stats.Select(l => l.Counts is var (a, r) ? a + r : 0).DefaultIfEmpty(0).Max();
+        // Шире числа только «Bin» у бинарного файла.
+        _statCountWidth = Math.Max(_statMaxTotal.ToString().Length, stats.Any(l => l.Counts is null) ? 3 : 1);
 
         var maxNumber = _lines.Select(l => Math.Max(l.OldNumber ?? 0, l.NewNumber ?? 0)).DefaultIfEmpty(0).Max();
         _numberWidth = Math.Max(3, maxNumber.ToString().Length);
@@ -343,6 +374,18 @@ public sealed class DiffPanel : View
         SetNeedsDraw();
     }
 
+    /// <summary>Колесо мыши листает diff по <see cref="ListPanel{T}.WheelStep"/> строки, и в режиме построчного stage тоже.</summary>
+    protected override bool OnMouseEvent(Mouse mouse)
+    {
+        if (mouse.Flags.HasFlag(MouseFlags.WheeledDown))
+            ScrollBy(ListPanel<object>.WheelStep);
+        else if (mouse.Flags.HasFlag(MouseFlags.WheeledUp))
+            ScrollBy(-ListPanel<object>.WheelStep);
+        else
+            return base.OnMouseEvent(mouse);
+        return true;
+    }
+
     protected override bool OnDrawingContent(DrawContext? context)
     {
         if (_message is not null)
@@ -394,6 +437,9 @@ public sealed class DiffPanel : View
             case DiffLineKind.Hunk:
                 this.DrawSegments(1, row, [new Segment(line.Text, Theme.Info)], width - 1);
                 return;
+            case DiffLineKind.Stat:
+                this.DrawSegments(0, row, StatSegments(line, width), width);
+                return;
             case DiffLineKind.NoNewline:
                 this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + T("⏎ нет перевода строки в конце файла", "⏎ no newline at end of file"), Theme.Dim, TextStyle.Italic)], width);
                 return;
@@ -427,6 +473,41 @@ public sealed class DiffPanel : View
             segments.AddRange(SyntaxSegments(line.Text, highlight));
 
         this.DrawSegments(0, row, segments, width, background);
+    }
+
+    /// <summary>
+    /// « src/Cli.cs     | 12 ++++++----»: путь, число изменённых строк и полоска «+» и «-» как в git --stat.
+    /// Длинный путь сокращается слева, полоска масштабируется под ширину панели.
+    /// </summary>
+    private List<Segment> StatSegments(DiffLine line, int width)
+    {
+        var total = line.Counts is var (a, r) ? a + r : 0;
+        var countText = line.Counts is null ? "Bin" : total.ToString();
+        var countWidth = _statCountWidth;
+        var pathWidth = Math.Min(_statPathWidth, Math.Max(10, width / 2));
+        var path = line.Text.Length > pathWidth ? Theme.SymbolEllipsis + line.Text[^(pathWidth - 1)..] : line.Text.PadRight(pathWidth);
+
+        var segments = new List<Segment>
+        {
+            new(" " + path, Theme.Fg),
+            new(" | ", Theme.Dim),
+            new(countText.PadLeft(countWidth) + " ", Theme.Muted),
+        };
+        if (line.Counts is not var (added, removed) || total == 0)
+            return segments;
+
+        var barWidth = Math.Max(1, width - 1 - pathWidth - 3 - countWidth - 2);
+        if (_statMaxTotal > barWidth)
+        {
+            // Как git: у файла с изменениями хотя бы один знак каждого вида.
+            var plus = added == 0 ? 0 : Math.Max(1, added * barWidth / _statMaxTotal);
+            var minus = removed == 0 ? 0 : Math.Max(1, removed * barWidth / _statMaxTotal);
+            (added, removed) = (plus, minus);
+        }
+
+        segments.Add(new Segment(new string('+', added), Theme.Success));
+        segments.Add(new Segment(new string('-', removed), Theme.Error));
+        return segments;
     }
 
     /// <summary>Разбивает текст строки на цветные фрагменты; промежутки между spans — обычный текст.</summary>

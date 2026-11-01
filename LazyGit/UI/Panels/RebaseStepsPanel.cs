@@ -13,9 +13,6 @@ public sealed class RebaseStepsPanel : ListPanel<RebaseStep>
 
     protected override string KeyOf(RebaseStep item) => item.Commit.Hash;
 
-    /// <summary>Индекс выбранного шага или -1.</summary>
-    public int SelectedIndex => Selected is { } step ? Items.ToList().IndexOf(step) : -1;
-
     protected override void DrawItem(int line, RebaseStep step, bool selected, Color? background)
     {
         var dropped = step.Action == RebaseAction.Drop;

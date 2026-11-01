@@ -7,7 +7,7 @@ using Attribute = Terminal.Gui.Drawing.Attribute;
 namespace LazyGit.UI.Panels;
 
 /// <summary>
-/// Панель-список с выбором строки: ↑↓ / j k, Home / End, PageUp / PageDown.
+/// Панель-список с выбором строки: ↑↓ / j k, Home / End, PageUp / PageDown, колесо мыши.
 /// Наследник рисует строку и задаёт, как узнать тот же элемент после обновления списка.
 /// </summary>
 public abstract class ListPanel<T> : View where T : class
@@ -23,6 +23,9 @@ public abstract class ListPanel<T> : View where T : class
     }
 
     public IReadOnlyList<T> Items => _items;
+
+    /// <summary>Номер выбранной строки с нуля или -1, если список пуст.</summary>
+    public int SelectedIndex => _selected;
 
     /// <summary>Выбранный элемент или null, если список пуст.</summary>
     public T? Selected => _selected >= 0 ? _items[_selected] : null;
@@ -85,6 +88,19 @@ public abstract class ListPanel<T> : View where T : class
 
         return base.OnKeyDown(key);
     }
+
+    protected override bool OnMouseEvent(Mouse mouse)
+    {
+        var step = mouse.Flags.HasFlag(MouseFlags.WheeledDown) ? 1 : mouse.Flags.HasFlag(MouseFlags.WheeledUp) ? -1 : 0;
+        if (step == 0)
+            return base.OnMouseEvent(mouse);
+
+        Select(_selected + step);
+        return true;
+    }
+
+    /// <summary>Строк за один щелчок колеса в панелях просмотра (diff, лог ветки).</summary>
+    public const int WheelStep = 3;
 
     protected override bool OnDrawingContent(DrawContext? context)
     {
