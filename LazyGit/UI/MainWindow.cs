@@ -372,6 +372,16 @@ public sealed class MainWindow : Runnable<MainResult?>
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: true)), keywords: "hunk ханк блок");
         Add("diff.range", "Выделить несколько строк", CommandScope.Diff, CommandKey.Of("v", Key.V),
             () => _diff.ToggleRange(), "выделить", available: () => _staging is not null, keywords: "выделение диапазон");
+        Add("diff.discardLines", "Сбросить строки в рабочей копии", CommandScope.Diff, CommandKey.Of("d", Key.D),
+            () => _ = DiscardLinesAsync(), "сбросить", hintOptional: true, dangerous: true,
+            available: () => _staging is { Staged: false },
+            preview: () => CommandText.Format(GitService.DiscardLinesArguments), keywords: "откатить удалить строку discard");
+        Add("diff.toStaged", "Перейти к staged-части файла", CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
+            SwitchStagingSide, "staged", hintOptional: true, available: () => _staging is { Staged: false } t && HasOtherSide(t),
+            keywords: "переключить индекс staged сторона");
+        Add("diff.toWorktree", "Перейти к не staged изменениям файла", CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
+            SwitchStagingSide, "изменения", hintOptional: true, available: () => _staging is { Staged: true } t && HasOtherSide(t),
+            keywords: "переключить рабочая копия unstaged сторона");
         Add("diff.back", "Вернуться к файлам", CommandScope.Diff, CommandKey.Of("esc", Key.Esc),
             () => _files.SetFocus(), "к файлам", available: () => _staging is not null);
 
@@ -1530,33 +1540,80 @@ public sealed class MainWindow : Runnable<MainResult?>
         });
     }
 
+    /// <summary>Есть ли у файла изменения в другой стороне: в индексе для рабочей копии и наоборот.</summary>
+    private bool HasOtherSide(StagingTarget target) =>
+        _repoStatus?.Files.FirstOrDefault(f => f.Path == target.Path) is { } file
+        && (target.Staged ? file.HasUnstagedChanges : file.HasStagedChanges && file.OriginalPath is null);
+
+    /// <summary>Переходит к другой части того же файла: staged ↔ изменения рабочей копии.</summary>
+    private void SwitchStagingSide()
+    {
+        if (_staging is not { } target || !HasOtherSide(target))
+            return;
+
+        _staging = target with { Staged = !target.Staged };
+        UpdateHints();
+        _ = LoadDiffAsync();
+    }
+
+    /// <summary>Выбранные строки как индексы в исходном diff или null с объяснением в строке статуса.</summary>
+    private HashSet<int>? SelectedSourceLines(IReadOnlyList<DiffLine> source, IReadOnlyList<DiffLine> changes, string action)
+    {
+        var chosen = changes.ToHashSet(ReferenceEqualityComparer.Instance);
+        if (chosen.Count == 0)
+        {
+            ShowStatus($"{Theme.SymbolError} Встань на строку с + или -", Theme.Error);
+            return null;
+        }
+
+        if (source.Any(l => l.Kind == DiffLineKind.Binary))
+        {
+            ShowStatus($"{Theme.SymbolError} Бинарный файл по строкам не {action}: используй панель файлов", Theme.Error);
+            return null;
+        }
+
+        // Git отдал не UTF-8 (например, windows-1251): записанный обратно патч испортил бы файл.
+        if (source.Any(l => l.Text.Contains('\uFFFD')))
+        {
+            ShowStatus($"{Theme.SymbolError} Файл не в UTF-8, по строкам его не {action} безопасно: используй панель файлов", Theme.Error);
+            return null;
+        }
+
+        return Enumerable.Range(0, source.Count).Where(i => chosen.Contains(source[i])).ToHashSet();
+    }
+
+    /// <summary>Сбрасывает выбранные строки в рабочей копии (с подтверждением). Только для не staged изменений.</summary>
+    private Task DiscardLinesAsync()
+    {
+        if (_busy || _staging is not { Staged: false } target || _diff.Source is not { } source)
+            return Task.CompletedTask;
+
+        if (SelectedSourceLines(source, _diff.SelectedChanges, "сбросить") is not { } selected)
+            return Task.CompletedTask;
+
+        // Diff «индекс → рабочая копия» откатывается в рабочей копии: патч строится как для unstage.
+        if (PatchBuilder.Build(source, selected, reverse: true) is not { } patch)
+            return Task.CompletedTask;
+
+        var count = TextDrawing.Plural(selected.Count, "строку", "строки", "строк");
+        var done = TextDrawing.Plural(selected.Count, "строка", "строки", "строк");
+        if (!Confirm($"Сбросить {count} в {target.Path}?", GitService.DiscardLinesArguments,
+                $"{Theme.SymbolWarning} Изменения пропадут из файла безвозвратно: их нет ни в коммитах, ни в reflog.", "Сбросить"))
+            return Task.CompletedTask;
+
+        return RunAsync(ct => _git.DiscardLinesAsync(patch, ct), $"Сброшено в рабочей копии: {done}");
+    }
+
     /// <summary>Stage (или unstage) выбранных строк либо всего фрагмента под курсором.</summary>
     private Task ApplyLinesAsync(bool hunk)
     {
         if (_busy || _staging is not { } target || _diff.Source is not { } source)
             return Task.CompletedTask;
 
-        var chosen = (hunk ? _diff.CurrentHunkChanges : _diff.SelectedChanges).ToHashSet(ReferenceEqualityComparer.Instance);
-        if (chosen.Count == 0)
-        {
-            ShowStatus($"{Theme.SymbolError} Встань на строку с + или -", Theme.Error);
+        var changes = hunk ? _diff.CurrentHunkChanges : _diff.SelectedChanges;
+        if (SelectedSourceLines(source, changes, target.Staged ? "убрать из индекса" : "добавить") is not { } selected)
             return Task.CompletedTask;
-        }
 
-        if (source.Any(l => l.Kind == DiffLineKind.Binary))
-        {
-            ShowStatus($"{Theme.SymbolError} Бинарный файл по строкам не добавить: используй space в панели файлов", Theme.Error);
-            return Task.CompletedTask;
-        }
-
-        // Git отдал не UTF-8 (например, windows-1251): записанный обратно патч испортил бы файл в индексе.
-        if (source.Any(l => l.Text.Contains('\uFFFD')))
-        {
-            ShowStatus($"{Theme.SymbolError} Файл не в UTF-8, построчный stage небезопасен: добавь файл целиком (space в файлах)", Theme.Error);
-            return Task.CompletedTask;
-        }
-
-        var selected = Enumerable.Range(0, source.Count).Where(i => chosen.Contains(source[i])).ToHashSet();
         if (PatchBuilder.Build(source, selected, target.Staged) is not { } patch)
             return Task.CompletedTask;
 

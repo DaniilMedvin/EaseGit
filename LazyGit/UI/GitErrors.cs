@@ -9,6 +9,8 @@ public static class GitErrors
     public static string Explain(GitResult result)
     {
         var stderr = result.StdErr;
+        if (result.Command.StartsWith("git apply --reverse"))
+            return $"Не удалось сбросить выбранные строки ({FirstLine(stderr)}). Обнови экран (r) и попробуй ещё раз";
         if (result.Command.StartsWith("git apply"))
             return $"Не удалось применить выбранные строки ({FirstLine(stderr)}). Обнови экран (r) и попробуй ещё раз или добавь файл целиком";
         var isStash = result.Command.StartsWith("git stash");

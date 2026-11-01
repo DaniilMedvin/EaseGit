@@ -150,8 +150,9 @@ public sealed class DiffPanel : View
         if (_staging)
         {
             // После stage строки сдвигаются: курсор встаёт на ближайшее изменение на прежнем месте.
+            // Другой diff (переключение staged / не staged) — с первого изменения.
             _anchor = null;
-            _cursor = NearestChange(_cursor >= 0 ? _cursor : _scroll);
+            _cursor = NearestChange(keepScroll && _cursor >= 0 ? _cursor : _scroll);
             EnsureCursorVisible();
         }
 

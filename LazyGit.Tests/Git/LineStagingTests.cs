@@ -168,6 +168,74 @@ public sealed class LineStagingTests : IAsyncLifetime
         Assert.Equal("0\n1\n2", await IndexAsync("a.txt"));
     }
 
+    /// <summary>Сбрасывает в рабочей копии выбранные строки diff «индекс → рабочая копия».</summary>
+    private async Task DiscardAsync(string path, Func<DiffLine, bool> select)
+    {
+        var lines = await _service.GetDiffAsync(await FileAsync(path), staged: false);
+        var selected = Enumerable.Range(0, lines.Count)
+            .Where(i => lines[i].Kind is DiffLineKind.Added or DiffLineKind.Removed && select(lines[i]))
+            .ToHashSet();
+        var patch = PatchBuilder.Build(lines, selected, reverse: true);
+        Assert.NotNull(patch);
+
+        var result = await _service.DiscardLinesAsync(patch);
+        Assert.True(result.Success, result.StdErr + "\n" + patch);
+    }
+
+    private string ReadWorktree(string path) => File.ReadAllText(Path.Combine(_repo.Path, path));
+
+    [Fact]
+    public async Task Discard_OneOfTwoChanges_OtherStaysAndIndexUntouched()
+    {
+        _repo.Write("a.txt", "1\nold\n3\n");
+        await _repo.CommitAsync("first");
+        _repo.Write("a.txt", "1\nnew\n3\nextra\n");
+
+        await DiscardAsync("a.txt", l => l.Text is "old" or "new");
+
+        Assert.Equal("1\nold\n3\nextra\n", ReadWorktree("a.txt"));
+        Assert.Equal("1\nold\n3\n", await IndexAsync("a.txt"));
+    }
+
+    [Fact]
+    public async Task Discard_FileWithStagedPart_KeepsStagedLines()
+    {
+        _repo.Write("a.txt", "1\n2\n");
+        await _repo.CommitAsync("first");
+        _repo.Write("a.txt", "1\nstaged\n2\n");
+        await _repo.RunAsync("add", "a.txt");
+        _repo.Write("a.txt", "1\nstaged\n2\nwip\n");
+
+        await DiscardAsync("a.txt", l => l.Text == "wip");
+
+        Assert.Equal("1\nstaged\n2\n", ReadWorktree("a.txt"));
+    }
+
+    [Fact]
+    public async Task Discard_AutoCrlf_KeepsWorktreeLineEndings()
+    {
+        await _repo.RunAsync("config", "core.autocrlf", "true");
+        _repo.Write("a.txt", "1\r\n2\r\n");
+        await _repo.CommitAsync("first");
+        _repo.Write("a.txt", "1\r\nx\r\n2\r\ny\r\n");
+
+        await DiscardAsync("a.txt", l => l.Text == "x");
+
+        Assert.Equal("1\r\n2\r\ny\r\n", ReadWorktree("a.txt"));
+    }
+
+    [Fact]
+    public async Task Discard_PartOfUntrackedFile_RemovesOnlySelectedLines()
+    {
+        _repo.Write("base.txt", "base\n");
+        await _repo.CommitAsync("first");
+        _repo.Write("n.txt", "a\nb\nc\n");
+
+        await DiscardAsync("n.txt", l => l.Text == "b");
+
+        Assert.Equal("a\nc\n", ReadWorktree("n.txt"));
+    }
+
     [Fact]
     public void Build_NothingSelected_ReturnsNull()
     {

@@ -146,6 +146,16 @@ public sealed class GitService
     public static string[] ApplyToIndexArguments(bool reverse) =>
         reverse ? ["apply", "--cached", "--reverse", "--whitespace=nowarn", "-"] : ["apply", "--cached", "--whitespace=nowarn", "-"];
 
+    /// <summary>Аргументы отката патча в рабочей копии: сброс выбранных строк. Индекс не меняется.</summary>
+    public static readonly string[] DiscardLinesArguments = ["apply", "--reverse", "--whitespace=nowarn", "-"];
+
+    /// <summary>
+    /// Откатывает в рабочей копии строки из патча, построенного по diff «индекс → рабочая копия» с reverse.
+    /// Необратимо: этих изменений больше нигде нет.
+    /// </summary>
+    public Task<GitResult> DiscardLinesAsync(string patch, CancellationToken ct = default) =>
+        RunActionAsync(DiscardLinesArguments, ct, patch);
+
     /// <summary>Применяет патч из <see cref="PatchBuilder"/> к индексу. Рабочая копия не меняется.</summary>
     public Task<GitResult> ApplyToIndexAsync(string patch, bool reverse, CancellationToken ct = default) =>
         RunActionAsync(ApplyToIndexArguments(reverse), ct, patch);
