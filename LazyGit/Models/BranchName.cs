@@ -9,26 +9,26 @@ public static class BranchName
     public static string? Check(string name, IEnumerable<string> existing)
     {
         if (name.Length == 0)
-            return "Введи имя ветки, например feature/branches";
+            return T("Введи имя ветки, например feature/branches", "Enter a branch name, e.g. feature/branches");
         if (name.Any(char.IsWhiteSpace))
-            return "Пробелы нельзя: используй - или /";
+            return T("Пробелы нельзя: используй - или /", "No spaces: use - or /");
         if (name.Any(c => char.IsControl(c) || ForbiddenChars.Contains(c)))
-            return "Нельзя символы ~ ^ : ? * [ \\";
+            return T("Нельзя символы ~ ^ : ? * [ \\", "Characters ~ ^ : ? * [ \\ are not allowed");
         if (name.Contains("..") || name.Contains("@{") || name == "@")
-            return "Нельзя «..», «@{» и имя «@»";
+            return T("Нельзя «..», «@{» и имя «@»", "'..', '@{' and the name '@' are not allowed");
         if (name.StartsWith('-'))
-            return "Имя не может начинаться с -";
+            return T("Имя не может начинаться с -", "The name can't start with -");
         if (name.StartsWith('/') || name.EndsWith('/') || name.Contains("//"))
-            return "Лишний / в начале, в конце или два подряд";
+            return T("Лишний / в начале, в конце или два подряд", "Extra / at the start, at the end or twice in a row");
 
         foreach (var part in name.Split('/'))
         {
             if (part.StartsWith('.') || part.EndsWith('.') || part.EndsWith(".lock", StringComparison.Ordinal))
-                return "Часть имени не может начинаться с точки или заканчиваться на . и .lock";
+                return T("Часть имени не может начинаться с точки или заканчиваться на . и .lock", "A name part can't start with a dot or end with . or .lock");
         }
 
         if (existing.Contains(name, StringComparer.Ordinal))
-            return $"Ветка {name} уже существует";
+            return T($"Ветка {name} уже существует", $"Branch {name} already exists");
         return null;
     }
 }

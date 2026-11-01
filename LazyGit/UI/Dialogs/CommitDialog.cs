@@ -91,7 +91,7 @@ public sealed class CommitDialog : Runnable<string?>
         _hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
 
         box.Add(_types, prompt, _subject, _preview, _counter, _tip, _bodyLabel, bar, _body, staged);
-        Add(box, BoxTitle.For(box, "Коммит", Theme.Accent), _hints);
+        Add(box, BoxTitle.For(box, T("Коммит", "Commit"), Theme.Accent), _hints);
         UpdatePreview();
         _subject.SetFocus();
         UpdateFocusHints();
@@ -161,7 +161,7 @@ public sealed class CommitDialog : Runnable<string?>
     {
         if (CommitMessage.Compose(_types.Selected, _subject.Text).Length == 0)
         {
-            ShowTip(new CommitTip("Введи заголовок коммита", TipSeverity.Error));
+            ShowTip(new CommitTip(T("Введи заголовок коммита", "Enter the commit subject"), TipSeverity.Error));
             _subject.SetFocus();
             return;
         }
@@ -188,8 +188,8 @@ public sealed class CommitDialog : Runnable<string?>
         var withBody = CommitMessage.Compose(null, "_", _body.Text);
         var bodyLines = withBody.Length > 1 ? withBody[3..].Split('\n').Length : 0;
         _bodyLabel.Text = bodyLines > 0
-            ? $"Тело коммита · {LinesWord(bodyLines)}"
-            : "Тело коммита (необязательно)";
+            ? T($"Тело коммита · {LinesWord(bodyLines)}", $"Commit body · {LinesWord(bodyLines)}")
+            : T("Тело коммита (необязательно)", "Commit body (optional)");
         _bodyLabel.SetScheme(Theme.Text(Theme.Muted));
 
         var tips = CommitMessage.Check(_types.Selected, _subject.Text).Concat(CommitMessage.CheckBody(_body.Text)).ToList();
@@ -201,20 +201,20 @@ public sealed class CommitDialog : Runnable<string?>
         _hints.SetHints(_body.HasFocus
             ?
             [
-                new Hint("ctrl+s", "коммит"),
-                new Hint("enter", "строка"),
-                new Hint("↑", "заголовок"),
-                new Hint("tab", "тип"),
-                new Hint("esc", "отмена"),
+                new Hint("ctrl+s", T("коммит", "commit")),
+                new Hint("enter", T("строка", "line")),
+                new Hint("↑", T("заголовок", "subject")),
+                new Hint("tab", T("тип", "type")),
+                new Hint("esc", T("отмена", "cancel")),
             ]
             :
             [
-                new Hint("enter", "коммит"),
-                new Hint("↓", "тело"),
-                new Hint("tab", "тип"),
-                new Hint("ctrl+t", "шаблон"),
-                new Hint("ctrl+c/x/v", "буфер"),
-                new Hint("esc", "отмена"),
+                new Hint("enter", T("коммит", "commit")),
+                new Hint("↓", T("тело", "body")),
+                new Hint("tab", T("тип", "type")),
+                new Hint("ctrl+t", T("шаблон", "template")),
+                new Hint("ctrl+c/x/v", T("буфер", "clipboard")),
+                new Hint("esc", T("отмена", "cancel")),
             ]);
     }
 
@@ -236,9 +236,9 @@ public sealed class CommitDialog : Runnable<string?>
         _tip.SetScheme(Theme.Text(color));
     }
 
-    private static string FilesWord(int count) => TextDrawing.Plural(count, "файл", "файла", "файлов");
+    private static string FilesWord(int count) => Plural(count, "файл", "файла", "файлов", "file", "files");
 
-    private static string LinesWord(int count) => TextDrawing.Plural(count, "строка", "строки", "строк");
+    private static string LinesWord(int count) => Plural(count, "строка", "строки", "строк", "line", "lines");
 
     /// <summary>Строка выбора типа коммита: выбранный тип выделен фоном акцентного цвета.</summary>
     private sealed class TypeSelector : View
@@ -278,7 +278,7 @@ public sealed class CommitDialog : Runnable<string?>
             var x = 0;
             for (var i = 0; i < CommitMessage.Types.Length; i++)
             {
-                var name = CommitMessage.Types[i] ?? "без типа";
+                var name = CommitMessage.Types[i] ?? T("без типа", "no type");
                 var selected = i == _index;
                 x += this.DrawSegments(x, 0,
                     [new Segment($" {name} ", selected ? Theme.Backdrop : Theme.Muted, selected ? TextStyle.Bold : TextStyle.None)],

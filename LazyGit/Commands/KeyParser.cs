@@ -33,7 +33,7 @@ public static class KeyParser
     public static (CommandKey? Key, string? Error) Parse(string? text)
     {
         if (string.IsNullOrWhiteSpace(text))
-            return (null, "пустая клавиша");
+            return (null, T("пустая клавиша", "empty key"));
 
         var rest = text.Trim();
         bool ctrl = false, alt = false, shift = false;
@@ -50,7 +50,7 @@ public static class KeyParser
         }
 
         if (rest.Length == 0)
-            return (null, $"после модификатора нужна клавиша: «{text}»");
+            return (null, T($"после модификатора нужна клавиша: «{text}»", $"a key is needed after the modifier: '{text}'"));
 
         var plain = !ctrl && !alt && !shift;
         KeyCode code;
@@ -80,7 +80,7 @@ public static class KeyParser
         }
         else
         {
-            return (null, $"не знаю клавишу «{text}»");
+            return (null, T($"не знаю клавишу «{text}»", $"unknown key '{text}'"));
         }
 
         var key = new Key(code);

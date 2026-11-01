@@ -22,6 +22,9 @@ public sealed record AppConfig
     /// </summary>
     public Dictionary<string, Dictionary<string, string>>? CustomThemes { get; init; }
 
+    /// <summary>Язык интерфейса: «ru» или «en». Не задан — по языку системы.</summary>
+    public string? Language { get; init; }
+
     /// <summary>Свои клавиши: id команды («files.stage») → клавиша («s», «ctrl+x», «F5»).</summary>
     public Dictionary<string, string>? Keys { get; init; }
 }

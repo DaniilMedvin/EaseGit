@@ -1,6 +1,8 @@
 using LazyGit.Auth;
 using LazyGit.Config;
+using System.Globalization;
 using LazyGit.Git;
+using LazyGit.Localization;
 using LazyGit.UI;
 using Terminal.Gui.App;
 
@@ -11,6 +13,8 @@ class Program
     static int Main(string[] args)
     {
         var configStore = new ConfigStore();
+        // Окно входа и сообщения до главного цикла — уже на выбранном языке.
+        Loc.Apply(Loc.Resolve(configStore.Load().Language, CultureInfo.CurrentUICulture));
         var auth = new GhAuthService();
         var git = new GitRunner();
 
@@ -74,8 +78,10 @@ class Program
         string? notice = null;
         while (true)
         {
-            // Тема задаётся до создания окон: виджеты берут цвета при создании.
-            Theme.Apply(ThemeCatalog.Resolve(configStore.Load()).Palette);
+            // Тема и язык задаются до создания окон: виджеты берут цвета и тексты при создании.
+            var current = configStore.Load();
+            Theme.Apply(ThemeCatalog.Resolve(current).Palette);
+            Loc.Apply(Loc.Resolve(current.Language, CultureInfo.CurrentUICulture));
 
             if (repoRoot is null)
             {
@@ -101,7 +107,7 @@ class Program
             switch (mainWindow.Result)
             {
                 case MainResult.Reload:
-                    notice = mainWindow.ThemeNotice;
+                    notice = mainWindow.ReloadNotice;
                     continue;
                 case MainResult.Quit:
                     return new UiOutcome.Quit();
@@ -118,10 +124,10 @@ class Program
     private static void RunLogin(GhAuthService auth)
     {
         Console.Clear();
-        Console.WriteLine("Вход в GitHub через gh. Следуй инструкциям ниже.\n");
+        Console.WriteLine(T("Вход в GitHub через gh. Следуй инструкциям ниже.\n", "Signing in to GitHub with gh. Follow the instructions below.\n"));
         if (auth.LoginInteractive() != 0)
         {
-            Console.WriteLine("\n✗ Вход не выполнен. Нажми Enter, чтобы вернуться в LGit.");
+            Console.WriteLine(T("\n✗ Вход не выполнен. Нажми Enter, чтобы вернуться в LGit.", "\n✗ Sign-in failed. Press Enter to return to LGit."));
             Console.ReadLine();
         }
     }

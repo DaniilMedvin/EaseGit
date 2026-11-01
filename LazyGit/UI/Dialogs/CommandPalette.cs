@@ -62,10 +62,10 @@ public sealed class CommandPalette : Runnable<AppCommand?>
         _preview = new Label { X = 0, Y = ListHeight + 3, Width = Dim.Fill() };
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("↑↓", "выбор"), new Hint("enter", "выполнить"), new Hint("esc", "закрыть")]);
+        hints.SetHints([new Hint("↑↓", T("выбор", "choose")), new Hint("enter", T("выполнить", "run")), new Hint("esc", T("закрыть", "close"))]);
 
         box.Add(prompt, _query, _list, _preview);
-        Add(box, BoxTitle.For(box, "Команды", Theme.Accent), hints);
+        Add(box, BoxTitle.For(box, T("Команды", "Commands"), Theme.Accent), hints);
         Filter();
         _query.SetFocus();
     }
@@ -93,7 +93,7 @@ public sealed class CommandPalette : Runnable<AppCommand?>
     private void UpdatePreview()
     {
         var preview = _list.Selected?.Preview?.Invoke();
-        _preview.Text = _list.Selected is null ? "Ничего не найдено" : preview ?? "";
+        _preview.Text = _list.Selected is null ? T("Ничего не найдено", "Nothing found") : preview ?? "";
         _preview.SetScheme(Theme.Text(_list.Selected is null ? Theme.Muted : Theme.Info));
     }
 
@@ -171,9 +171,9 @@ public sealed class CommandPalette : Runnable<AppCommand?>
 
         private static string ScopeName(CommandScope scope) => scope switch
         {
-            CommandScope.Files => "файлы",
-            CommandScope.Branches => "ветки",
-            CommandScope.Commits => "коммиты",
+            CommandScope.Files => T("файлы", "files"),
+            CommandScope.Branches => T("ветки", "branches"),
+            CommandScope.Commits => T("коммиты", "commits"),
             _ => "",
         };
     }

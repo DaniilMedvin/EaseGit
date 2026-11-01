@@ -48,10 +48,10 @@ public sealed class CommitTemplatePicker : Runnable<CommitTemplate?>
         _preview = new Label { X = 0, Y = listHeight + 1, Width = Dim.Fill() };
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("↑↓", "выбор"), new Hint("enter", "применить"), new Hint("esc", "закрыть")]);
+        hints.SetHints([new Hint("↑↓", T("выбор", "choose")), new Hint("enter", T("применить", "apply")), new Hint("esc", T("закрыть", "close"))]);
 
         box.Add(_list, _preview);
-        Add(box, BoxTitle.For(box, "Шаблоны коммита", Theme.Accent), hints);
+        Add(box, BoxTitle.For(box, T("Шаблоны коммита", "Commit templates"), Theme.Accent), hints);
         UpdatePreview();
     }
 

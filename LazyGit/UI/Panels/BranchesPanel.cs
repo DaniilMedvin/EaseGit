@@ -12,7 +12,7 @@ public sealed class BranchesPanel : ListPanel<Branch>
 {
     private string? _current;
 
-    protected override string EmptyText => "Веток пока нет";
+    protected override string EmptyText => T("Веток пока нет", "No branches yet");
 
     protected override bool KeepSelection(IReadOnlyList<Branch> items)
     {
@@ -61,7 +61,7 @@ public sealed class BranchesPanel : ListPanel<Branch>
     {
         if (branch.IsUpstreamGone)
         {
-            yield return new Segment("upstream удалён", Theme.Dim);
+            yield return new Segment(T("upstream удалён", "upstream gone"), Theme.Dim);
             yield break;
         }
 

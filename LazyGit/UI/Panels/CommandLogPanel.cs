@@ -30,7 +30,7 @@ public sealed class CommandLogPanel : View
     {
         if (_entries.Count == 0)
         {
-            this.DrawSegments(1, 0, [new Segment("Здесь появятся команды, которые выполняет LGit: stage, commit, push…", Theme.Muted)],
+            this.DrawSegments(1, 0, [new Segment(T("Здесь появятся команды, которые выполняет LGit: stage, commit, push…", "Commands run by LGit will appear here: stage, commit, push…"), Theme.Muted)],
                 Viewport.Width - 1);
             return true;
         }
@@ -59,7 +59,7 @@ public sealed class CommandLogPanel : View
             { Success: true } => (Theme.SymbolSuccess, Theme.Success),
             _ => (Theme.SymbolError, Theme.Error),
         };
-        var duration = entry.Cancelled ? "отменена" : FormatDuration(entry.Duration);
+        var duration = entry.Cancelled ? T("отменена", "cancelled") : FormatDuration(entry.Duration);
         var durationX = Viewport.Width - duration.Length - 1;
 
         this.DrawSegments(1, row,
@@ -80,5 +80,5 @@ public sealed class CommandLogPanel : View
     }
 
     private static string FormatDuration(TimeSpan duration) =>
-        duration.TotalSeconds < 1 ? $"{duration.TotalMilliseconds:0} мс" : $"{duration.TotalSeconds:0.0} с";
+        duration.TotalSeconds < 1 ? T($"{duration.TotalMilliseconds:0} мс", $"{duration.TotalMilliseconds:0} ms") : T($"{duration.TotalSeconds:0.0} с", $"{duration.TotalSeconds:0.0} s");
 }

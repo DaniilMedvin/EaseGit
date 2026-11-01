@@ -7,7 +7,8 @@ namespace LazyGit.Git;
 public sealed class GitRunner
 {
     /// <summary>
-    /// Запускает git с аргументами. <paramref name="input"/> передаётся в stdin.
+    /// Запускает git с аргументами. <paramref name="input"/> передаётся в stdin,
+    /// <paramref name="environment"/> добавляется к окружению процесса (например, GIT_SEQUENCE_EDITOR для rebase).
     /// При отмене <paramref name="ct"/> процесс git убивается вместе с дочерними (ssh, credential helper)
     /// и бросается <see cref="OperationCanceledException"/>.
     /// </summary>
@@ -15,7 +16,8 @@ public sealed class GitRunner
         string workingDirectory,
         IReadOnlyList<string> args,
         CancellationToken ct = default,
-        string? input = null)
+        string? input = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var psi = new ProcessStartInfo("git")
         {
@@ -36,6 +38,10 @@ public sealed class GitRunner
 
         psi.Environment["LC_ALL"] = "C";
         psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
+        // Редактор не должен открываться: rebase --continue, squash, merge --continue берут готовое сообщение.
+        psi.Environment["GIT_EDITOR"] = "true";
+        foreach (var (name, value) in environment ?? new Dictionary<string, string>())
+            psi.Environment[name] = value;
 
         var command = "git " + string.Join(' ', args);
         try
@@ -65,7 +71,7 @@ public sealed class GitRunner
         }
         catch (Win32Exception)
         {
-            throw new InvalidOperationException("git не найден. Установи git и добавь его в PATH.");
+            throw new InvalidOperationException(T("git не найден. Установи git и добавь его в PATH.", "git not found. Install git and add it to PATH."));
         }
     }
 

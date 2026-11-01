@@ -72,7 +72,7 @@ public sealed class DiffPanel : View
 
         var date = commit.Date.ToLocalTime().ToString("dd.MM.yyyy HH:mm");
         var age = RelativeTime.Format(commit.Date, now);
-        var ago = age == "сейчас" ? "только что" : $"{age} назад";
+        var ago = age == T("сейчас", "now") ? T("только что", "just now") : T($"{age} назад", $"{age} ago");
         Add(new DiffLine(DiffLineKind.Header,
             $"{commit.ShortHash} {Theme.SymbolSeparator} {commit.AuthorName} {Theme.SymbolSeparator} {date} ({ago})"));
         foreach (var text in diff.Message.Split('\n'))
@@ -92,7 +92,7 @@ public sealed class DiffPanel : View
         if (files.Count == 0)
         {
             Add(new DiffLine(DiffLineKind.Message, ""));
-            Add(new DiffLine(DiffLineKind.Header, "В коммите нет изменений файлов"));
+            Add(new DiffLine(DiffLineKind.Header, T("В коммите нет изменений файлов", "The commit has no file changes")));
         }
 
         return new PreparedDiff(lines, highlights.ToArray());
@@ -145,7 +145,7 @@ public sealed class DiffPanel : View
         _lines = diff.Lines;
         _highlights = diff.Highlights;
         _source = diff.Source;
-        _message = _lines.Count == 0 ? "Нет изменений для показа" : null;
+        _message = _lines.Count == 0 ? T("Нет изменений для показа", "No changes to show") : null;
         _scroll = keepScroll ? Math.Clamp(_scroll, 0, Math.Max(0, _lines.Count - Viewport.Height)) : 0;
         if (_staging)
         {
@@ -395,7 +395,7 @@ public sealed class DiffPanel : View
                 this.DrawSegments(1, row, [new Segment(line.Text, Theme.Info)], width - 1);
                 return;
             case DiffLineKind.NoNewline:
-                this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + "⏎ нет перевода строки в конце файла", Theme.Dim, TextStyle.Italic)], width);
+                this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + T("⏎ нет перевода строки в конце файла", "⏎ no newline at end of file"), Theme.Dim, TextStyle.Italic)], width);
                 return;
         }
 
@@ -451,19 +451,19 @@ public sealed class DiffPanel : View
     private static DiffLine? Simplify(DiffLine line)
     {
         if (line.Kind == DiffLineKind.Binary)
-            return line with { Text = "Бинарный файл: содержимое не показывается" };
+            return line with { Text = T("Бинарный файл: содержимое не показывается", "Binary file: content is not shown") };
         if (line.Kind != DiffLineKind.Header)
             return line;
 
         var text = line.Text;
         if (text.StartsWith("new file mode"))
-            return line with { Text = "Новый файл" };
+            return line with { Text = T("Новый файл", "New file") };
         if (text.StartsWith("deleted file mode"))
-            return line with { Text = "Файл удалён" };
+            return line with { Text = T("Файл удалён", "File deleted") };
         if (text.StartsWith("rename from "))
-            return line with { Text = "Переименован из " + text["rename from ".Length..] };
+            return line with { Text = T("Переименован из ", "Renamed from ") + text["rename from ".Length..] };
         if (text.StartsWith("old mode") || text.StartsWith("new mode"))
-            return line with { Text = "Права доступа: " + text };
+            return line with { Text = T("Права доступа: ", "Mode: ") + text };
         return null;
     }
 }

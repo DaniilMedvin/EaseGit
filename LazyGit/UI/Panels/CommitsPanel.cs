@@ -14,7 +14,7 @@ public sealed class CommitsPanel : ListPanel<Commit>
     private IReadOnlyList<Commit>? _graphFor;
     private Dictionary<string, IReadOnlyList<GraphCell>> _graph = [];
 
-    protected override string EmptyText => "Коммитов пока нет";
+    protected override string EmptyText => T("Коммитов пока нет", "No commits yet");
 
     /// <summary>Колонка автора перед давностью — для широкого окна графа.</summary>
     public bool ShowAuthor { get; init; }

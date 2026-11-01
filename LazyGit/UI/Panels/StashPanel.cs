@@ -7,7 +7,7 @@ namespace LazyGit.UI.Panels;
 /// <summary>Список stash, последние сверху: номер, сообщение и давность справа.</summary>
 public sealed class StashPanel : ListPanel<StashEntry>
 {
-    protected override string EmptyText => "Stash пуст";
+    protected override string EmptyText => T("Stash пуст", "Stash is empty");
 
     protected override string KeyOf(StashEntry item) => item.Hash;
 

@@ -6,6 +6,7 @@
 
 ```jsonc
 {
+  "language": "en",                       // ru или en; не задан — по языку системы (LANG)
   "theme": "ocean",                       // dark (по умолчанию), light или имя своей темы
   "customThemes": {
     "ocean": {
@@ -42,6 +43,7 @@
 ## Остальное
 | Ключ | Значение |
 |---|---|
+| `language` | `ru` или `en`; без ключа — по языку системы. `L` переключает и запоминает |
 | `mascot` | `None`, `Claude`, `ChatGpt`, `Gemini` — маскот в углу diff (также `,`) |
 | `showCommandLog` | панель Command Log открыта (`~`) |
 | `authPromptSkipped` | окно входа в GitHub пропущено |

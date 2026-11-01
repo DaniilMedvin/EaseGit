@@ -2,6 +2,7 @@ using LazyGit.Auth;
 using LazyGit.Commands;
 using LazyGit.Config;
 using LazyGit.Git;
+using LazyGit.Localization;
 using LazyGit.Models;
 using LazyGit.Templates;
 using LazyGit.UI.Dialogs;
@@ -19,7 +20,7 @@ public enum MainResult
     Quit,
     Login,
 
-    /// <summary>Тема сменилась: окно открывается заново с той же страницей репозитория.</summary>
+    /// <summary>Тема или язык сменились: окно открывается заново с той же страницей репозитория.</summary>
     Reload,
 }
 
@@ -28,7 +29,8 @@ public enum MainResult
 /// 1 / 2 / 3 и tab — переход между панелями.
 /// В файлах: space — stage/unstage файла или папки, a — всех файлов, d — сбросить изменения.
 /// В ветках: space — checkout, n — новая ветка, M — merge в текущую, D — удалить.
-/// На конфликтном файле: o — оставить нашу версию, t — их, b — обе. A — прервать merge / cherry-pick / rebase.
+/// На конфликтном файле: o — оставить нашу версию, t — их, b — обе. A — прервать merge / cherry-pick / rebase, C — продолжить.
+/// В коммитах: i — interactive rebase от выбранного коммита до HEAD.
 /// s — спрятать изменения в stash; в панели stash: space — pop, a — apply, d — удалить.
 /// ~ — Command Log, «,» — настройки, c — коммит, f — fetch, p — pull, P — push (во время операции esc отменяет её), r — обновить, ? — справка.
 /// Экран обновляется автоматически при изменении файлов и состояния git.
@@ -182,9 +184,9 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         Add(
             _header, BoxTitle.For(_header, "LGit", Theme.Accent),
-            _files, BoxTitle.ForFocusable(_files, "[1] Файлы"),
-            _branches, BoxTitle.ForFocusable(_branches, "[2] Ветки"),
-            _commits, BoxTitle.ForFocusable(_commits, "[3] Коммиты"),
+            _files, BoxTitle.ForFocusable(_files, T("[1] Файлы", "[1] Files")),
+            _branches, BoxTitle.ForFocusable(_branches, T("[2] Ветки", "[2] Branches")),
+            _commits, BoxTitle.ForFocusable(_commits, T("[3] Коммиты", "[3] Commits")),
             _stash, _stashTitle = BoxTitle.ForFocusable(_stash, "[4] Stash"),
             _diff, _diffTitle,
             _log, _logTitle,
@@ -241,7 +243,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         if (_configProblems.Count > 0)
         {
-            var more = _configProblems.Count > 1 ? $" (и ещё {_configProblems.Count - 1})" : "";
+            var more = _configProblems.Count > 1 ? T($" (и ещё {_configProblems.Count - 1})", $" (and {_configProblems.Count - 1} more)") : "";
             ShowStatus($"{Theme.SymbolWarning} config.json: {_configProblems[0]}{more}", Theme.Warning, autoHide: true);
         }
         else if (_notice is not null)
@@ -260,7 +262,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         catch (Exception ex) when (ex is IOException or ArgumentException or PlatformNotSupportedException)
         {
             // Без автообновления экран по-прежнему обновляется после действий и по r.
-            ShowStatus($"{Theme.SymbolWarning} Автообновление недоступно: {ex.Message}", Theme.Warning);
+            ShowStatus(T($"{Theme.SymbolWarning} Автообновление недоступно: {ex.Message}", $"{Theme.SymbolWarning} Auto-refresh unavailable: {ex.Message}"), Theme.Warning);
         }
     }
 
@@ -309,7 +311,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             {
                 var (custom, error) = KeyParser.Parse(text);
                 if (custom is null)
-                    _configProblems.Add($"клавиша команды {id}: {error}");
+                    _configProblems.Add(T($"клавиша команды {id}: {error}", $"key for command {id}: {error}"));
                 else
                 {
                     shortcut = custom;
@@ -337,154 +339,165 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         Add("files.stage", "Stage / unstage", CommandScope.Files, CommandKey.Of("space", Key.Space),
             () => _ = ToggleSelectedAsync(), "stage", preview: StagePreview, keywords: "добавить в индекс стейдж");
-        Add("files.stageAll", "Stage / unstage всех", CommandScope.Files, CommandKey.Of("a", Key.A),
-            () => _ = ToggleAllAsync(), "все", hintOptional: true,
+        Add("files.stageAll", T("Stage / unstage всех", "Stage / unstage all"), CommandScope.Files, CommandKey.Of("a", Key.A),
+            () => _ = ToggleAllAsync(), T("все", "all"), hintOptional: true,
             preview: () => _files.Entries.Any(r => r.Section != FileSection.Staged) ? "git add --all" : "git reset --quiet", keywords: "добавить всё индекс");
-        Add("files.ours", "Оставить нашу версию", CommandScope.Files, CommandKey.Of("o", Key.O),
-            () => _ = ResolveConflictAsync(ours: true), "наша", available: IsConflictSelected,
+        Add("files.ours", T("Оставить нашу версию", "Keep our version"), CommandScope.Files, CommandKey.Of("o", Key.O),
+            () => _ = ResolveConflictAsync(ours: true), T("наша", "ours"), available: IsConflictSelected,
             preview: () => ConflictPreview("--ours"), keywords: "конфликт ours наш мой");
-        Add("files.theirs", "Оставить их версию", CommandScope.Files, CommandKey.Of("t", Key.T),
-            () => _ = ResolveConflictAsync(ours: false), "их", available: IsConflictSelected,
+        Add("files.theirs", T("Оставить их версию", "Keep their version"), CommandScope.Files, CommandKey.Of("t", Key.T),
+            () => _ = ResolveConflictAsync(ours: false), T("их", "theirs"), available: IsConflictSelected,
             preview: () => ConflictPreview("--theirs"), keywords: "конфликт theirs их чужой");
-        Add("files.both", "Оставить обе версии", CommandScope.Files, CommandKey.Of("b", Key.B),
-            () => _ = ResolveBothAsync(), "оба", available: IsConflictSelected,
+        Add("files.both", T("Оставить обе версии", "Keep both versions"), CommandScope.Files, CommandKey.Of("b", Key.B),
+            () => _ = ResolveBothAsync(), T("оба", "both"), available: IsConflictSelected,
             preview: () => SelectedConflictFiles() is { Count: > 0 } f
                 ? CommandText.Format(["merge-file", "--union", .. f.Select(x => x.Path)]) + " && git add …"
                 : null,
             keywords: "конфликт оба обе union объединить вместе");
-        Add("files.discard", "Сбросить изменения", CommandScope.Files, CommandKey.Of("d", Key.D),
-            () => _ = DiscardSelectedAsync(), "сбросить", dangerous: true, keywords: "откатить отменить удалить ресет");
-        Add("files.stageLines", "Построчный stage файла", CommandScope.Files, CommandKey.Of("enter", Key.Enter),
-            StartLineStaging, "по строкам", available: () => _files.SelectedFile is { Section: not FileSection.Conflicts },
+        Add("files.discard", T("Сбросить изменения", "Discard changes"), CommandScope.Files, CommandKey.Of("d", Key.D),
+            () => _ = DiscardSelectedAsync(), T("сбросить", "discard"), dangerous: true, keywords: "откатить отменить удалить ресет");
+        Add("files.stageLines", T("Построчный stage файла", "Stage file by lines"), CommandScope.Files, CommandKey.Of("enter", Key.Enter),
+            StartLineStaging, T("по строкам", "by lines"), available: () => _files.SelectedFile is { Section: not FileSection.Conflicts },
             keywords: "строки строка hunk ханк фрагмент частично патч patch");
 
-        Add("diff.stageLines", "Stage строки / выделения", CommandScope.Diff, CommandKey.Of("space", Key.Space),
+        Add("diff.stageLines", T("Stage строки / выделения", "Stage line / selection"), CommandScope.Diff, CommandKey.Of("space", Key.Space),
             () => _ = ApplyLinesAsync(hunk: false), "stage", available: () => _staging is { Staged: false },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "строка добавить");
-        Add("diff.unstageLines", "Unstage строки / выделения", CommandScope.Diff, CommandKey.Of("space", Key.Space),
+        Add("diff.unstageLines", T("Unstage строки / выделения", "Unstage line / selection"), CommandScope.Diff, CommandKey.Of("space", Key.Space),
             () => _ = ApplyLinesAsync(hunk: false), "unstage", available: () => _staging is { Staged: true },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: true)), keywords: "строка убрать");
-        Add("diff.stageHunk", "Stage фрагмента (@@)", CommandScope.Diff, CommandKey.Of("a", Key.A),
-            () => _ = ApplyLinesAsync(hunk: true), "фрагмент", available: () => _staging is { Staged: false },
+        Add("diff.stageHunk", T("Stage фрагмента (@@)", "Stage hunk (@@)"), CommandScope.Diff, CommandKey.Of("a", Key.A),
+            () => _ = ApplyLinesAsync(hunk: true), T("фрагмент", "hunk"), available: () => _staging is { Staged: false },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "hunk ханк блок");
-        Add("diff.unstageHunk", "Unstage фрагмента (@@)", CommandScope.Diff, CommandKey.Of("a", Key.A),
-            () => _ = ApplyLinesAsync(hunk: true), "фрагмент", available: () => _staging is { Staged: true },
+        Add("diff.unstageHunk", T("Unstage фрагмента (@@)", "Unstage hunk (@@)"), CommandScope.Diff, CommandKey.Of("a", Key.A),
+            () => _ = ApplyLinesAsync(hunk: true), T("фрагмент", "hunk"), available: () => _staging is { Staged: true },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: true)), keywords: "hunk ханк блок");
-        Add("diff.range", "Выделить несколько строк", CommandScope.Diff, CommandKey.Of("v", Key.V),
-            () => _diff.ToggleRange(), "выделить", available: () => _staging is not null, keywords: "выделение диапазон");
-        Add("diff.discardLines", "Сбросить строки в рабочей копии", CommandScope.Diff, CommandKey.Of("d", Key.D),
-            () => _ = DiscardLinesAsync(), "сбросить", hintOptional: true, dangerous: true,
+        Add("diff.range", T("Выделить несколько строк", "Select several lines"), CommandScope.Diff, CommandKey.Of("v", Key.V),
+            () => _diff.ToggleRange(), T("выделить", "select"), available: () => _staging is not null, keywords: "выделение диапазон");
+        Add("diff.discardLines", T("Сбросить строки в рабочей копии", "Discard lines in the working tree"), CommandScope.Diff, CommandKey.Of("d", Key.D),
+            () => _ = DiscardLinesAsync(), T("сбросить", "discard"), hintOptional: true, dangerous: true,
             available: () => _staging is { Staged: false },
             preview: () => CommandText.Format(GitService.DiscardLinesArguments), keywords: "откатить удалить строку discard");
-        Add("diff.toStaged", "Перейти к staged-части файла", CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
+        Add("diff.toStaged", T("Перейти к staged-части файла", "Go to the staged part of the file"), CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
             SwitchStagingSide, "staged", hintOptional: true, available: () => _staging is { Staged: false } t && HasOtherSide(t),
             keywords: "переключить индекс staged сторона");
-        Add("diff.toWorktree", "Перейти к не staged изменениям файла", CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
-            SwitchStagingSide, "изменения", hintOptional: true, available: () => _staging is { Staged: true } t && HasOtherSide(t),
+        Add("diff.toWorktree", T("Перейти к не staged изменениям файла", "Go to the unstaged changes of the file"), CommandScope.Diff, CommandKey.Of("tab", Key.Tab),
+            SwitchStagingSide, T("изменения", "changes"), hintOptional: true, available: () => _staging is { Staged: true } t && HasOtherSide(t),
             keywords: "переключить рабочая копия unstaged сторона");
-        Add("diff.back", "Вернуться к файлам", CommandScope.Diff, CommandKey.Of("esc", Key.Esc),
-            () => _files.SetFocus(), "к файлам", available: () => _staging is not null);
+        Add("diff.back", T("Вернуться к файлам", "Back to files"), CommandScope.Diff, CommandKey.Of("esc", Key.Esc),
+            () => _files.SetFocus(), T("к файлам", "to files"), available: () => _staging is not null);
 
-        Add("branches.checkout", "Checkout ветки", CommandScope.Branches, CommandKey.Of("space", Key.Space),
+        Add("branches.checkout", T("Checkout ветки", "Checkout branch"), CommandScope.Branches, CommandKey.Of("space", Key.Space),
             () => _ = SwitchToSelectedAsync(), "checkout", preview: () => BranchPreview(b => ["switch", "--no-guess", b.Name]), keywords: "переключить чекаут ветка");
-        Add("branches.new", "Новая ветка", CommandScope.Branches, CommandKey.Of("n", Key.N),
-            OpenNewBranchDialog, "новая", preview: () => "git switch --create <имя>", keywords: "создать бранч");
-        Add("branches.merge", "Merge в текущую", CommandScope.Branches, CommandKey.Of("M", Key.M.WithShift),
+        Add("branches.new", T("Новая ветка", "New branch"), CommandScope.Branches, CommandKey.Of("n", Key.N),
+            OpenNewBranchDialog, T("новая", "new"), preview: () => T("git switch --create <имя>", "git switch --create <name>"), keywords: "создать бранч");
+        Add("branches.merge", T("Merge в текущую", "Merge into current"), CommandScope.Branches, CommandKey.Of("M", Key.M.WithShift),
             () => _ = MergeSelectedAsync(), "merge", preview: () => BranchPreview(b => ["merge", "--no-edit", b.Name]), keywords: "мерж слить влить");
-        Add("branches.delete", "Удалить ветку", CommandScope.Branches, CommandKey.Of("D", Key.D.WithShift),
-            () => _ = DeleteSelectedBranchAsync(), "удалить", dangerous: true,
+        Add("branches.delete", T("Удалить ветку", "Delete branch"), CommandScope.Branches, CommandKey.Of("D", Key.D.WithShift),
+            () => _ = DeleteSelectedBranchAsync(), T("удалить", "delete"), dangerous: true,
             preview: () => BranchPreview(b => GitService.DeleteBranchArguments(b, force: false)), keywords: "удалить бранч");
 
-        Add("branches.cherryPick", "Cherry-pick вершины ветки", CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
-            () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true,
+        Add("branches.cherryPick", T("Cherry-pick вершины ветки", "Cherry-pick branch tip"), CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
+            () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
 
-        Add("commits.amend", "Amend: добавить staged в последний коммит", CommandScope.Commits, CommandKey.Of("a", Key.A),
+        Add("commits.amend", T("Amend: добавить staged в последний коммит", "Amend: add staged to the last commit"), CommandScope.Commits, CommandKey.Of("a", Key.A),
             () => _ = AmendAsync(), "amend", dangerous: true, preview: () => CommandText.Format(GitService.AmendArguments),
             keywords: "дополнить исправить последний коммит аменд");
-        Add("commits.revert", "Revert коммита", CommandScope.Commits, CommandKey.Of("v", Key.V),
+        Add("commits.revert", T("Revert коммита", "Revert commit"), CommandScope.Commits, CommandKey.Of("v", Key.V),
             () => _ = RevertSelectedAsync(), "revert", preview: () => CommitPreview(GitService.RevertArguments),
             keywords: "откатить отменить коммит ревёрт");
-        Add("commits.resetSoft", "Reset --soft к коммиту", CommandScope.Commits, CommandKey.Of("S", Key.S.WithShift),
+        Add("commits.resetSoft", T("Reset --soft к коммиту", "Reset --soft to commit"), CommandScope.Commits, CommandKey.Of("S", Key.S.WithShift),
             () => _ = ResetSelectedAsync(ResetMode.Soft), "soft", hintOptional: true, dangerous: true,
             preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Soft)), keywords: "сброс reset мягкий вернуться");
-        Add("commits.resetMixed", "Reset --mixed к коммиту", CommandScope.Commits, CommandKey.Of("m", Key.M),
+        Add("commits.resetMixed", T("Reset --mixed к коммиту", "Reset --mixed to commit"), CommandScope.Commits, CommandKey.Of("m", Key.M),
             () => _ = ResetSelectedAsync(ResetMode.Mixed), "mixed", hintOptional: true, dangerous: true,
             preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Mixed)), keywords: "сброс reset вернуться");
-        Add("commits.resetHard", "Reset --hard к коммиту", CommandScope.Commits, CommandKey.Of("H", Key.H.WithShift),
+        Add("commits.resetHard", T("Reset --hard к коммиту", "Reset --hard to commit"), CommandScope.Commits, CommandKey.Of("H", Key.H.WithShift),
             () => _ = ResetSelectedAsync(ResetMode.Hard), "hard", hintOptional: true, dangerous: true,
             preview: () => CommitPreview(c => GitService.ResetArguments(c, ResetMode.Hard)), keywords: "сброс reset жёсткий удалить вернуться");
-        Add("commits.cherryPick", "Cherry-pick по хешу или имени", CommandScope.Commits, CommandKey.Of("C", Key.C.WithShift),
-            OpenCherryPickDialog, "cherry-pick", hintOptional: true, preview: () => "git cherry-pick <хеш>",
-            keywords: "черри пик скопировать коммит перенести");
+        Add("commits.cherryPick", T("Cherry-pick по хешу или имени", "Cherry-pick by hash or name"), CommandScope.Commits, CommandKey.Of("C", Key.C.WithShift),
+            OpenCherryPickDialog, "cherry-pick", hintOptional: true, preview: () => T("git cherry-pick <хеш>", "git cherry-pick <hash>"),
+            available: () => _repoOperation == RepoOperation.None, keywords: "черри пик скопировать коммит перенести");
+        Add("commits.rebase", T("Interactive rebase от коммита", "Interactive rebase from commit"), CommandScope.Commits, CommandKey.Of("i", Key.I),
+            () => _ = StartInteractiveRebaseAsync(), "rebase -i", dangerous: true, available: () => _repoOperation == RepoOperation.None,
+            preview: () => CommitPreview(GitService.InteractiveRebaseArguments),
+            keywords: "ребейз интерактивный squash сквош fixup объединить склеить reword переименовать drop удалить коммит порядок переставить edit");
 
-        Add("stash.pop", "Применить и удалить stash", CommandScope.Stash, CommandKey.Of("space", Key.Space),
+        Add("stash.pop", T("Применить и удалить stash", "Apply and drop stash"), CommandScope.Stash, CommandKey.Of("space", Key.Space),
             () => _ = StashActionAsync(pop: true), "pop", preview: () => StashPreview("pop"), keywords: "стэш достать pop");
-        Add("stash.apply", "Применить stash", CommandScope.Stash, CommandKey.Of("a", Key.A),
+        Add("stash.apply", T("Применить stash", "Apply stash"), CommandScope.Stash, CommandKey.Of("a", Key.A),
             () => _ = StashActionAsync(pop: false), "apply", preview: () => StashPreview("apply"), keywords: "стэш apply");
-        Add("stash.drop", "Удалить stash", CommandScope.Stash, CommandKey.Of("d", Key.D),
-            () => _ = DropStashAsync(), "удалить", dangerous: true, preview: () => StashPreview("drop"), keywords: "стэш drop");
+        Add("stash.drop", T("Удалить stash", "Drop stash"), CommandScope.Stash, CommandKey.Of("d", Key.D),
+            () => _ = DropStashAsync(), T("удалить", "delete"), dangerous: true, preview: () => StashPreview("drop"), keywords: "стэш drop");
 
-        Add("operation.abort", "Прервать merge / cherry-pick / rebase", CommandScope.Global, CommandKey.Of("A", Key.A.WithShift),
-            () => _ = AbortOperationAsync(), "прервать", dangerous: true,
+        Add("operation.abort", T("Прервать merge / cherry-pick / rebase", "Abort merge / cherry-pick / rebase"), CommandScope.Global, CommandKey.Of("A", Key.A.WithShift),
+            () => _ = AbortOperationAsync(), T("прервать", "abort"), dangerous: true,
             available: () => _repoOperation != RepoOperation.None,
             preview: () => _repoOperation == RepoOperation.None ? null : CommandText.Format(GitService.AbortArguments(_repoOperation)),
             keywords: "abort отменить merge конфликт");
-        Add("commit", "Коммит", CommandScope.Global, CommandKey.Of("c", Key.C),
-            OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
-        Add("repo.createGitIgnore", "Создать .gitignore (Visual Studio)", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
+        Add("operation.continue", T("Продолжить merge / cherry-pick / rebase", "Continue merge / cherry-pick / rebase"), CommandScope.Global, CommandKey.Of("C", Key.C.WithShift),
+            () => _ = ContinueOperationAsync(), T("продолжить", "continue"),
+            available: () => _repoOperation != RepoOperation.None,
+            preview: () => _repoOperation == RepoOperation.None ? null : CommandText.Format(GitService.ContinueArguments(_repoOperation)),
+            keywords: "continue дальше продолжить rebase конфликт решён");
+        Add("commit", T("Коммит", "Commit"), CommandScope.Global, CommandKey.Of("c", Key.C),
+            OpenCommitDialog, T("коммит", "commit"), preview: () => "git commit --file=- --cleanup=strip");
+        Add("repo.createGitIgnore", T("Создать .gitignore (Visual Studio)", "Create .gitignore (Visual Studio)"), CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
             () => _ = CreateGitIgnoreAsync(),
             ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
-            keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: "уже есть");
-        Add("repo.createReadme", "Создать README.md", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
-            () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, "Добавить README"),
+            keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: T("уже есть", "already exists"));
+        Add("repo.createReadme", T("Создать README.md", "Create README.md"), CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
+            () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, T("Добавить README", "Add README")),
             "README", hintOptional: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
-            keywords: "ридми readme описание создать файл", unavailableNote: "уже есть");
+            keywords: "ридми readme описание создать файл", unavailableNote: T("уже есть", "already exists"));
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
             () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
         Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
             () => _ = PushAsync(), "push", hintOptional: true, preview: () => "git push", keywords: "пуш отправить опубликовать upstream");
-        Add("stash.save", "Спрятать изменения в stash", CommandScope.Global, CommandKey.Of("s", Key.S),
+        Add("stash.save", T("Спрятать изменения в stash", "Stash changes"), CommandScope.Global, CommandKey.Of("s", Key.S),
             OpenStashDialog, "stash", hintOptional: true, preview: () => "git stash push --include-untracked",
             keywords: "стэш спрятать отложить сохранить");
         Add("sync.fetch", "Fetch", CommandScope.Global, CommandKey.Of("f", Key.F),
             () => _ = FetchAsync(), preview: () => "git fetch --all --prune", keywords: "фетч обновить сервер");
 
-        Add("nav.next", "Следующая панель", CommandScope.Global, CommandKey.Of("tab", Key.Tab),
-            () => FocusPanel(+1), "панель", hintOptional: true, hidden: true);
-        Add("nav.previous", "Предыдущая панель", CommandScope.Global, CommandKey.Of("shift+tab", Key.Tab.WithShift),
+        Add("nav.next", T("Следующая панель", "Next panel"), CommandScope.Global, CommandKey.Of("tab", Key.Tab),
+            () => FocusPanel(+1), T("панель", "panel"), hintOptional: true, hidden: true);
+        Add("nav.previous", T("Предыдущая панель", "Previous panel"), CommandScope.Global, CommandKey.Of("shift+tab", Key.Tab.WithShift),
             () => FocusPanel(-1), hidden: true);
-        Add("nav.files", "Панель файлов", CommandScope.Global, CommandKey.Of("1", Key.D1), () => _files.SetFocus(), hidden: true);
-        Add("nav.branches", "Панель веток", CommandScope.Global, CommandKey.Of("2", Key.D2), () => _branches.SetFocus(), hidden: true);
-        Add("nav.commits", "Панель коммитов", CommandScope.Global, CommandKey.Of("3", Key.D3), () => _commits.SetFocus(), hidden: true);
-        Add("nav.stash", "Панель stash", CommandScope.Global, CommandKey.Of("4", Key.D4), () => _stash.SetFocus(), hidden: true,
+        Add("nav.files", T("Панель файлов", "Files panel"), CommandScope.Global, CommandKey.Of("1", Key.D1), () => _files.SetFocus(), hidden: true);
+        Add("nav.branches", T("Панель веток", "Branches panel"), CommandScope.Global, CommandKey.Of("2", Key.D2), () => _branches.SetFocus(), hidden: true);
+        Add("nav.commits", T("Панель коммитов", "Commits panel"), CommandScope.Global, CommandKey.Of("3", Key.D3), () => _commits.SetFocus(), hidden: true);
+        Add("nav.stash", T("Панель stash", "Stash panel"), CommandScope.Global, CommandKey.Of("4", Key.D4), () => _stash.SetFocus(), hidden: true,
             available: () => _stash.Visible);
-        Add("view.diffDown", "Листать diff вниз", CommandScope.Global, CommandKey.Of("ctrl+d", Key.D.WithCtrl),
+        Add("view.diffDown", T("Листать diff вниз", "Scroll diff down"), CommandScope.Global, CommandKey.Of("ctrl+d", Key.D.WithCtrl),
             () => _diff.ScrollBy(Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
-        Add("view.diffUp", "Листать diff вверх", CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
+        Add("view.diffUp", T("Листать diff вверх", "Scroll diff up"), CommandScope.Global, CommandKey.Of("ctrl+u", Key.U.WithCtrl),
             () => _diff.ScrollBy(-Math.Max(1, _diff.Viewport.Height / 2)), hidden: true);
-        Add("history.undo", "Отменить последнее действие", CommandScope.Global, CommandKey.Of("z", Key.Z),
+        Add("history.undo", T("Отменить последнее действие", "Undo last action"), CommandScope.Global, CommandKey.Of("z", Key.Z),
             () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
-        Add("view.refresh", "Обновить", CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
-        Add("view.graph", "Граф всех веток", CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, "граф",
+        Add("view.refresh", T("Обновить", "Refresh"), CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
+        Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
             hintOptional: true, available: () => _commits.Items.Count > 0, keywords: "граф ветки история дерево git graph");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
 
-        Add("app.palette", "Палитра команд", CommandScope.Global,
+        Add("app.palette", T("Палитра команд", "Command palette"), CommandScope.Global,
             CommandKey.Any("ctrl+p / :", CommandKey.Of("ctrl+p", Key.P.WithCtrl), CommandKey.Char(':')), OpenPalette, hidden: true);
-        Add("app.theme", "Сменить тему (dark / light / свои)", CommandScope.Global, CommandKey.Of("T", Key.T.WithShift),
+        Add("app.theme", T("Сменить тему (dark / light / свои)", "Switch theme (dark / light / custom)"), CommandScope.Global, CommandKey.Of("T", Key.T.WithShift),
             SwitchTheme, keywords: "тема цвета светлая тёмная dark light оформление");
-        Add("app.settings", "Настройки", CommandScope.Global, CommandKey.Char(','), OpenSettings, keywords: "настройки маскот параметры");
-        Add("app.login", "Войти в GitHub", CommandScope.Global, CommandKey.Of("ctrl+g", Key.G.WithCtrl),
-            Login, "войти", hintOptional: true, available: () => !_auth.IsAuthorized);
-        Add("app.help", "Справка (также F1)", CommandScope.Global,
-            CommandKey.Any("?", CommandKey.Char('?'), CommandKey.Of("F1", Key.F1)), OpenHelp, "справка");
-        Add("app.back", "Назад к выбору репо", CommandScope.Global, CommandKey.Of("esc", Key.Esc), RequestStop, "назад");
-        Add("app.quit", "Выход", CommandScope.Global, CommandKey.Of("q", Key.Q), () =>
+        Add("app.language", T("Сменить язык (ru / en)", "Switch language (ru / en)"), CommandScope.Global,
+            CommandKey.Of("L", Key.L.WithShift), SwitchLanguage, keywords: "язык language english русский английский локализация");
+        Add("app.settings", T("Настройки", "Settings"), CommandScope.Global, CommandKey.Char(','), OpenSettings, keywords: "настройки маскот параметры");
+        Add("app.login", T("Войти в GitHub", "Sign in to GitHub"), CommandScope.Global, CommandKey.Of("ctrl+g", Key.G.WithCtrl),
+            Login, T("войти", "sign in"), hintOptional: true, available: () => !_auth.IsAuthorized);
+        Add("app.help", T("Справка (также F1)", "Help (also F1)"), CommandScope.Global,
+            CommandKey.Any("?", CommandKey.Char('?'), CommandKey.Of("F1", Key.F1)), OpenHelp, T("справка", "help"));
+        Add("app.back", T("Назад к выбору репо", "Back to repo selection"), CommandScope.Global, CommandKey.Of("esc", Key.Esc), RequestStop, T("назад", "back"));
+        Add("app.quit", T("Выход", "Quit"), CommandScope.Global, CommandKey.Of("q", Key.Q), () =>
         {
             Result = MainResult.Quit;
             RequestStop();
-        }, "выход");
+        }, T("выход", "quit"));
 
         ReportKeyProblems(keyOverrides, overridden);
     }
@@ -493,7 +506,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private void ReportKeyProblems(IReadOnlyDictionary<string, string> keyOverrides, HashSet<string> overridden)
     {
         foreach (var id in keyOverrides.Keys.Where(id => _commands.All.All(c => c.Id != id)))
-            _configProblems.Add($"команды {id} нет, клавишу назначить не на что");
+            _configProblems.Add(T($"команды {id} нет, клавишу назначить не на что", $"there is no command {id}, nothing to bind the key to"));
 
         foreach (var group in _commands.All.Where(c => overridden.Contains(c.Id)).GroupBy(c => c.Scope))
         {
@@ -501,7 +514,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             {
                 var other = _commands.All.FirstOrDefault(c => c.Id != command.Id && c.Scope == command.Scope && c.Key.Label == command.Key.Label);
                 if (other is not null)
-                    _configProblems.Add($"клавиша {command.Key.Label} назначена и на {command.Id}, и на {other.Id}");
+                    _configProblems.Add(T($"клавиша {command.Key.Label} назначена и на {command.Id}, и на {other.Id}", $"key {command.Key.Label} is bound to both {command.Id} and {other.Id}"));
             }
         }
     }
@@ -515,13 +528,27 @@ public sealed class MainWindow : Runnable<MainResult?>
         var config = _config.Load();
         var next = ThemeCatalog.Next(config);
         _config.Save(config with { Theme = next });
-        ThemeNotice = $"Тема: {next}";
+        ReloadNotice = T($"Тема: {next}", $"Theme: {next}");
         Result = MainResult.Reload;
         RequestStop();
     }
 
     /// <summary>Сообщение для следующего окна после <see cref="MainResult.Reload"/>.</summary>
-    public string? ThemeNotice { get; private set; }
+    public string? ReloadNotice { get; private set; }
+
+    /// <summary>Переключает язык ru ↔ en, запоминает в конфиге и перезапускает окно: тексты задаются при создании виджетов.</summary>
+    private void SwitchLanguage()
+    {
+        if (_busy)
+            return;
+
+        var next = Loc.Current == Language.Ru ? Language.En : Language.Ru;
+        _config.Save(_config.Load() with { Language = Loc.Code(next) });
+        Loc.Apply(next);
+        ReloadNotice = T("Язык: русский", "Language: English");
+        Result = MainResult.Reload;
+        RequestStop();
+    }
 
     /// <summary>
     /// Отменяет последнее действие по reflog: коммит, merge, pull, checkout. Переписывание истории — через подтверждение;
@@ -546,9 +573,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             if (plan.RewritesHistory)
             {
                 var warning = pushed
-                    ? $"{Theme.SymbolWarning} Это уже отправлено в {_repoStatus?.Upstream}: после отмены история разойдётся, и для push понадобится --force-with-lease."
-                    : "Ветка вернётся к предыдущему состоянию из reflog. Повторить действие можно заново, а найти прежний коммит — в git reflog.";
-                if (!Confirm(plan.Question, plan.Args, warning, "Отменить"))
+                    ? T($"{Theme.SymbolWarning} Это уже отправлено в {_repoStatus?.Upstream}: после отмены история разойдётся, и для push понадобится --force-with-lease.", $"{Theme.SymbolWarning} This is already pushed to {_repoStatus?.Upstream}: after undo the history will diverge and push will need --force-with-lease.")
+                    : T("Ветка вернётся к предыдущему состоянию из reflog. Повторить действие можно заново, а найти прежний коммит — в git reflog.", "The branch returns to its previous state from reflog. You can redo the action, and find the old commit in git reflog.");
+                if (!Confirm(plan.Question, plan.Args, warning, T("Отменить", "Undo")))
                     return;
             }
 
@@ -564,18 +591,18 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (_files.Entries.Count == 0)
         {
-            ShowStatus($"{Theme.SymbolError} Нечего прятать в stash: изменений нет", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Нечего прятать в stash: изменений нет", $"{Theme.SymbolError} Nothing to stash: no changes"), Theme.Error);
             return;
         }
 
         var files = _files.Entries.Select(e => e.File.Path).Distinct().Count();
-        using var dialog = new InputDialog("Stash", $"Спрятать {FilesWord(files)} (с новыми). Сообщение — по желанию",
-            "спрятать");
+        using var dialog = new InputDialog("Stash", T($"Спрятать {FilesWord(files)} (с новыми). Сообщение — по желанию", $"Stash {FilesWord(files)} (including new ones). Message is optional"),
+            T("спрятать", "stash"));
         App!.Run(dialog);
         if (dialog.Result is not { } message)
             return;
 
-        _ = RunAsync(ct => _git.StashAsync(message, ct), $"Изменения спрятаны в stash: {FilesWord(files)}");
+        _ = RunAsync(ct => _git.StashAsync(message, ct), T($"Изменения спрятаны в stash: {FilesWord(files)}", $"Changes stashed: {FilesWord(files)}"));
     }
 
     private Task StashActionAsync(bool pop)
@@ -584,8 +611,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             return Task.CompletedTask;
 
         return pop
-            ? RunAsync(ct => _git.StashPopAsync(stash, ct), $"Stash применён и удалён: {stash.Message}")
-            : RunAsync(ct => _git.StashApplyAsync(stash, ct), $"Stash применён и оставлен в списке: {stash.Message}");
+            ? RunAsync(ct => _git.StashPopAsync(stash, ct), T($"Stash применён и удалён: {stash.Message}", $"Stash applied and dropped: {stash.Message}"))
+            : RunAsync(ct => _git.StashApplyAsync(stash, ct), T($"Stash применён и оставлен в списке: {stash.Message}", $"Stash applied and kept in the list: {stash.Message}"));
     }
 
     private Task DropStashAsync()
@@ -593,11 +620,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || _stash.Selected is not { } stash)
             return Task.CompletedTask;
 
-        if (!Confirm($"Удалить stash «{stash.Message}»?", GitService.StashDropArguments(stash),
-                "Спрятанные изменения пропадут. Это нельзя отменить.", "Удалить"))
+        if (!Confirm(T($"Удалить stash «{stash.Message}»?", $"Drop stash '{stash.Message}'?"), GitService.StashDropArguments(stash),
+                T("Спрятанные изменения пропадут. Это нельзя отменить.", "The stashed changes will be lost. This can't be undone."), T("Удалить", "Drop")))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.StashDropAsync(stash, ct), $"Stash удалён: {stash.Message}");
+        return RunAsync(ct => _git.StashDropAsync(stash, ct), T($"Stash удалён: {stash.Message}", $"Stash dropped: {stash.Message}"));
     }
 
     private string? StashPreview(string action) =>
@@ -646,9 +673,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             return Task.CompletedTask;
 
         var name = files.Count == 1 ? files[0].Path : FilesWord(files.Count);
-        var side = ours ? "наша версия" : "их версия";
+        var side = ours ? T("наша версия", "our version") : T("их версия", "their version");
         return RunAsync(ct => _git.ResolveConflictAsync(files, ours, ct),
-            $"{name}: оставлена {side}. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}");
+            T($"{name}: оставлена {side}. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}", $"{name}: kept {side}. Restore the conflict: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<path>")}"));
     }
 
     /// <summary>Решает конфликт, оставляя обе версии подряд: сначала наши строки, затем их.</summary>
@@ -660,7 +687,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var name = files.Count == 1 ? files[0].Path : FilesWord(files.Count);
         return RunAsync(ct => _git.ResolveBothAsync(files, ct),
-            $"{name}: оставлены обе версии — проверь порядок строк. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}");
+            T($"{name}: оставлены обе версии — проверь порядок строк. Вернуть конфликт: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<путь>")}", $"{name}: kept both versions, check the line order. Restore the conflict: git checkout -m -- {(files.Count == 1 ? files[0].Path : "<path>")}"));
     }
 
     /// <summary>Прерывает незавершённую операцию после подтверждения: возвращает состояние до её начала.</summary>
@@ -671,12 +698,75 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         var operation = _repoOperation;
         var name = RepoHeader.OperationName(operation);
-        if (!Confirm($"Прервать {name}?", GitService.AbortArguments(operation),
-                $"Ветка вернётся к состоянию до {name}. Всё, что уже сделано при разрешении конфликтов, пропадёт.",
-                "Прервать"))
+        if (!Confirm(T($"Прервать {name}?", $"Abort {name}?"), GitService.AbortArguments(operation),
+                T($"Ветка вернётся к состоянию до {name}. Всё, что уже сделано при разрешении конфликтов, пропадёт.", $"The branch returns to its state before {name}. Everything done while resolving conflicts will be lost."),
+                T("Прервать", "Abort")))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.AbortAsync(operation, ct), $"{char.ToUpper(name[0])}{name[1..]} прерван, всё как до него");
+        return RunAsync(ct => _git.AbortAsync(operation, ct), T($"{char.ToUpper(name[0])}{name[1..]} прерван, всё как до него", $"{char.ToUpper(name[0])}{name[1..]} aborted, everything is as before"));
+    }
+
+    /// <summary>Продолжает операцию после решения конфликтов или правки коммита (edit при rebase).</summary>
+    private Task ContinueOperationAsync()
+    {
+        if (_busy || _repoOperation == RepoOperation.None)
+            return Task.CompletedTask;
+
+        var operation = _repoOperation;
+        var name = RepoHeader.OperationName(operation);
+        return RunAsync(ct => _git.ContinueAsync(operation, ct), async _ =>
+            await _git.GetOperationAsync() == operation
+                ? await StoppedMessageAsync()
+                : T($"{char.ToUpper(name[0])}{name[1..]} завершён", $"{char.ToUpper(name[0])}{name[1..]} finished"));
+    }
+
+    /// <summary>Rebase остановился на коммите с действием edit.</summary>
+    private async Task<string> StoppedMessageAsync() =>
+        T($"Rebase остановлен на {await _git.GetShortHeadAsync()} для правки: измени файлы, добавь в индекс, a — amend, C — продолжить", $"Rebase stopped at {await _git.GetShortHeadAsync()} for editing: change files, stage them, a amends, C continues");
+
+    /// <summary>
+    /// Interactive rebase от выбранного коммита (включительно) до HEAD: план в <see cref="RebaseDialog"/>,
+    /// затем подтверждение. Диапазон с merge-коммитами не поддерживается: git выпрямил бы историю.
+    /// </summary>
+    private async Task StartInteractiveRebaseAsync()
+    {
+        if (_busy || _commits.Selected is not { } selected)
+            return;
+
+        var index = _commits.Items.ToList().IndexOf(selected);
+        var range = _commits.Items.Take(index + 1).ToList();
+        var linear = range.All(c => c.Parents.Count <= 1)
+            && range.Zip(range.Skip(1)).All(pair => pair.First.Parents.Count == 1 && pair.First.Parents[0] == pair.Second.Hash);
+        if (!linear)
+        {
+            ShowStatus(T($"{Theme.SymbolError} В диапазоне есть merge-коммит: такой rebase не поддерживается. Выбери коммит выше merge", $"{Theme.SymbolError} The range has a merge commit: this rebase is not supported. Pick a commit above the merge"), Theme.Error);
+            return;
+        }
+
+        IReadOnlyList<RebaseStep> steps;
+        using (var dialog = new RebaseDialog(range))
+        {
+            App!.Run(dialog);
+            if (dialog.Result is not { } result)
+                return;
+            steps = result;
+        }
+
+        var summary = RebaseTodo.Summary(steps, range);
+        var warning = await RewriteWarningAsync(
+            T("Коммиты будут пересозданы с новыми хешами. Незакоммиченные изменения спрячутся и вернутся (--autostash). ", "Commits will be recreated with new hashes. Uncommitted changes are stashed and restored (--autostash). ") +
+            T("При конфликте rebase остановится: реши файлы и нажми C, или A — вернуть всё как было.", "On a conflict the rebase stops: resolve the files and press C, or A to restore everything."));
+        App?.Invoke(() =>
+        {
+            if (!Confirm(T($"Переписать {PluralRu(range.Count, "коммит", "коммита", "коммитов")}: {summary}?", $"Rewrite {PluralEn(range.Count, "commit", "commits")}: {summary}?"),
+                    GitService.InteractiveRebaseArguments(selected), warning, "Rebase"))
+                return;
+
+            _ = RunAsync(ct => _git.InteractiveRebaseAsync(steps, ct), async _ =>
+                await _git.GetOperationAsync() == RepoOperation.Rebase
+                    ? await StoppedMessageAsync()
+                    : T($"Rebase выполнен: {summary}", $"Rebase done: {summary}"));
+        });
     }
 
     private void FocusPanel(int step)
@@ -708,7 +798,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         if (!_auth.GhInstalled)
         {
-            ShowStatus($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", $"{Theme.SymbolError} gh not found. Install it: sudo dnf install gh"), Theme.Error);
             return;
         }
 
@@ -779,11 +869,11 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (branch.IsCurrent)
         {
-            ShowStatus($"{Theme.SymbolSuccess} Ты уже на ветке {branch.Name}", Theme.Muted, autoHide: true);
+            ShowStatus(T($"{Theme.SymbolSuccess} Ты уже на ветке {branch.Name}", $"{Theme.SymbolSuccess} You are already on {branch.Name}"), Theme.Muted, autoHide: true);
             return Task.CompletedTask;
         }
 
-        return RunAsync(ct => _git.SwitchAsync(branch, ct), $"Переключено на {branch.Name}");
+        return RunAsync(ct => _git.SwitchAsync(branch, ct), T($"Переключено на {branch.Name}", $"Switched to {branch.Name}"));
     }
 
     /// <summary>Создаёт ветку от текущего HEAD и переключается на неё.</summary>
@@ -795,13 +885,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         var head = _repoStatus?.HeadHash is { Length: >= 7 } hash ? $" {Theme.SymbolSeparator} {hash[..7]}" : "";
         var from = (_repoStatus?.Branch ?? "HEAD") + head;
         var existing = _branches.Items.Select(b => b.Name).ToList();
-        using var dialog = new InputDialog("Новая ветка", $"От: {from}", "создать и переключиться",
+        using var dialog = new InputDialog(T("Новая ветка", "New branch"), T($"От: {from}", $"From: {from}"), T("создать и переключиться", "create and switch"),
             name => BranchName.Check(name, existing));
         App!.Run(dialog);
         if (dialog.Result is not { } name)
             return;
 
-        _ = RunAsync(ct => _git.CreateBranchAsync(name, ct), $"Создана ветка {name}, ты на ней");
+        _ = RunAsync(ct => _git.CreateBranchAsync(name, ct), T($"Создана ветка {name}, ты на ней", $"Created branch {name}, you are on it"));
     }
 
     /// <summary>
@@ -815,26 +905,26 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (branch.IsCurrent)
         {
-            ShowStatus($"{Theme.SymbolError} Нельзя удалить текущую ветку. Переключись на другую (space) и повтори", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Нельзя удалить текущую ветку. Переключись на другую (space) и повтори", $"{Theme.SymbolError} Can't delete the current branch. Switch to another one (space) and retry"), Theme.Error);
             return;
         }
 
-        if (!Confirm($"Удалить ветку {branch.Name}?", GitService.DeleteBranchArguments(branch, force: false),
-                "Если в ветке есть коммиты, которых нет в текущей, git откажет и предложит удалить принудительно.",
-                "Удалить"))
+        if (!Confirm(T($"Удалить ветку {branch.Name}?", $"Delete branch {branch.Name}?"), GitService.DeleteBranchArguments(branch, force: false),
+                T("Если в ветке есть коммиты, которых нет в текущей, git откажет и предложит удалить принудительно.", "If the branch has commits that are not in the current one, git will refuse and offer to force delete."),
+                T("Удалить", "Delete")))
             return;
 
-        var result = await RunAsync(ct => _git.DeleteBranchAsync(branch, force: false, ct), $"Ветка {branch.Name} удалена");
+        var result = await RunAsync(ct => _git.DeleteBranchAsync(branch, force: false, ct), T($"Ветка {branch.Name} удалена", $"Branch {branch.Name} deleted"));
         if (result is null || result.Success || !result.StdErr.Contains("is not fully merged"))
             return;
 
         var unmerged = await _git.CountUnmergedAsync(branch);
         App?.Invoke(() =>
         {
-            if (Confirm($"Ветка {branch.Name} не влита. Удалить всё равно?", GitService.DeleteBranchArguments(branch, force: true),
-                    $"Коммитов, которых нет в текущей ветке: {unmerged}. Они пропадут, вернуть их можно только через git reflog.",
-                    "Удалить всё равно"))
-                _ = RunAsync(ct => _git.DeleteBranchAsync(branch, force: true, ct), $"Ветка {branch.Name} удалена");
+            if (Confirm(T($"Ветка {branch.Name} не влита. Удалить всё равно?", $"Branch {branch.Name} is not merged. Delete anyway?"), GitService.DeleteBranchArguments(branch, force: true),
+                    T($"Коммитов, которых нет в текущей ветке: {unmerged}. Они пропадут, вернуть их можно только через git reflog.", $"Commits not in the current branch: {unmerged}. They will be lost, only git reflog can bring them back."),
+                    T("Удалить всё равно", "Delete anyway")))
+                _ = RunAsync(ct => _git.DeleteBranchAsync(branch, force: true, ct), T($"Ветка {branch.Name} удалена", $"Branch {branch.Name} deleted"));
         });
     }
 
@@ -846,15 +936,15 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (branch.IsCurrent)
         {
-            ShowStatus($"{Theme.SymbolError} Это текущая ветка. Выбери ветку, которую нужно влить в {branch.Name}", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Это текущая ветка. Выбери ветку, которую нужно влить в {branch.Name}", $"{Theme.SymbolError} This is the current branch. Pick a branch to merge into {branch.Name}"), Theme.Error);
             return Task.CompletedTask;
         }
 
         var target = _repoStatus?.Branch ?? "HEAD";
         return RunAsync(ct => _git.MergeAsync(branch, ct), result => Task.FromResult(
-            result.StdOut.Contains("Already up to date") ? $"{target} уже содержит все коммиты {branch.Name}"
-            : result.StdOut.Contains("Fast-forward") ? $"{branch.Name} влита в {target} (fast-forward)"
-            : $"{branch.Name} влита в {target}, создан merge-коммит"));
+            result.StdOut.Contains("Already up to date") ? T($"{target} уже содержит все коммиты {branch.Name}", $"{target} already has all commits of {branch.Name}")
+            : result.StdOut.Contains("Fast-forward") ? T($"{branch.Name} влита в {target} (fast-forward)", $"{branch.Name} merged into {target} (fast-forward)")
+            : T($"{branch.Name} влита в {target}, создан merge-коммит", $"{branch.Name} merged into {target}, merge commit created")));
     }
 
     /// <summary>
@@ -867,7 +957,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
 
         _busy = true;
-        ShowStatus("Загружаю актуальный шаблон .gitignore с GitHub…", Theme.Info);
+        ShowStatus(T("Загружаю актуальный шаблон .gitignore с GitHub…", "Downloading the latest .gitignore template from GitHub…"), Theme.Info);
         GitIgnoreResult template;
         try
         {
@@ -884,12 +974,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             if (template.Origin == GitIgnoreOrigin.GitHub)
             {
                 CreateScaffoldFile(root => RepoScaffold.CreateGitIgnore(root, template.Content), GitIgnoreTemplate.FileName,
-                    "Добавить .gitignore", "по актуальному шаблону github/gitignore");
+                    T("Добавить .gitignore", "Add .gitignore"), T("по актуальному шаблону github/gitignore", "from the latest github/gitignore template"));
                 return;
             }
 
             CreateScaffoldFile(root => RepoScaffold.CreateGitIgnore(root, template.Content), GitIgnoreTemplate.FileName,
-                "Добавить .gitignore", $"{Theme.SymbolWarning} GitHub недоступен, взят встроенный шаблон", warning: true);
+                T("Добавить .gitignore", "Add .gitignore"), T($"{Theme.SymbolWarning} GitHub недоступен, взят встроенный шаблон", $"{Theme.SymbolWarning} GitHub unavailable, using the built-in template"), warning: true);
         });
     }
 
@@ -901,18 +991,18 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             if (!create(_git.RepoRoot))
             {
-                ShowStatus($"{Theme.SymbolError} {fileName} уже есть в репозитории", Theme.Error);
+                ShowStatus(T($"{Theme.SymbolError} {fileName} уже есть в репозитории", $"{Theme.SymbolError} {fileName} already exists in the repository"), Theme.Error);
                 return;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ShowStatus($"{Theme.SymbolError} Не удалось создать {fileName}: {ex.Message}", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Не удалось создать {fileName}: {ex.Message}", $"{Theme.SymbolError} Couldn't create {fileName}: {ex.Message}"), Theme.Error);
             return;
         }
 
         var how = note is null ? "" : $" ({note})";
-        ShowStatus($"{(warning ? Theme.SymbolWarning : Theme.SymbolSuccess)} {fileName} создан{how}: space — в индекс, c — коммит (ctrl+t → «{templateName}»)",
+        ShowStatus(T($"{(warning ? Theme.SymbolWarning : Theme.SymbolSuccess)} {fileName} создан{how}: space — в индекс, c — коммит (ctrl+t → «{templateName}»)", $"{(warning ? Theme.SymbolWarning : Theme.SymbolSuccess)} {fileName} created{how}: space stages, c commits (ctrl+t → '{templateName}')"),
             warning ? Theme.Warning : Theme.Success, autoHide: true);
         _ = RefreshAsync();
     }
@@ -925,7 +1015,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         var pushed = await _git.IsHeadPushedAsync();
         return pushed
-            ? $"{Theme.SymbolWarning} Коммиты уже отправлены в {_repoStatus?.Upstream}: после этого история разойдётся, и для push понадобится --force-with-lease."
+            ? T($"{Theme.SymbolWarning} Коммиты уже отправлены в {_repoStatus?.Upstream}: после этого история разойдётся, и для push понадобится --force-with-lease.", $"{Theme.SymbolWarning} The commits are already pushed to {_repoStatus?.Upstream}: after this the history will diverge and push will need --force-with-lease.")
             : normal;
     }
 
@@ -937,24 +1027,24 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (_repoStatus?.HeadHash is null)
         {
-            ShowStatus($"{Theme.SymbolError} Amend невозможен: коммитов ещё нет", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Amend невозможен: коммитов ещё нет", $"{Theme.SymbolError} Can't amend: no commits yet"), Theme.Error);
             return;
         }
 
         if (!_files.Entries.Any(r => r.Section == FileSection.Staged))
         {
-            ShowStatus($"{Theme.SymbolError} Нечего добавлять в коммит: сначала добавь файлы в индекс (space)", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Нечего добавлять в коммит: сначала добавь файлы в индекс (space)", $"{Theme.SymbolError} Nothing to add to the commit: stage files first (space)"), Theme.Error);
             return;
         }
 
         var last = _commits.Items.Count > 0 ? _commits.Items[0] : null;
-        var warning = await RewriteWarningAsync("Последний коммит будет заменён новым с теми же сообщением и автором. Прежний можно найти в git reflog (или вернуть клавишей z).");
+        var warning = await RewriteWarningAsync(T("Последний коммит будет заменён новым с теми же сообщением и автором. Прежний можно найти в git reflog (или вернуть клавишей z).", "The last commit will be replaced by a new one with the same message and author. The old one is in git reflog (or press z to restore it)."));
         App?.Invoke(() =>
         {
-            if (!Confirm($"Добавить staged-изменения в коммит «{last?.Subject}»?", GitService.AmendArguments, warning, "Amend"))
+            if (!Confirm(T($"Добавить staged-изменения в коммит «{last?.Subject}»?", $"Add staged changes to commit '{last?.Subject}'?"), GitService.AmendArguments, warning, "Amend"))
                 return;
 
-            _ = RunAsync(ct => _git.AmendAsync(ct), "Изменения добавлены в последний коммит");
+            _ = RunAsync(ct => _git.AmendAsync(ct), T("Изменения добавлены в последний коммит", "Changes added to the last commit"));
         });
     }
 
@@ -964,11 +1054,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || _commits.Selected is not { } commit)
             return Task.CompletedTask;
 
-        if (!Confirm($"Откатить коммит {commit.ShortHash} «{commit.Subject}»?", GitService.RevertArguments(commit),
-                "Появится новый коммит с обратными изменениями. Прежний коммит и история остаются.", "Revert"))
+        if (!Confirm(T($"Откатить коммит {commit.ShortHash} «{commit.Subject}»?", $"Revert commit {commit.ShortHash} '{commit.Subject}'?"), GitService.RevertArguments(commit),
+                T("Появится новый коммит с обратными изменениями. Прежний коммит и история остаются.", "A new commit with the opposite changes will appear. The old commit and history stay."), "Revert"))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.RevertAsync(commit, ct), $"Коммит {commit.ShortHash} откачен новым коммитом");
+        return RunAsync(ct => _git.RevertAsync(commit, ct), T($"Коммит {commit.ShortHash} откачен новым коммитом", $"Commit {commit.ShortHash} reverted with a new commit"));
     }
 
     /// <summary>Переносит ветку на выбранный коммит. Soft и mixed сохраняют изменения, hard их удаляет.</summary>
@@ -979,23 +1069,23 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (_commits.Items.Count > 0 && _commits.Items[0].Hash == commit.Hash && mode != ResetMode.Hard)
         {
-            ShowStatus($"{Theme.SymbolError} Это уже последний коммит: выбери более старый", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Это уже последний коммит: выбери более старый", $"{Theme.SymbolError} This is already the last commit: pick an older one"), Theme.Error);
             return;
         }
 
         var normal = mode switch
         {
-            ResetMode.Soft => "Коммиты выше пропадут из ветки, а их изменения окажутся в индексе (staged).",
-            ResetMode.Mixed => "Коммиты выше пропадут из ветки, а их изменения останутся в файлах, но не в индексе.",
-            _ => $"{Theme.SymbolWarning} Коммиты выше пропадут, а все незакоммиченные изменения в файлах будут удалены. Прежний коммит можно найти в git reflog.",
+            ResetMode.Soft => T("Коммиты выше пропадут из ветки, а их изменения окажутся в индексе (staged).", "Commits above will leave the branch, their changes will be staged."),
+            ResetMode.Mixed => T("Коммиты выше пропадут из ветки, а их изменения останутся в файлах, но не в индексе.", "Commits above will leave the branch, their changes stay in the files but unstaged."),
+            _ => T($"{Theme.SymbolWarning} Коммиты выше пропадут, а все незакоммиченные изменения в файлах будут удалены. Прежний коммит можно найти в git reflog.", $"{Theme.SymbolWarning} Commits above will be lost and all uncommitted changes in files deleted. The old commit is in git reflog."),
         };
         var warning = await RewriteWarningAsync(normal);
         App?.Invoke(() =>
         {
-            if (!Confirm($"Перенести ветку на {commit.ShortHash} «{commit.Subject}»?", GitService.ResetArguments(commit, mode), warning, "Reset"))
+            if (!Confirm(T($"Перенести ветку на {commit.ShortHash} «{commit.Subject}»?", $"Move the branch to {commit.ShortHash} '{commit.Subject}'?"), GitService.ResetArguments(commit, mode), warning, "Reset"))
                 return;
 
-            _ = RunAsync(ct => _git.ResetAsync(commit, mode, ct), $"Ветка перенесена на {commit.ShortHash} (--{mode.ToString().ToLowerInvariant()})");
+            _ = RunAsync(ct => _git.ResetAsync(commit, mode, ct), T($"Ветка перенесена на {commit.ShortHash} (--{mode.ToString().ToLowerInvariant()})", $"Branch moved to {commit.ShortHash} (--{mode.ToString().ToLowerInvariant()})"));
         });
     }
 
@@ -1007,7 +1097,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (branch.IsCurrent)
         {
-            ShowStatus($"{Theme.SymbolError} Это текущая ветка. Выбери другую ветку, чтобы взять её последний коммит", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Это текущая ветка. Выбери другую ветку, чтобы взять её последний коммит", $"{Theme.SymbolError} This is the current branch. Pick another branch to take its last commit"), Theme.Error);
             return;
         }
 
@@ -1015,7 +1105,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         App?.Invoke(() =>
         {
             if (commit is null)
-                ShowStatus($"{Theme.SymbolError} В ветке {branch.Name} нет коммитов", Theme.Error);
+                ShowStatus(T($"{Theme.SymbolError} В ветке {branch.Name} нет коммитов", $"{Theme.SymbolError} Branch {branch.Name} has no commits"), Theme.Error);
             else
                 _ = CherryPickAsync(commit);
         });
@@ -1027,8 +1117,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy)
             return;
 
-        using var dialog = new InputDialog("Cherry-pick", "Хеш коммита, имя ветки или тега. Хеш видно в панели коммитов другой ветки",
-            "скопировать", text => text.StartsWith('-') ? "Хеш не может начинаться с -" : null);
+        using var dialog = new InputDialog("Cherry-pick", T("Хеш коммита, имя ветки или тега. Хеш видно в панели коммитов другой ветки", "Commit hash, branch or tag name. Hashes are shown in the commits panel of another branch"),
+            T("скопировать", "copy"), text => text.StartsWith('-') ? T("Хеш не может начинаться с -", "A hash can't start with -") : null);
         App!.Run(dialog);
         if (dialog.Result is not { } revision)
             return;
@@ -1039,7 +1129,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             App?.Invoke(() =>
             {
                 if (commit is null)
-                    ShowStatus($"{Theme.SymbolError} Коммит «{revision}» не найден. Проверь хеш или имя ветки", Theme.Error);
+                    ShowStatus(T($"{Theme.SymbolError} Коммит «{revision}» не найден. Проверь хеш или имя ветки", $"{Theme.SymbolError} Commit '{revision}' not found. Check the hash or branch name"), Theme.Error);
                 else
                     _ = CherryPickAsync(commit);
             });
@@ -1047,7 +1137,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     private Task CherryPickAsync(Commit commit) =>
-        RunAsync(ct => _git.CherryPickAsync(commit.Hash, ct), $"Коммит {commit.ShortHash} скопирован: {commit.Subject}");
+        RunAsync(ct => _git.CherryPickAsync(commit.Hash, ct), T($"Коммит {commit.ShortHash} скопирован: {commit.Subject}", $"Commit {commit.ShortHash} copied: {commit.Subject}"));
 
     private bool Confirm(string question, string[] args, string warning, string confirmText)
     {
@@ -1073,9 +1163,9 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         return section switch
         {
-            FileSection.Staged => RunAsync(ct => _git.UnstageAsync(files, ct), $"{name} убран из индекса"),
-            FileSection.Conflicts => RunAsync(ct => _git.StageAsync(files, ct), $"{name}: конфликт отмечен как решённый"),
-            _ => RunAsync(ct => _git.StageAsync(files, ct), $"{name} добавлен в индекс"),
+            FileSection.Staged => RunAsync(ct => _git.UnstageAsync(files, ct), T($"{name} убран из индекса", $"{name} unstaged")),
+            FileSection.Conflicts => RunAsync(ct => _git.StageAsync(files, ct), T($"{name}: конфликт отмечен как решённый", $"{name}: conflict marked as resolved")),
+            _ => RunAsync(ct => _git.StageAsync(files, ct), T($"{name} добавлен в индекс", $"{name} staged")),
         };
     }
 
@@ -1099,17 +1189,17 @@ public sealed class MainWindow : Runnable<MainResult?>
             return Task.CompletedTask;
 
         var isFolder = _files.SelectedRow is DirectoryRow;
-        var where = isFolder ? $"в папке {name}" : $"в {name}";
+        var where = isFolder ? T($"в папке {name}", $"in folder {name}") : T($"в {name}", $"in {name}");
 
         if (section == FileSection.Conflicts)
         {
-            ShowStatus($"{Theme.SymbolError} Конфликт так не сбросить: реши его в файле и добавь в индекс (space)", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Конфликт так не сбросить: реши его в файле и добавь в индекс (space)", $"{Theme.SymbolError} A conflict can't be discarded this way: resolve it in the file and stage it (space)"), Theme.Error);
             return Task.CompletedTask;
         }
 
         if (section == FileSection.Staged && _repoStatus?.HeadHash is null)
         {
-            ShowStatus($"{Theme.SymbolError} Коммитов ещё нет: убери файл из индекса (space), затем удали его как новый (d)", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Коммитов ещё нет: убери файл из индекса (space), затем удали его как новый (d)", $"{Theme.SymbolError} No commits yet: unstage the file (space), then delete it as new (d)"), Theme.Error);
             return Task.CompletedTask;
         }
 
@@ -1117,28 +1207,28 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             FileSection.Untracked => (
                 GitService.DeleteUntrackedArguments(files),
-                isFolder ? $"Удалить новые файлы в папке {name}?" : $"Удалить {name}?",
-                "Новые файлы ещё не в git: они будут удалены с диска, вернуть их будет нельзя.",
-                "Удалить",
+                isFolder ? T($"Удалить новые файлы в папке {name}?", $"Delete new files in folder {name}?") : T($"Удалить {name}?", $"Delete {name}?"),
+                T("Новые файлы ещё не в git: они будут удалены с диска, вернуть их будет нельзя.", "New files are not in git yet: they will be deleted from disk and can't be restored."),
+                T("Удалить", "Delete"),
                 (Func<CancellationToken, Task<GitResult>>)(ct => _git.DeleteUntrackedAsync(files, ct))),
             FileSection.Staged => (
                 GitService.DiscardToHeadArguments(files),
-                $"Сбросить все изменения {where}?",
-                "Файлы вернутся к последнему коммиту: и staged, и несохранённые в индексе изменения пропадут. Это нельзя отменить.",
-                "Сбросить",
+                T($"Сбросить все изменения {where}?", $"Discard all changes {where}?"),
+                T("Файлы вернутся к последнему коммиту: и staged, и несохранённые в индексе изменения пропадут. Это нельзя отменить.", "Files return to the last commit: both staged and unstaged changes will be lost. This can't be undone."),
+                T("Сбросить", "Discard"),
                 ct => _git.DiscardToHeadAsync(files, ct)),
             _ => (
                 GitService.DiscardWorktreeArguments(files),
-                $"Сбросить изменения {where}?",
-                "Изменения, не добавленные в индекс, пропадут. Staged-часть останется. Это нельзя отменить.",
-                "Сбросить",
+                T($"Сбросить изменения {where}?", $"Discard changes {where}?"),
+                T("Изменения, не добавленные в индекс, пропадут. Staged-часть останется. Это нельзя отменить.", "Unstaged changes will be lost. The staged part stays. This can't be undone."),
+                T("Сбросить", "Discard"),
                 ct => _git.DiscardWorktreeAsync(files, ct)),
         };
 
         if (!Confirm(question, args, warning, confirmText))
             return Task.CompletedTask;
 
-        var done = section == FileSection.Untracked ? $"Удалено: {name}" : $"Изменения сброшены: {name}";
+        var done = section == FileSection.Untracked ? T($"Удалено: {name}", $"Deleted: {name}") : T($"Изменения сброшены: {name}", $"Changes discarded: {name}");
         return RunAsync(action, done);
     }
 
@@ -1147,10 +1237,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         var hasUnstaged = _files.Entries.Any(r => r.Section != FileSection.Staged);
         if (hasUnstaged)
-            return RunAsync(ct => _git.StageAllAsync(ct), "Все изменения добавлены в индекс");
+            return RunAsync(ct => _git.StageAllAsync(ct), T("Все изменения добавлены в индекс", "All changes staged"));
 
         return _files.Entries.Count > 0
-            ? RunAsync(ct => _git.UnstageAllAsync(ct), "Все изменения убраны из индекса")
+            ? RunAsync(ct => _git.UnstageAllAsync(ct), T("Все изменения убраны из индекса", "All changes unstaged"))
             : Task.CompletedTask;
     }
 
@@ -1163,7 +1253,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         var stagedCount = _files.Entries.Count(r => r.Section == FileSection.Staged);
         if (stagedCount == 0)
         {
-            ShowStatus($"{Theme.SymbolError} Нечего коммитить: добавь файлы в индекс клавишей space или a", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Нечего коммитить: добавь файлы в индекс клавишей space или a", $"{Theme.SymbolError} Nothing to commit: stage files with space or a"), Theme.Error);
             return;
         }
 
@@ -1175,7 +1265,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         _ = RunAsync(ct => _git.CommitAsync(message, ct), async _ =>
         {
             var hash = await _git.GetShortHeadAsync();
-            return $"Коммит {hash} создан: {message}";
+            return T($"Коммит {hash} создан: {message}", $"Commit {hash} created: {message}");
         });
     }
 
@@ -1217,7 +1307,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
         catch (OperationCanceledException)
         {
-            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} Отменено: {progress?.TrimEnd('…')}", Theme.Error));
+            App?.Invoke(() => ShowStatus(T($"{Theme.SymbolError} Отменено: {progress?.TrimEnd('…')}", $"{Theme.SymbolError} Cancelled: {progress?.TrimEnd('…')}"), Theme.Error));
             await LoadStatusAsync();
             return null;
         }
@@ -1236,17 +1326,17 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             var status = await _git.GetStatusAsync();
             return status.Behind > 0
-                ? $"На сервере {TextDrawing.Plural(status.Behind, "новый коммит", "новых коммита", "новых коммитов")}. Нажми p, чтобы забрать"
-                : "Fetch выполнен, новых коммитов нет";
-        }, "Получение изменений с сервера…");
+                ? T($"На сервере {PluralRu(status.Behind, "новый коммит", "новых коммита", "новых коммитов")}. Нажми p, чтобы забрать", $"The server has {PluralEn(status.Behind, "new commit", "new commits")}. Press p to get them")
+                : T("Fetch выполнен, новых коммитов нет", "Fetch done, no new commits");
+        }, T("Получение изменений с сервера…", "Fetching changes from the server…"));
 
     private Task PullAsync()
     {
         var upstream = _repoStatus?.Upstream ?? "upstream";
         return RunAsync(ct => _git.PullAsync(ct), result => Task.FromResult(
-            result.StdOut.Contains("Already up to date") ? $"Уже актуально: в {upstream} нет новых коммитов"
-            : result.StdOut.Contains("Fast-forward") ? $"Pull из {upstream} выполнен (fast-forward)"
-            : $"Pull из {upstream} выполнен, изменения слиты"), $"Pull из {upstream}…");
+            result.StdOut.Contains("Already up to date") ? T($"Уже актуально: в {upstream} нет новых коммитов", $"Up to date: {upstream} has no new commits")
+            : result.StdOut.Contains("Fast-forward") ? T($"Pull из {upstream} выполнен (fast-forward)", $"Pulled from {upstream} (fast-forward)")
+            : T($"Pull из {upstream} выполнен, изменения слиты", $"Pulled from {upstream}, changes merged")), T($"Pull из {upstream}…", $"Pulling from {upstream}…"));
     }
 
     /// <summary>
@@ -1260,15 +1350,15 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (status.IsDetached || status.Branch is not { } branch)
         {
-            ShowStatus($"{Theme.SymbolError} HEAD не на ветке (detached). Создай ветку (n в панели веток) и сделай push", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} HEAD не на ветке (detached). Создай ветку (n в панели веток) и сделай push", $"{Theme.SymbolError} HEAD is not on a branch (detached). Create a branch (n in the branches panel) and push"), Theme.Error);
             return;
         }
 
         if (status.Upstream is { } upstream)
         {
             _pushUpstreamOffer = null;
-            var count = status.Ahead > 0 ? TextDrawing.Plural(status.Ahead, "коммит", "коммита", "коммитов") + " " : "";
-            await RunAsync(ct => _git.PushAsync(ct), $"Отправлено {count}в {upstream}", $"Отправка в {upstream}…");
+            var count = status.Ahead > 0 ? Plural(status.Ahead, "коммит", "коммита", "коммитов", "commit", "commits") + " " : "";
+            await RunAsync(ct => _git.PushAsync(ct), T($"Отправлено {count}в {upstream}", $"Pushed {count}to {upstream}"), T($"Отправка в {upstream}…", $"Pushing to {upstream}…"));
             return;
         }
 
@@ -1285,7 +1375,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (remotes.Count == 0)
         {
-            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} Remote не настроен. Добавь его: git remote add origin <адрес>", Theme.Error));
+            App?.Invoke(() => ShowStatus(T($"{Theme.SymbolError} Remote не настроен. Добавь его: git remote add origin <адрес>", $"{Theme.SymbolError} No remote configured. Add one: git remote add origin <url>"), Theme.Error));
             return;
         }
 
@@ -1295,13 +1385,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             _pushUpstreamOffer = branch;
             App?.Invoke(() => ShowStatus(
-                $"{Theme.SymbolWarning} Нет upstream для {branch}. Нажми P ещё раз, чтобы выполнить {command}", Theme.Warning));
+                T($"{Theme.SymbolWarning} Нет upstream для {branch}. Нажми P ещё раз, чтобы выполнить {command}", $"{Theme.SymbolWarning} No upstream for {branch}. Press P again to run {command}"), Theme.Warning));
             return;
         }
 
         _pushUpstreamOffer = null;
         await RunAsync(ct => _git.PushSetUpstreamAsync(remote, branch, ct),
-            $"Ветка {branch} опубликована в {remote}, upstream настроен", $"Публикация {branch} в {remote}…");
+            T($"Ветка {branch} опубликована в {remote}, upstream настроен", $"Branch {branch} published to {remote}, upstream set"), T($"Публикация {branch} в {remote}…", $"Publishing {branch} to {remote}…"));
     }
 
     /// <summary>Спиннер в строке статуса: «⠹ Отправка в origin/main…  esc отмена».</summary>
@@ -1309,7 +1399,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         ShowStatus("", Theme.Muted);
         var frame = 0;
-        void Draw() => _status.Text = $"{Theme.SpinnerFrames[frame % Theme.SpinnerFrames.Length]} {text}  esc отмена";
+        void Draw() => _status.Text = T($"{Theme.SpinnerFrames[frame % Theme.SpinnerFrames.Length]} {text}  esc отмена", $"{Theme.SpinnerFrames[frame % Theme.SpinnerFrames.Length]} {text}  esc cancel");
         Draw();
         _spinnerTimeout = App?.AddTimeout(TimeSpan.FromMilliseconds(80), () =>
         {
@@ -1342,7 +1432,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         _busy = true;
         if (!silent)
-            App?.Invoke(() => ShowStatus($"{Theme.SpinnerFrames[0]} Обновление…", Theme.Muted));
+            App?.Invoke(() => ShowStatus(T($"{Theme.SpinnerFrames[0]} Обновление…", $"{Theme.SpinnerFrames[0]} Refreshing…"), Theme.Muted));
         try
         {
             if (await LoadStatusAsync() && !silent)
@@ -1423,19 +1513,19 @@ public sealed class MainWindow : Runnable<MainResult?>
         _diffKey = null;
         if (_branches.Selected is not { } branch)
         {
-            _diffTitle.Text = " Ветка ";
-            _diff.SetMessage("Веток пока нет: сделай первый коммит");
+            _diffTitle.Text = T(" Ветка ", " Branch ");
+            _diff.SetMessage(T("Веток пока нет: сделай первый коммит", "No branches yet: make the first commit"));
             return Task.CompletedTask;
         }
 
-        _diffTitle.Text = $" Ветка {Theme.SymbolSeparator} {branch.Name} ";
+        _diffTitle.Text = T($" Ветка {Theme.SymbolSeparator} {branch.Name} ", $" Branch {Theme.SymbolSeparator} {branch.Name} ");
         var upstream = branch switch
         {
-            { IsUpstreamGone: true } => $"upstream {branch.Upstream} удалён на сервере",
+            { IsUpstreamGone: true } => T($"upstream {branch.Upstream} удалён на сервере", $"upstream {branch.Upstream} deleted on the server"),
             { Upstream: { } name } => $"upstream {name} {Theme.SymbolAhead}{branch.Ahead} {Theme.SymbolBehind}{branch.Behind}",
-            _ => "без upstream",
+            _ => T("без upstream", "no upstream"),
         };
-        var action = branch.IsCurrent ? "текущая ветка" : "space — переключиться";
+        var action = branch.IsCurrent ? T("текущая ветка", "current branch") : T("space — переключиться", "space switches");
         _diff.SetMessage($"{Theme.SymbolBranch} {branch.Name} {Theme.SymbolSeparator} {upstream} {Theme.SymbolSeparator} {action}");
         return Task.CompletedTask;
     }
@@ -1445,12 +1535,12 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_commits.Selected is not { } commit)
         {
             _diffKey = null;
-            _diffTitle.Text = " Коммит ";
-            _diff.SetMessage("Коммитов пока нет");
+            _diffTitle.Text = T(" Коммит ", " Commit ");
+            _diff.SetMessage(T("Коммитов пока нет", "No commits yet"));
             return Task.CompletedTask;
         }
 
-        return ShowDiffAsync(commit.Hash, $" Коммит · {commit.ShortHash} ", async ct =>
+        return ShowDiffAsync(commit.Hash, T($" Коммит · {commit.ShortHash} ", $" Commit · {commit.ShortHash} "), async ct =>
         {
             var diff = await _git.GetCommitDiffAsync(commit, ct);
             return await Task.Run(() => DiffPanel.PrepareCommit(commit, diff, DateTimeOffset.Now), ct);
@@ -1477,8 +1567,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             _diffKey = null;
             _diffTitle.Text = $" Diff · {directory.Path}/ ";
             var files = directory.Files.Count;
-            var action = directory.Collapsed ? "развернуть" : "свернуть";
-            _diff.SetMessage($"Папка: {FilesWord(files)}. space — stage всей папки, enter — {action}");
+            var action = directory.Collapsed ? T("развернуть", "expand") : T("свернуть", "collapse");
+            _diff.SetMessage(T($"Папка: {FilesWord(files)}. space — stage всей папки, enter — {action}", $"Folder: {FilesWord(files)}. space stages the whole folder, enter: {action}"));
             return Task.CompletedTask;
         }
 
@@ -1491,7 +1581,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
 
         var staged = row.Section == FileSection.Staged;
-        var tag = staged ? " · staged" : row.File.IsUntracked ? " · новый файл" : "";
+        var tag = staged ? " · staged" : row.File.IsUntracked ? T(" · новый файл", " · new file") : "";
         return ShowDiffAsync((staged, row.File.Path), $" Diff · {row.File.Path}{tag} ", async ct =>
         {
             var lines = await _git.GetDiffAsync(row.File, staged, ct);
@@ -1507,7 +1597,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         if (row.Section == FileSection.Staged && row.File.OriginalPath is not null)
         {
-            ShowStatus($"{Theme.SymbolError} Переименованный файл не убрать из индекса по строкам: unstage его целиком (space)", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Переименованный файл не убрать из индекса по строкам: unstage его целиком (space)", $"{Theme.SymbolError} A renamed file can't be unstaged by lines: unstage it whole (space)"), Theme.Error);
             return;
         }
 
@@ -1539,14 +1629,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             && (target.Staged ? f.HasStagedChanges : f.HasUnstagedChanges));
         if (file is null)
         {
-            var where = target.Staged ? "убраны из индекса" : "в индексе";
+            var where = target.Staged ? T("убраны из индекса", "unstaged") : T("в индексе", "staged");
             StopLineStaging();
             _files.SetFocus();
-            ShowStatus($"{Theme.SymbolSuccess} Все изменения {target.Path} {where}", Theme.Success, autoHide: true);
+            ShowStatus(T($"{Theme.SymbolSuccess} Все изменения {target.Path} {where}", $"{Theme.SymbolSuccess} All changes of {target.Path} {where}"), Theme.Success, autoHide: true);
             return Task.CompletedTask;
         }
 
-        var title = target.Staged ? $" Unstage по строкам · {file.Path} · staged " : $" Stage по строкам · {file.Path} ";
+        var title = target.Staged ? T($" Unstage по строкам · {file.Path} · staged ", $" Unstage by lines · {file.Path} · staged ") : T($" Stage по строкам · {file.Path} ", $" Stage by lines · {file.Path} ");
         return ShowDiffAsync((target.Staged, file.Path), title, async ct =>
         {
             var lines = await _git.GetDiffAsync(file, target.Staged, ct);
@@ -1576,20 +1666,20 @@ public sealed class MainWindow : Runnable<MainResult?>
         var chosen = changes.ToHashSet(ReferenceEqualityComparer.Instance);
         if (chosen.Count == 0)
         {
-            ShowStatus($"{Theme.SymbolError} Встань на строку с + или -", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Встань на строку с + или -", $"{Theme.SymbolError} Move to a line with + or -"), Theme.Error);
             return null;
         }
 
         if (source.Any(l => l.Kind == DiffLineKind.Binary))
         {
-            ShowStatus($"{Theme.SymbolError} Бинарный файл по строкам не {action}: используй панель файлов", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Бинарный файл по строкам не {action}: используй панель файлов", $"{Theme.SymbolError} A binary file can't be {action} by lines: use the files panel"), Theme.Error);
             return null;
         }
 
         // Git отдал не UTF-8 (например, windows-1251): записанный обратно патч испортил бы файл.
         if (source.Any(l => l.Text.Contains('\uFFFD')))
         {
-            ShowStatus($"{Theme.SymbolError} Файл не в UTF-8, по строкам его не {action} безопасно: используй панель файлов", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Файл не в UTF-8, по строкам его не {action} безопасно: используй панель файлов", $"{Theme.SymbolError} The file is not UTF-8, it can't be {action} by lines safely: use the files panel"), Theme.Error);
             return null;
         }
 
@@ -1602,20 +1692,20 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy || _staging is not { Staged: false } target || _diff.Source is not { } source)
             return Task.CompletedTask;
 
-        if (SelectedSourceLines(source, _diff.SelectedChanges, "сбросить") is not { } selected)
+        if (SelectedSourceLines(source, _diff.SelectedChanges, T("сбросить", "discarded")) is not { } selected)
             return Task.CompletedTask;
 
         // Diff «индекс → рабочая копия» откатывается в рабочей копии: патч строится как для unstage.
         if (PatchBuilder.Build(source, selected, reverse: true) is not { } patch)
             return Task.CompletedTask;
 
-        var count = TextDrawing.Plural(selected.Count, "строку", "строки", "строк");
-        var done = TextDrawing.Plural(selected.Count, "строка", "строки", "строк");
-        if (!Confirm($"Сбросить {count} в {target.Path}?", GitService.DiscardLinesArguments,
-                $"{Theme.SymbolWarning} Изменения пропадут из файла безвозвратно: их нет ни в коммитах, ни в reflog.", "Сбросить"))
+        var count = Plural(selected.Count, "строку", "строки", "строк", "line", "lines");
+        var done = Plural(selected.Count, "строка", "строки", "строк", "line", "lines");
+        if (!Confirm(T($"Сбросить {count} в {target.Path}?", $"Discard {count} in {target.Path}?"), GitService.DiscardLinesArguments,
+                T($"{Theme.SymbolWarning} Изменения пропадут из файла безвозвратно: их нет ни в коммитах, ни в reflog.", $"{Theme.SymbolWarning} The changes will be lost for good: they are in no commit and not in reflog."), T("Сбросить", "Discard")))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.DiscardLinesAsync(patch, ct), $"Сброшено в рабочей копии: {done}");
+        return RunAsync(ct => _git.DiscardLinesAsync(patch, ct), T($"Сброшено в рабочей копии: {done}", $"Discarded in the working tree: {done}"));
     }
 
     /// <summary>Stage (или unstage) выбранных строк либо всего фрагмента под курсором.</summary>
@@ -1625,14 +1715,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             return Task.CompletedTask;
 
         var changes = hunk ? _diff.CurrentHunkChanges : _diff.SelectedChanges;
-        if (SelectedSourceLines(source, changes, target.Staged ? "убрать из индекса" : "добавить") is not { } selected)
+        if (SelectedSourceLines(source, changes, target.Staged ? T("убрать из индекса", "unstaged") : T("добавить", "staged")) is not { } selected)
             return Task.CompletedTask;
 
         if (PatchBuilder.Build(source, selected, target.Staged) is not { } patch)
             return Task.CompletedTask;
 
-        var count = TextDrawing.Plural(selected.Count, "строка", "строки", "строк");
-        var done = target.Staged ? $"Убрано из индекса: {count}" : $"Добавлено в индекс: {count}";
+        var count = Plural(selected.Count, "строка", "строки", "строк", "line", "lines");
+        var done = target.Staged ? T($"Убрано из индекса: {count}", $"Unstaged: {count}") : T($"Добавлено в индекс: {count}", $"Staged: {count}");
         return RunAsync(ct => _git.ApplyToIndexAsync(patch, target.Staged, ct), done);
     }
 
@@ -1664,7 +1754,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
     }
 
-    private static string FilesWord(int count) => TextDrawing.Plural(count, "файл", "файла", "файлов");
+    private static string FilesWord(int count) => Plural(count, "файл", "файла", "файлов", "file", "files");
 
     /// <summary>Показывает сообщение над подсказками. С autoHide сообщение исчезает через 3 секунды.</summary>
     private void ShowStatus(string text, Color color, bool autoHide = false)

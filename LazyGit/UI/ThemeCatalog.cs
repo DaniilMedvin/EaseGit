@@ -26,7 +26,7 @@ public static class ThemeCatalog
 
         var custom = config.CustomThemes?.FirstOrDefault(t => t.Key.Equals(name, StringComparison.OrdinalIgnoreCase));
         if (custom is not { Value: { } colors })
-            return (Dark, ThemePalette.Dark, $"тема «{name}» не найдена, включена dark");
+            return (Dark, ThemePalette.Dark, T($"тема «{name}» не найдена, включена dark", $"theme '{name}' not found, using dark"));
 
         var baseName = colors.FirstOrDefault(c => c.Key.Equals("base", StringComparison.OrdinalIgnoreCase)).Value;
         var basePalette = string.Equals(baseName, Light, StringComparison.OrdinalIgnoreCase) ? ThemePalette.Light : ThemePalette.Dark;
@@ -34,7 +34,7 @@ public static class ThemeCatalog
         var palette = basePalette.With(
             colors.Where(c => !c.Key.Equals("base", StringComparison.OrdinalIgnoreCase)).ToDictionary(c => c.Key, c => c.Value),
             problems);
-        return (custom.Value.Key, palette, problems.Count == 0 ? null : $"тема «{name}»: {problems[0]}");
+        return (custom.Value.Key, palette, problems.Count == 0 ? null : T($"тема «{name}»: {problems[0]}", $"theme '{name}': {problems[0]}"));
     }
 
     /// <summary>Следующая тема по кругу после текущей (для переключения одной клавишей).</summary>

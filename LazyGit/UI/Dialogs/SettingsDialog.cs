@@ -36,7 +36,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
         box.SetScheme(Theme.Text(Theme.Accent));
         box.Padding!.Thickness = new Thickness(1, 0, 1, 0);
 
-        var caption = new Label { Text = "Маскот в углу diff", X = 0, Y = 0 };
+        var caption = new Label { Text = T("Маскот в углу diff", "Mascot in the diff corner"), X = 0, Y = 0 };
         caption.SetScheme(Theme.Text(Theme.Fg, TextStyle.Bold));
 
         var picker = new MascotPicker(current) { X = 0, Y = 2, Width = Dim.Fill(), Height = MascotArt.Rows };
@@ -47,10 +47,10 @@ public sealed class SettingsDialog : Runnable<Mascot?>
         };
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("↑↓", "выбор"), new Hint("enter", "сохранить"), new Hint("esc", "отмена")]);
+        hints.SetHints([new Hint("↑↓", T("выбор", "choose")), new Hint("enter", T("сохранить", "save")), new Hint("esc", T("отмена", "cancel"))]);
 
         box.Add(caption, picker);
-        Add(box, BoxTitle.For(box, "Настройки", Theme.Accent), hints);
+        Add(box, BoxTitle.For(box, T("Настройки", "Settings"), Theme.Accent), hints);
         picker.SetFocus();
     }
 
@@ -104,7 +104,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
 
             var previewX = Viewport.Width - MascotArt.Width - 2;
             if (Options[_selected] == Mascot.None)
-                this.DrawSegments(previewX, MascotArt.Rows / 2 - 1, [new Segment("без маскота", Theme.Dim)], MascotArt.Width + 2);
+                this.DrawSegments(previewX, MascotArt.Rows / 2 - 1, [new Segment(T("без маскота", "no mascot"), Theme.Dim)], MascotArt.Width + 2);
             else
                 MascotArt.Draw(this, previewX, 0, Options[_selected]);
             return true;

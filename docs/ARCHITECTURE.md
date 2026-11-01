@@ -28,6 +28,7 @@ LazyGit/
 │   ├── CommandLog.cs          журнал изменяющих команд (GitService пишет, CommandLogPanel показывает)
 │   ├── UndoPlanner.cs         отмена последнего действия по записи reflog → UndoPlan
 │   ├── PatchBuilder.cs        патч из выбранных строк diff для построчного stage (git apply --cached)
+│   ├── RebaseTodo.cs          план interactive rebase → git-rebase-todo, проверка плана
 │   ├── RepoWatcher.cs         FileSystemWatcher: изменения файлов и .git → одно событие Changed
 │   └── Parsers/
 │       ├── StatusParser.cs
@@ -37,6 +38,8 @@ LazyGit/
 │       ├── LogParser.cs
 │       ├── DiffParser.cs
 │       └── CommitDiffParser.cs    git show: сообщение коммита + diff
+├── Localization/
+│   └── Loc.cs                 язык интерфейса: T("ru", "en"), Plural, выбор по конфигу или системе
 ├── Config/
 │   ├── AppConfig.cs           настройки: пропуск входа, последний репозиторий, маскот
 │   └── ConfigStore.cs         ~/.config/lazygit-cs/config.json
@@ -46,6 +49,7 @@ LazyGit/
 │   ├── Branch.cs              Name, IsCurrent, Upstream?, Ahead, Behind
 │   ├── Commit.cs              Hash, ShortHash, AuthorName, AuthorEmail, Date, Subject, Parents, Refs
 │   ├── CommitRef.cs           ветка / удалённая ветка / тег / HEAD на коммите
+│   ├── RebaseStep.cs          шаг rebase: коммит + RebaseAction (pick, reword, edit, squash, fixup, drop)
 │   └── RepoStatus.cs          Branch?, HeadHash?, Upstream?, Ahead, Behind, Files
 ├── State/
 │   └── AppState.cs            хранит RepoStatus, событие Changed, RefreshAsync()
@@ -59,8 +63,8 @@ LazyGit/
     ├── GitErrors.cs           понятные тексты для известных ошибок git
     ├── MainWindow.cs          раскладка
     ├── GraphWindow.cs         окно графа всех веток (G): граф + коммит, действия над коммитом
-    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel (+ CommitGraph), StashPanel, DiffPanel, CommandLogPanel
-    ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette
+    ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel (+ CommitGraph), StashPanel, DiffPanel, CommandLogPanel, RebaseStepsPanel
+    ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette, RebaseDialog
     └── Widgets/               StatusBar (подсказки), Spinner, Header
 LazyGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git
@@ -72,7 +76,8 @@ LazyGit.Tests/
 - Единственное место, где создаётся `Process`.
 - Аргументы передаются через `ProcessStartInfo.ArgumentList`, **никогда** не склеиваются в строку.
 - Всегда добавляет `-c core.quotepath=false -c color.ui=never`.
-- Окружение: `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0` (git не должен ждать ввода).
+- Окружение: `LC_ALL=C`, `GIT_TERMINAL_PROMPT=0`, `GIT_EDITOR=true` (git не должен ждать ввода и открывать редактор).
+  Дополнительные переменные передаются параметром `environment` (так rebase подставляет `GIT_SEQUENCE_EDITOR`).
 - Принимает `CancellationToken`: по `esc` процесс убивается.
 - В `CommandLog` пишет не `GitRunner`, а `GitService` — только изменяющие команды (stage, commit, push…), чтобы автообновление не засоряло журнал.
 

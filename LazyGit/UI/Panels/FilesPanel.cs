@@ -111,7 +111,7 @@ public sealed class FilesPanel : View
     {
         if (_rows.Count == 0)
         {
-            const string text = "✓ Нет изменений";
+            var text = T("✓ Нет изменений", "✓ No changes");
             this.DrawSegments(Math.Max(0, (Viewport.Width - text.Length) / 2), Viewport.Height / 2,
                 [new Segment(text, Theme.Success)], Viewport.Width);
             return true;
@@ -144,10 +144,10 @@ public sealed class FilesPanel : View
     {
         var (title, color) = header.Section switch
         {
-            FileSection.Conflicts => ("Конфликты", Theme.Error),
+            FileSection.Conflicts => (T("Конфликты", "Conflicts"), Theme.Error),
             FileSection.Staged => ("Staged", Theme.Success),
-            FileSection.Unstaged => ("Изменения", Theme.Warning),
-            _ => ("Новые файлы", Theme.Cyan),
+            FileSection.Unstaged => (T("Изменения", "Changes"), Theme.Warning),
+            _ => (T("Новые файлы", "New files"), Theme.Cyan),
         };
         this.DrawSegments(1, line,
         [

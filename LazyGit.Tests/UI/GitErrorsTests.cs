@@ -68,4 +68,14 @@ public class GitErrorsTests
     {
         Assert.Equal("nothing to commit", GitErrors.Explain(Failed("", "nothing to commit\n")));
     }
+
+    [Theory]
+    [InlineData("git rebase --interactive --autostash abc", "error: could not apply 1234567... add a", "Конфликт при rebase")]
+    [InlineData("git rebase --continue", "error: cannot rebase: You have unstaged changes.", "изменения вне индекса")]
+    [InlineData("git rebase --continue", "The previous cherry-pick is now empty, possibly due to conflict resolution.", "git rebase --skip")]
+    [InlineData("git rebase --interactive --autostash abc", "warning: execution failed: git commit --amend --only", "сообщение коммита")]
+    public void Explain_RebaseError_ExplainsHowToContinue(string command, string stderr, string expected)
+    {
+        Assert.Contains(expected, GitErrors.Explain(new GitResult(command, 1, "", stderr)));
+    }
 }

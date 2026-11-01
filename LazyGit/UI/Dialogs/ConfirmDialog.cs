@@ -50,7 +50,7 @@ public sealed class ConfirmDialog : Runnable<bool?>
         var questionLabel = new Label { Text = question, X = 0, Y = 0, Width = Dim.Fill() };
         questionLabel.SetScheme(Theme.Text(Theme.Fg, TextStyle.Bold));
 
-        var caption = new Label { Text = "Будет выполнено:", X = 0, Y = 2 };
+        var caption = new Label { Text = T("Будет выполнено:", "Will run:"), X = 0, Y = 2 };
         caption.SetScheme(Theme.Text(Theme.Muted));
 
         var commandLabel = new Label
@@ -73,7 +73,7 @@ public sealed class ConfirmDialog : Runnable<bool?>
         };
         warningLabel.SetScheme(Theme.Text(Theme.Warning));
 
-        _cancel = CreateButton("Отмена", false);
+        _cancel = CreateButton(T("Отмена", "Cancel"), false);
         _confirm = CreateButton(confirmText, true);
         _cancel.X = Pos.Center() - (confirmText.Length + 4) / 2 - 6;
         _cancel.Y = 5 + commandLines.Count + warningLines.Count;
@@ -81,10 +81,10 @@ public sealed class ConfirmDialog : Runnable<bool?>
         _confirm.Y = _cancel.Y;
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("← →", "выбор"), new Hint("enter", "нажать"), new Hint("esc", "отмена")]);
+        hints.SetHints([new Hint("← →", T("выбор", "choose")), new Hint("enter", T("нажать", "press")), new Hint("esc", T("отмена", "cancel"))]);
 
         box.Add(questionLabel, caption, commandLabel, warningLabel, _cancel, _confirm);
-        Add(box, BoxTitle.For(box, $"{Theme.SymbolWarning} Опасное действие", Theme.Warning), hints);
+        Add(box, BoxTitle.For(box, T($"{Theme.SymbolWarning} Опасное действие", $"{Theme.SymbolWarning} Dangerous action"), Theme.Warning), hints);
         _cancel.SetFocus();
     }
 

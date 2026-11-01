@@ -13,7 +13,7 @@ public static class RepoScaffold
     public static string ReadmeContent(string repoRoot)
     {
         var name = new DirectoryInfo(repoRoot).Name;
-        return $"# {name}\n\nКраткое описание проекта.\n".ReplaceLineEndings();
+        return T($"# {name}\n\nКраткое описание проекта.\n", $"# {name}\n\nShort project description.\n").ReplaceLineEndings();
     }
 
     /// <summary>Создаёт README.md. Существующий файл не перезаписывается: возвращает false.</summary>

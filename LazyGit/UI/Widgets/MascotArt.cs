@@ -86,7 +86,7 @@ public static class MascotArt
         Mascot.Claude => "Clawd",
         Mascot.ChatGpt => "ChatGPT",
         Mascot.Gemini => "Gemini",
-        _ => "Нет",
+        _ => T("Нет", "None"),
     };
 
     private static Color? Pixel(Mascot mascot, int x, int y)

@@ -58,7 +58,7 @@ public static partial class CommitMessage
         {
             if (lines[i].TrimEnd().Length > MaxLength)
             {
-                tips.Add(new CommitTip($"Строка {i + 1} тела длиннее {MaxLength} символов — перенеси её", TipSeverity.Warning));
+                tips.Add(new CommitTip(T($"Строка {i + 1} тела длиннее {MaxLength} символов — перенеси её", $"Body line {i + 1} is longer than {MaxLength} characters, wrap it"), TipSeverity.Warning));
                 break;
             }
         }
@@ -78,26 +78,26 @@ public static partial class CommitMessage
 
         var length = Compose(type, subject).Length;
         if (length > MaxLength)
-            tips.Add(new CommitTip($"Заголовок длиннее {MaxLength} символов — сократи его", TipSeverity.Error));
+            tips.Add(new CommitTip(T($"Заголовок длиннее {MaxLength} символов — сократи его", $"The subject is longer than {MaxLength} characters, shorten it"), TipSeverity.Error));
         else if (length > RecommendedLength)
-            tips.Add(new CommitTip($"Лучше уложиться в {RecommendedLength} символов", TipSeverity.Warning));
+            tips.Add(new CommitTip(T($"Лучше уложиться в {RecommendedLength} символов", $"Better keep it within {RecommendedLength} characters"), TipSeverity.Warning));
 
         if (CyrillicRegex().IsMatch(text))
-            tips.Add(new CommitTip("Сообщения коммитов обычно пишут на английском", TipSeverity.Info));
+            tips.Add(new CommitTip(T("Сообщения коммитов обычно пишут на английском", "Commit messages are usually written in English"), TipSeverity.Info));
 
         var firstWord = text.Split(' ', 2)[0];
         if (firstWord.Length > 4 && (firstWord.EndsWith("ed", StringComparison.OrdinalIgnoreCase)
                                      || firstWord.EndsWith("ing", StringComparison.OrdinalIgnoreCase)))
         {
             var verb = firstWord.ToLowerInvariant();
-            tips.Add(new CommitTip($"Пиши как команду (add, fix), а не «{verb}»", TipSeverity.Warning));
+            tips.Add(new CommitTip(T($"Пиши как команду (add, fix), а не «{verb}»", $"Write it as a command (add, fix), not '{verb}'"), TipSeverity.Warning));
         }
 
         if (char.IsUpper(text[0]) && !IsAcronym(firstWord))
-            tips.Add(new CommitTip("После типа обычно пишут со строчной буквы", TipSeverity.Info));
+            tips.Add(new CommitTip(T("После типа обычно пишут со строчной буквы", "After the type, start with a lowercase letter"), TipSeverity.Info));
 
         if (text.EndsWith('.'))
-            tips.Add(new CommitTip("В конце заголовка точку не ставят", TipSeverity.Info));
+            tips.Add(new CommitTip(T("В конце заголовка точку не ставят", "No period at the end of the subject"), TipSeverity.Info));
 
         return tips;
     }

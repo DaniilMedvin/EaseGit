@@ -41,7 +41,7 @@ public sealed class StartWindow : Runnable<StartAction?>
 
         var tagline = new Label
         {
-            Text = "─── git без боли, прямо в терминале ───",
+            Text = T("─── git без боли, прямо в терминале ───", "─── painless git, right in the terminal ───"),
             X = Pos.Center(),
             Y = Pos.Bottom(logo) + 1,
         };
@@ -86,13 +86,13 @@ public sealed class StartWindow : Runnable<StartAction?>
         };
 
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
-        var hintList = new List<Hint> { new("enter", "открыть"), new("ctrl+o", "выбрать папку"), new("ctrl+n", "git init") };
+        var hintList = new List<Hint> { new("enter", T("открыть", "open")), new("ctrl+o", T("выбрать папку", "choose folder")), new("ctrl+n", "git init") };
         if (!auth.IsAuthorized)
-            hintList.Add(new Hint("ctrl+g", "войти в GitHub"));
-        hintList.Add(new Hint("esc", "выход"));
+            hintList.Add(new Hint("ctrl+g", T("войти в GitHub", "sign in to GitHub")));
+        hintList.Add(new Hint("esc", T("выход", "quit")));
         hints.SetHints(hintList);
 
-        Add(_stars, _waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, "Путь к репозиторию", Theme.Accent), _status, hints, new VersionLabel());
+        Add(_stars, _waves, new UserBadge(auth), logo, tagline, box, BoxTitle.For(box, T("Путь к репозиторию", "Repository path"), Theme.Accent), _status, hints, new VersionLabel());
         _path.SetFocus();
     }
 
@@ -116,7 +116,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         {
             if (!_auth.GhInstalled)
             {
-                ShowStatus($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", Theme.Error);
+                ShowStatus(T($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", $"{Theme.SymbolError} gh not found. Install it: sudo dnf install gh"), Theme.Error);
                 return true;
             }
 
@@ -148,12 +148,12 @@ public sealed class StartWindow : Runnable<StartAction?>
         var path = ExpandHome(_path.Text.Trim());
         if (path.Length == 0)
         {
-            ShowStatus($"{Theme.SymbolError} Введи путь к папке с репозиторием", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Введи путь к папке с репозиторием", $"{Theme.SymbolError} Enter the path to a repository folder"), Theme.Error);
             return;
         }
 
         _busy = true;
-        ShowStatus($"{Theme.SpinnerFrames[0]} Проверяю репозиторий…", Theme.Muted);
+        ShowStatus(T($"{Theme.SpinnerFrames[0]} Проверяю репозиторий…", $"{Theme.SpinnerFrames[0]} Checking the repository…"), Theme.Muted);
         try
         {
             var root = await _git.FindRepoRootAsync(path);
@@ -162,8 +162,8 @@ public sealed class StartWindow : Runnable<StartAction?>
                 if (root is null)
                 {
                     ShowStatus(Directory.Exists(path)
-                        ? $"{Theme.SymbolError} Не git-репозиторий. ctrl+n — создать его здесь"
-                        : $"{Theme.SymbolError} Папка не найдена: {path}", Theme.Error);
+                        ? T($"{Theme.SymbolError} Не git-репозиторий. ctrl+n — создать его здесь", $"{Theme.SymbolError} Not a git repository. ctrl+n creates one here")
+                        : T($"{Theme.SymbolError} Папка не найдена: {path}", $"{Theme.SymbolError} Folder not found: {path}"), Theme.Error);
                     return;
                 }
 
@@ -194,7 +194,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         var path = ExpandHome(_path.Text.Trim());
         if (path.Length == 0)
         {
-            ShowStatus($"{Theme.SymbolError} Введи путь к папке для нового репозитория", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Введи путь к папке для нового репозитория", $"{Theme.SymbolError} Enter the path to a folder for the new repository"), Theme.Error);
             return;
         }
 
@@ -205,15 +205,15 @@ public sealed class StartWindow : Runnable<StartAction?>
             var existing = await _git.FindRepoRootAsync(path);
             if (existing is not null)
             {
-                App?.Invoke(() => ShowStatus($"{Theme.SymbolWarning} Уже репозиторий: {existing}. enter — открыть", Theme.Warning));
+                App?.Invoke(() => ShowStatus(T($"{Theme.SymbolWarning} Уже репозиторий: {existing}. enter — открыть", $"{Theme.SymbolWarning} Already a repository: {existing}. enter opens it"), Theme.Warning));
                 return;
             }
 
             if (_pendingInitPath != path)
             {
                 _pendingInitPath = path;
-                var note = Directory.Exists(path) ? "" : " (папка будет создана)";
-                App?.Invoke(() => ShowStatus($"{Theme.SymbolWarning} ctrl+n ещё раз — создать репозиторий в {path}{note}", Theme.Warning));
+                var note = Directory.Exists(path) ? "" : T(" (папка будет создана)", " (the folder will be created)");
+                App?.Invoke(() => ShowStatus(T($"{Theme.SymbolWarning} ctrl+n ещё раз — создать репозиторий в {path}{note}", $"{Theme.SymbolWarning} ctrl+n again creates a repository in {path}{note}"), Theme.Warning));
                 return;
             }
 
@@ -266,7 +266,7 @@ public sealed class StartWindow : Runnable<StartAction?>
     {
         var dialog = new OpenDialog
         {
-            Title = "Выбери папку репозитория",
+            Title = T("Выбери папку репозитория", "Choose the repository folder"),
             OpenMode = OpenMode.Directory,
         };
         App!.Run(dialog);
@@ -302,7 +302,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         };
         psi.ArgumentList.Add("--file-selection");
         psi.ArgumentList.Add("--directory");
-        psi.ArgumentList.Add("--title=Выбери папку репозитория");
+        psi.ArgumentList.Add(T("--title=Выбери папку репозитория", "--title=Choose the repository folder"));
         if (Directory.Exists(startPath))
             psi.ArgumentList.Add($"--filename={startPath.TrimEnd('/')}/");
 

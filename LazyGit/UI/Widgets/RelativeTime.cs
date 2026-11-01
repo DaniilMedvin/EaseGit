@@ -10,17 +10,17 @@ public static class RelativeTime
     {
         var elapsed = now - date;
         if (elapsed.TotalMinutes < 1)
-            return "сейчас";
+            return T("сейчас", "now");
         if (elapsed.TotalHours < 1)
-            return $"{(int)elapsed.TotalMinutes} мин";
+            return T($"{(int)elapsed.TotalMinutes} мин", $"{(int)elapsed.TotalMinutes}m");
         if (elapsed.TotalDays < 1)
-            return $"{(int)elapsed.TotalHours} ч";
+            return T($"{(int)elapsed.TotalHours} ч", $"{(int)elapsed.TotalHours}h");
         if (elapsed.TotalDays < 7)
-            return $"{(int)elapsed.TotalDays} дн";
+            return T($"{(int)elapsed.TotalDays} дн", $"{(int)elapsed.TotalDays}d");
         if (elapsed.TotalDays < 30)
-            return $"{(int)(elapsed.TotalDays / 7)} нед";
+            return T($"{(int)(elapsed.TotalDays / 7)} нед", $"{(int)(elapsed.TotalDays / 7)}w");
         if (elapsed.TotalDays < 365)
-            return $"{(int)(elapsed.TotalDays / 30)} мес";
-        return $"{(int)(elapsed.TotalDays / 365)} г";
+            return T($"{(int)(elapsed.TotalDays / 30)} мес", $"{(int)(elapsed.TotalDays / 30)}mo");
+        return T($"{(int)(elapsed.TotalDays / 365)} г", $"{(int)(elapsed.TotalDays / 365)}y");
     }
 }

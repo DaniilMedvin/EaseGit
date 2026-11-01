@@ -92,13 +92,13 @@ public sealed record ThemePalette
             var property = ColorProperties.FirstOrDefault(p => p.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
             if (property is null)
             {
-                problems?.Add($"неизвестный цвет «{name}»");
+                problems?.Add(T($"неизвестный цвет «{name}»", $"unknown color '{name}'"));
                 continue;
             }
 
             if (!TryParseColor(value, out var color))
             {
-                problems?.Add($"«{name}»: цвет «{value}» не распознан, нужен вид #RRGGBB");
+                problems?.Add(T($"«{name}»: цвет «{value}» не распознан, нужен вид #RRGGBB", $"'{name}': color '{value}' not recognized, expected #RRGGBB"));
                 continue;
             }
 

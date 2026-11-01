@@ -21,17 +21,17 @@ public static class UndoPlanner
     public static (UndoPlan? Plan, string? Reason) Plan(ReflogEntry? last)
     {
         if (last is null)
-            return (null, "Отменять нечего: в истории HEAD ещё нет действий");
+            return (null, T("Отменять нечего: в истории HEAD ещё нет действий", "Nothing to undo: HEAD history has no actions yet"));
 
         var (action, details) = Split(last.Subject);
         if (action == "commit (initial)")
-            return (null, "Первый коммит так не отменить: у него нет предыдущего состояния");
+            return (null, T("Первый коммит так не отменить: у него нет предыдущего состояния", "The first commit can't be undone this way: there is no previous state"));
 
         if (action is "commit" or "commit (amend)")
         {
-            var what = action == "commit" ? "коммит" : "amend коммита";
-            return (new UndoPlan(["reset", "--soft", Previous], $"Отменить {what} «{details}»?",
-                "Коммит отменён, его изменения снова в индексе", RewritesHistory: true), null);
+            var what = action == "commit" ? T("коммит", "commit") : T("amend коммита", "commit amend");
+            return (new UndoPlan(["reset", "--soft", Previous], T($"Отменить {what} «{details}»?", $"Undo {what} '{details}'?"),
+                T("Коммит отменён, его изменения снова в индексе", "Commit undone, its changes are staged again"), RewritesHistory: true), null);
         }
 
         // merge, pull и merge-коммит после конфликта: --keep сохраняет незакоммиченные изменения
@@ -42,21 +42,21 @@ public static class UndoPlanner
             {
                 _ when action.StartsWith("merge ") => action,
                 _ when action.StartsWith("pull") => "pull",
-                "commit (merge)" => "merge-коммит",
+                "commit (merge)" => T("merge-коммит", "merge commit"),
                 _ => "cherry-pick",
             };
-            return (new UndoPlan(["reset", "--keep", Previous], $"Отменить {name}?",
-                $"Отменено: {name}", RewritesHistory: true), null);
+            return (new UndoPlan(["reset", "--keep", Previous], T($"Отменить {name}?", $"Undo {name}?"),
+                T($"Отменено: {name}", $"Undone: {name}"), RewritesHistory: true), null);
         }
 
         if (action == "checkout")
             return CheckoutBack(details);
         if (action == "reset")
-            return (null, "Последнее действие уже отмена (reset). Повтори его заново или посмотри git reflog");
+            return (null, T("Последнее действие уже отмена (reset). Повтори его заново или посмотри git reflog", "The last action is already an undo (reset). Redo it or look at git reflog"));
         if (action.StartsWith("rebase"))
-            return (null, "Rebase так не отменить: найди нужное состояние в git reflog и сделай git reset --keep");
+            return (null, T("Rebase так не отменить: найди нужное состояние в git reflog и сделай git reset --keep", "Rebase can't be undone this way: find the state you need in git reflog and run git reset --keep"));
 
-        return (null, $"Не знаю, как отменить «{last.Subject}». Посмотри git reflog");
+        return (null, T($"Не знаю, как отменить «{last.Subject}». Посмотри git reflog", $"Don't know how to undo '{last.Subject}'. Look at git reflog"));
     }
 
     /// <summary>«checkout: moving from main to f» → переключиться обратно на main.</summary>
@@ -65,13 +65,13 @@ public static class UndoPlanner
         const string prefix = "moving from ";
         var to = details.LastIndexOf(" to ", StringComparison.Ordinal);
         if (!details.StartsWith(prefix) || to < prefix.Length)
-            return (null, $"Не понял запись reflog «{details}»");
+            return (null, T($"Не понял запись reflog «{details}»", $"Couldn't parse reflog entry '{details}'"));
 
         var from = details[prefix.Length..to];
         // Отсоединённый HEAD записывается хешем: на него переключаемся с --detach.
         var isHash = from.Length >= 7 && from.All(Uri.IsHexDigit);
         string[] args = isHash ? ["switch", "--detach", from] : ["switch", "--no-guess", from];
-        return (new UndoPlan(args, $"Вернуться на {from}?", $"Вернулись на {from}", RewritesHistory: false), null);
+        return (new UndoPlan(args, T($"Вернуться на {from}?", $"Go back to {from}?"), T($"Вернулись на {from}", $"Back on {from}"), RewritesHistory: false), null);
     }
 
     /// <summary>«commit (amend): feat: b» → («commit (amend)», «feat: b»).</summary>

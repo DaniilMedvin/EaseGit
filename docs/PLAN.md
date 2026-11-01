@@ -63,7 +63,7 @@
 - [x] Предупреждения об опасных операциях + undo через reflog (`z`: коммит, amend, merge, pull, checkout)
 - [x] Шаблоны коммитов (Conventional Commits): `ctrl+t` в окне коммита
 - [x] Быстрое создание `README.md` (`R`) и `.gitignore` для Visual Studio (`I`)
-- [ ] Локализация ru/en
+- [x] Локализация ru/en: `T("ru", "en")` в коде, язык из конфига или системы, `L` переключает
 - [x] Окно настроек (`,`): маскот Clawd / ChatGPT / Gemini в углу diff
 - [x] Конфиг `~/.config/lazygit-cs/config.json` (тема, клавиши): [CONFIG.md](CONFIG.md)
 - [x] Темы: dark / light / пользовательские, `T` переключает
@@ -72,7 +72,7 @@
 - [x] Stash: создать (`s`), pop / apply / удалить в панели `[4]`, diff справа
 - [x] Построчный stage: `enter` на файле, `space` строка / выделение `v`, `a` фрагмент, `d` сброс строк, `tab` staged ↔ изменения, unstage из Staged
 - [x] Amend, reset, revert, cherry-pick
-- [ ] Interactive rebase
+- [x] Interactive rebase (`i` в коммитах): pick / reword / edit / squash / fixup / drop, перестановка `J/K`, `C` — продолжить
 - [x] Разрешение конфликтов: `⚠ идёт merge` в шапке, `A` прервать, `o` / `t` / `b` — наша / их / обе версии файла
 - [x] Граф веток в логе: дорожки по родителям коммитов, метки веток и тегов
 - [x] Окно графа всех веток (`G`): цвет за веткой, детали коммита, checkout / ветка / тег / merge / cherry-pick / revert

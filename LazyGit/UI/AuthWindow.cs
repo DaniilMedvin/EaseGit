@@ -42,8 +42,8 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
         var text = new Label
         {
             Text = status.GhInstalled
-                ? "Войди в GitHub, чтобы делать push и pull\nбез лишних вопросов.\n\nВход выполнится через gh в браузере.\nПароли и токены LGit не хранит."
-                : "Для входа нужен GitHub CLI (gh), он не найден.\nУстанови его и перезапусти LGit:\n\n  sudo dnf install gh",
+                ? T("Войди в GitHub, чтобы делать push и pull\nбез лишних вопросов.\n\nВход выполнится через gh в браузере.\nПароли и токены LGit не хранит.", "Sign in to GitHub to push and pull\nwithout extra prompts.\n\nSign-in goes through gh in the browser.\nLGit stores no passwords or tokens.")
+                : T("Для входа нужен GitHub CLI (gh), он не найден.\nУстанови его и перезапусти LGit:\n\n  sudo dnf install gh", "Signing in needs the GitHub CLI (gh), and it was not found.\nInstall it and restart LGit:\n\n  sudo dnf install gh"),
             X = 0,
             Y = 0,
         };
@@ -51,7 +51,7 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
 
         var login = new Button
         {
-            Text = "  Войти  ",
+            Text = T("  Войти  ", "  Sign in  "),
             IsDefault = true,
             NoDecorations = true,
             ShadowStyle = ShadowStyles.None,
@@ -68,7 +68,7 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
 
         var skip = new Button
         {
-            Text = "  Пропустить  ",
+            Text = T("  Пропустить  ", "  Skip  "),
             NoDecorations = true,
             ShadowStyle = ShadowStyles.None,
             X = Pos.Right(login) + 4,
@@ -85,7 +85,7 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
 
         var note = new Label
         {
-            Text = "Пропуск запоминается — это окно больше не появится.\nВойти можно позже со стартового экрана.",
+            Text = T("Пропуск запоминается — это окно больше не появится.\nВойти можно позже со стартового экрана.", "Skipping is remembered: this window won't show again.\nYou can sign in later from the start screen."),
             X = Pos.Center(),
             Y = Pos.Bottom(box) + 1,
             TextAlignment = Alignment.Center,
@@ -96,10 +96,10 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
 
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
         hints.SetHints(status.GhInstalled
-            ? [new Hint("enter", "войти"), new Hint("s", "пропустить"), new Hint("esc", "выход")]
-            : [new Hint("s", "пропустить"), new Hint("esc", "выход")]);
+            ? [new Hint("enter", T("войти", "sign in")), new Hint("s", T("пропустить", "skip")), new Hint("esc", T("выход", "quit"))]
+            : [new Hint("s", T("пропустить", "skip")), new Hint("esc", T("выход", "quit"))]);
 
-        Add(_stars, _waves, new UserBadge(status), logo, box, BoxTitle.For(box, "Вход в GitHub", Theme.Accent), note, hints, version);
+        Add(_stars, _waves, new UserBadge(status), logo, box, BoxTitle.For(box, T("Вход в GitHub", "GitHub sign-in"), Theme.Accent), note, hints, version);
         (status.GhInstalled ? login : skip).SetFocus();
     }
 

@@ -42,15 +42,15 @@ public sealed class HelpDialog : Runnable<bool?>
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
         hints.SetHints(scrollable
-            ? [new Hint("↑↓", "листать"), new Hint("esc / ?", "закрыть")]
-            : [new Hint("esc / ?", "закрыть")]);
+            ? [new Hint("↑↓", T("листать", "scroll")), new Hint("esc / ?", T("закрыть", "close"))]
+            : [new Hint("esc / ?", T("закрыть", "close"))]);
 
         X = Pos.Center();
         Y = Pos.Center();
         Width = DialogWidth;
         Height = visibleLines + 3;
         SetScheme(Theme.Base);
-        Add(box, BoxTitle.For(box, "Справка", Theme.Accent), hints);
+        Add(box, BoxTitle.For(box, T("Справка", "Help"), Theme.Accent), hints);
     }
 
     protected override bool OnKeyDown(Key key)
@@ -118,45 +118,45 @@ public sealed class HelpDialog : Runnable<bool?>
         {
             var lines = new List<Segment[]>();
 
-            lines.Add(Heading("Плашки файлов"));
-            lines.Add([.. Badge(ChangeKind.Modified, "изменён"), .. Badge(ChangeKind.Added, "добавлен"), .. Badge(ChangeKind.Deleted, "удалён")]);
-            lines.Add([.. Badge(ChangeKind.Renamed, "переименован"), .. Badge(ChangeKind.Untracked, "новый файл"), .. Badge(ChangeKind.Unmerged, "конфликт")]);
-            lines.Add([.. Badge(ChangeKind.Copied, "скопирован"), .. Badge(ChangeKind.TypeChanged, "сменился тип файла")]);
+            lines.Add(Heading(T("Плашки файлов", "File badges")));
+            lines.Add([.. Badge(ChangeKind.Modified, T("изменён", "modified")), .. Badge(ChangeKind.Added, T("добавлен", "added")), .. Badge(ChangeKind.Deleted, T("удалён", "deleted"))]);
+            lines.Add([.. Badge(ChangeKind.Renamed, T("переименован", "renamed")), .. Badge(ChangeKind.Untracked, T("новый файл", "new file")), .. Badge(ChangeKind.Unmerged, T("конфликт", "conflict"))]);
+            lines.Add([.. Badge(ChangeKind.Copied, T("скопирован", "copied")), .. Badge(ChangeKind.TypeChanged, T("сменился тип файла", "file type changed"))]);
             lines.Add([]);
 
-            lines.Add(Heading("Разделы"));
-            lines.Add(Section("Staged", Theme.Success, "войдёт в следующий коммит"));
-            lines.Add(Section("Изменения", Theme.Warning, "изменено, но ещё не добавлено в индекс"));
-            lines.Add(Section("Новые файлы", Theme.Cyan, "git их ещё не отслеживает"));
-            lines.Add(Section("Конфликты", Theme.Error, "нужно решить вручную и добавить в индекс"));
+            lines.Add(Heading(T("Разделы", "Sections")));
+            lines.Add(Section("Staged", Theme.Success, T("войдёт в следующий коммит", "goes into the next commit")));
+            lines.Add(Section(T("Изменения", "Changes"), Theme.Warning, T("изменено, но ещё не добавлено в индекс", "modified but not staged yet")));
+            lines.Add(Section(T("Новые файлы", "New files"), Theme.Cyan, T("git их ещё не отслеживает", "not tracked by git yet")));
+            lines.Add(Section(T("Конфликты", "Conflicts"), Theme.Error, T("нужно решить вручную и добавить в индекс", "resolve by hand and stage")));
             lines.Add([]);
 
-            lines.Add(Heading("Шапка"));
-            lines.Add([Segment.Pill($"{Theme.SymbolBranch} main", Theme.Info, TextStyle.Bold), new(" текущая ветка", Theme.Muted)]);
-            lines.Add([new($"{Theme.SymbolAhead}2", Theme.Success), new(" ещё не отправлено (push)   ", Theme.Muted),
-                new($"{Theme.SymbolBehind}1", Theme.Warning), new(" новое на сервере (pull)", Theme.Muted)]);
-            lines.Add([Segment.Pill($"{Theme.SymbolCurrent} login", Theme.Success), new(" вход в GitHub выполнен   ", Theme.Muted),
-                Segment.Pill($"{Theme.SymbolEmpty} Не авторизован", Theme.Warning), new(" ctrl+g — войти", Theme.Muted)]);
+            lines.Add(Heading(T("Шапка", "Header")));
+            lines.Add([Segment.Pill($"{Theme.SymbolBranch} main", Theme.Info, TextStyle.Bold), new(T(" текущая ветка", " current branch"), Theme.Muted)]);
+            lines.Add([new($"{Theme.SymbolAhead}2", Theme.Success), new(T(" ещё не отправлено (push)   ", " not pushed yet (push)   "), Theme.Muted),
+                new($"{Theme.SymbolBehind}1", Theme.Warning), new(T(" новое на сервере (pull)", " new on the server (pull)"), Theme.Muted)]);
+            lines.Add([Segment.Pill($"{Theme.SymbolCurrent} login", Theme.Success), new(T(" вход в GitHub выполнен   ", " signed in to GitHub   "), Theme.Muted),
+                Segment.Pill(T($"{Theme.SymbolEmpty} Не авторизован", $"{Theme.SymbolEmpty} Not signed in"), Theme.Warning), new(T(" ctrl+g — войти", " ctrl+g signs in"), Theme.Muted)]);
             lines.Add([]);
 
-            lines.Add(Heading("Навигация"));
-            lines.Add(Keys("↑↓  j k", "выбор строки", "Home/End", "первая / последняя"));
-            lines.Add(Keys("enter", "свернуть папку", "← →", "свернуть / развернуть"));
-            lines.Add(Keys("esc", "отменить push/pull", "", ""));
+            lines.Add(Heading(T("Навигация", "Navigation")));
+            lines.Add(Keys("↑↓  j k", T("выбор строки", "select row"), "Home/End", T("первая / последняя", "first / last")));
+            lines.Add(Keys("enter", T("свернуть папку", "collapse folder"), "← →", T("свернуть / развернуть", "collapse / expand")));
+            lines.Add(Keys("esc", T("отменить push/pull", "cancel push/pull"), "", ""));
 
             lines.Add([]);
-            lines.Add(Heading("Окно коммита"));
-            lines.Add(Keys("tab", "тип коммита", "ctrl+t", "шаблон сообщения"));
-            lines.Add(Keys("↓", "перейти в тело", "ctrl+s", "создать коммит"));
+            lines.Add(Heading(T("Окно коммита", "Commit window")));
+            lines.Add(Keys("tab", T("тип коммита", "commit type"), "ctrl+t", T("шаблон сообщения", "message template")));
+            lines.Add(Keys("↓", T("перейти в тело", "go to body"), "ctrl+s", T("создать коммит", "create commit")));
 
             foreach (var (scope, title) in new[]
                      {
-                         (CommandScope.Files, "Файлы"),
-                         (CommandScope.Branches, "Ветки"),
-                         (CommandScope.Commits, "Коммиты"),
+                         (CommandScope.Files, T("Файлы", "Files")),
+                         (CommandScope.Branches, T("Ветки", "Branches")),
+                         (CommandScope.Commits, T("Коммиты", "Commits")),
                          (CommandScope.Stash, "Stash"),
-                         (CommandScope.Diff, "Построчный stage (enter на файле)"),
-                         (CommandScope.Global, "Везде"),
+                         (CommandScope.Diff, T("Построчный stage (enter на файле)", "Line staging (enter on a file)")),
+                         (CommandScope.Global, T("Везде", "Everywhere")),
                      })
             {
                 var inScope = commands.Where(c => c.Scope == scope).ToList();

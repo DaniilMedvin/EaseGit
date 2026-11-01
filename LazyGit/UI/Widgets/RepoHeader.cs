@@ -49,7 +49,7 @@ public sealed class RepoHeader : View
     {
         var user = _auth.IsAuthorized
             ? Segment.Pill($"{Theme.SymbolCurrent} {_auth.Login}", Theme.Success)
-            : Segment.Pill($"{Theme.SymbolEmpty} Не авторизован", Theme.Warning);
+            : Segment.Pill(T($"{Theme.SymbolEmpty} Не авторизован", $"{Theme.SymbolEmpty} Not signed in"), Theme.Warning);
         var userX = Math.Max(0, Viewport.Width - user.Text.Length - 1);
 
         var segments = new List<Segment> { new(" " + _repoName, Theme.Fg, TextStyle.Bold) };
@@ -59,7 +59,7 @@ public sealed class RepoHeader : View
             if (_operation != RepoOperation.None)
             {
                 segments.Add(new Segment("   ", Theme.Fg));
-                segments.Add(Segment.Pill($"{Theme.SymbolWarning} идёт {OperationName(_operation)}", Theme.Warning, TextStyle.Bold));
+                segments.Add(Segment.Pill(T($"{Theme.SymbolWarning} идёт {OperationName(_operation)}", $"{Theme.SymbolWarning} {OperationName(_operation)} in progress"), Theme.Warning, TextStyle.Bold));
             }
         }
 
@@ -90,22 +90,14 @@ public sealed class RepoHeader : View
         }
         else
         {
-            yield return new Segment("  нет upstream", Theme.Dim);
+            yield return new Segment(T("  нет upstream", "  no upstream"), Theme.Dim);
         }
 
         yield return new Segment("   ", Theme.Fg);
         yield return status.IsClean
-            ? Segment.Pill($"{Theme.SymbolSuccess} чисто", Theme.Success)
-            : Segment.Pill(Plural(status.Files.Count), Theme.Warning);
+            ? Segment.Pill(T($"{Theme.SymbolSuccess} чисто", $"{Theme.SymbolSuccess} clean"), Theme.Success)
+            : Segment.Pill(ChangesWord(status.Files.Count), Theme.Warning);
     }
 
-    private static string Plural(int count)
-    {
-        var mod10 = count % 10;
-        var mod100 = count % 100;
-        var word = mod10 == 1 && mod100 != 11 ? "изменение"
-            : mod10 is >= 2 and <= 4 && mod100 is < 12 or > 14 ? "изменения"
-            : "изменений";
-        return $"{count} {word}";
-    }
+    private static string ChangesWord(int count) => Plural(count, "изменение", "изменения", "изменений", "change", "changes");
 }

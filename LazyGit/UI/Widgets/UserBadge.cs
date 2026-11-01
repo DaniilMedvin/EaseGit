@@ -18,7 +18,7 @@ public sealed class UserBadge : Label
         }
         else
         {
-            Text = $" {Theme.SymbolEmpty} Не авторизован ";
+            Text = T($" {Theme.SymbolEmpty} Не авторизован ", $" {Theme.SymbolEmpty} Not signed in ");
             SetScheme(Pill(Theme.Warning));
         }
     }

@@ -38,24 +38,24 @@ public sealed class GraphWindow : Runnable<bool>
         _list.SelectionChanged += (_, _) => _ = LoadDetailsAsync();
 
         _details = new DiffPanel { X = 0, Y = Pos.Bottom(_list), Width = Dim.Fill(), Height = Dim.Fill(2) };
-        _detailsTitle = BoxTitle.For(_details, "Коммит", Theme.Muted);
+        _detailsTitle = BoxTitle.For(_details, T("Коммит", "Commit"), Theme.Muted);
 
         _status = new Label { X = 1, Y = Pos.AnchorEnd(2), Width = Dim.Fill(1) };
         var hints = new HintBar { X = 1, Y = Pos.AnchorEnd() };
         hints.SetHints(
         [
             new Hint("space", "checkout"),
-            new Hint("n", "ветка отсюда"),
-            new Hint("t", "тег"),
+            new Hint("n", T("ветка отсюда", "branch here")),
+            new Hint("t", T("тег", "tag")),
             new Hint("M", "merge", Optional: true),
             new Hint("C", "cherry-pick", Optional: true),
             new Hint("v", "revert", Optional: true),
-            new Hint("y", "хеш", Optional: true),
+            new Hint("y", T("хеш", "hash"), Optional: true),
             new Hint("ctrl+d/u", "diff", Optional: true),
-            new Hint("esc", "закрыть"),
+            new Hint("esc", T("закрыть", "close")),
         ]);
 
-        Add(_list, BoxTitle.ForFocusable(_list, "Граф · все ветки"), _details, _detailsTitle, _status, hints);
+        Add(_list, BoxTitle.ForFocusable(_list, T("Граф · все ветки", "Graph · all branches")), _details, _detailsTitle, _status, hints);
         _list.SetFocus();
     }
 
@@ -121,9 +121,9 @@ public sealed class GraphWindow : Runnable<bool>
                 _list.SetItems(log);
                 if (_status.Text.Length == 0)
                 {
-                    var limited = log.Count >= GitService.GraphLogLimit ? $" (последние {GitService.GraphLogLimit})" : "";
-                    ShowStatus($"{TextDrawing.Plural(log.Count, "коммит", "коммита", "коммитов")}{limited} " +
-                        $"{Theme.SymbolSeparator} {TextDrawing.Plural(branches.Count, "локальная ветка", "локальные ветки", "локальных веток")}", Theme.Muted);
+                    var limited = log.Count >= GitService.GraphLogLimit ? T($" (последние {GitService.GraphLogLimit})", $" (last {GitService.GraphLogLimit})") : "";
+                    ShowStatus(T($"{PluralRu(log.Count, "коммит", "коммита", "коммитов")}{limited} ", $"{PluralEn(log.Count, "commit", "commits")}{limited} ") +
+                        T($"{Theme.SymbolSeparator} {PluralRu(branches.Count, "локальная ветка", "локальные ветки", "локальных веток")}", $"{Theme.SymbolSeparator} {PluralEn(branches.Count, "local branch", "local branches")}"), Theme.Muted);
                 }
 
                 _ = LoadDetailsAsync();
@@ -140,13 +140,13 @@ public sealed class GraphWindow : Runnable<bool>
         _detailsLoading?.Cancel();
         if (_list.Selected is not { } commit)
         {
-            _details.SetMessage("Коммитов пока нет");
+            _details.SetMessage(T("Коммитов пока нет", "No commits yet"));
             return;
         }
 
         var loading = new CancellationTokenSource();
         _detailsLoading = loading;
-        _detailsTitle.Text = $" Коммит {Theme.SymbolSeparator} {commit.ShortHash} ";
+        _detailsTitle.Text = T($" Коммит {Theme.SymbolSeparator} {commit.ShortHash} ", $" Commit {Theme.SymbolSeparator} {commit.ShortHash} ");
         try
         {
             var diff = await _git.GetCommitDiffAsync(commit, loading.Token);
@@ -182,7 +182,7 @@ public sealed class GraphWindow : Runnable<bool>
 
         if (IsHead(commit))
         {
-            ShowStatus($"{Theme.SymbolError} Ты уже на этом коммите", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Ты уже на этом коммите", $"{Theme.SymbolError} You are already on this commit"), Theme.Error);
             return Task.CompletedTask;
         }
 
@@ -194,16 +194,16 @@ public sealed class GraphWindow : Runnable<bool>
         }
 
         var args = GitService.CheckoutArguments(target, commit);
-        if (target is null && !Confirm($"Перейти на коммит {commit.ShortHash} без ветки (detached HEAD)?", args,
-                $"{Theme.SymbolWarning} Новые коммиты отсюда не попадут ни в одну ветку. Чтобы работать дальше, создай ветку: n.",
-                "Перейти"))
+        if (target is null && !Confirm(T($"Перейти на коммит {commit.ShortHash} без ветки (detached HEAD)?", $"Check out commit {commit.ShortHash} without a branch (detached HEAD)?"), args,
+                T($"{Theme.SymbolWarning} Новые коммиты отсюда не попадут ни в одну ветку. Чтобы работать дальше, создай ветку: n.", $"{Theme.SymbolWarning} New commits from here won't belong to any branch. To keep working, create a branch: n."),
+                T("Перейти", "Check out")))
             return Task.CompletedTask;
 
         var done = target switch
         {
-            { Kind: RefKind.Remote } => $"Создана ветка {target.Name[(target.Name.IndexOf('/') + 1)..]}, следит за {target.Name}",
-            { } => $"Переключено на {target.Name}",
-            _ => $"HEAD на {commit.ShortHash} без ветки. Создать ветку: n",
+            { Kind: RefKind.Remote } => T($"Создана ветка {target.Name[(target.Name.IndexOf('/') + 1)..]}, следит за {target.Name}", $"Created branch {target.Name[(target.Name.IndexOf('/') + 1)..]}, tracking {target.Name}"),
+            { } => T($"Переключено на {target.Name}", $"Switched to {target.Name}"),
+            _ => T($"HEAD на {commit.ShortHash} без ветки. Создать ветку: n", $"HEAD at {commit.ShortHash} without a branch. Create a branch: n"),
         };
         return RunAsync(ct => _git.CheckoutAsync(target, commit, ct), done);
     }
@@ -213,13 +213,13 @@ public sealed class GraphWindow : Runnable<bool>
         if (_busy || _list.Selected is not { } commit)
             return Task.CompletedTask;
 
-        using var dialog = new InputDialog("Новая ветка", $"От: {commit.ShortHash} {commit.Subject}", "создать и переключиться",
+        using var dialog = new InputDialog(T("Новая ветка", "New branch"), T($"От: {commit.ShortHash} {commit.Subject}", $"From: {commit.ShortHash} {commit.Subject}"), T("создать и переключиться", "create and switch"),
             name => BranchName.Check(name, _branchNames));
         App!.Run(dialog);
         if (dialog.Result is not { } name)
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.CreateBranchAtAsync(name, commit, ct), $"Создана ветка {name} от {commit.ShortHash}, ты на ней");
+        return RunAsync(ct => _git.CreateBranchAtAsync(name, commit, ct), T($"Создана ветка {name} от {commit.ShortHash}, ты на ней", $"Created branch {name} at {commit.ShortHash}, you are on it"));
     }
 
     private Task NewTag()
@@ -228,15 +228,15 @@ public sealed class GraphWindow : Runnable<bool>
             return Task.CompletedTask;
 
         var tags = _list.Items.SelectMany(c => c.Refs).Where(r => r.Kind == RefKind.Tag).Select(r => r.Name).ToHashSet();
-        using var dialog = new InputDialog("Новый тег", $"На коммит: {commit.ShortHash} {commit.Subject}", "создать",
-            name => name.Length == 0 ? "Введи имя тега, например v1.0"
-                : tags.Contains(name) ? $"Тег {name} уже существует"
+        using var dialog = new InputDialog(T("Новый тег", "New tag"), T($"На коммит: {commit.ShortHash} {commit.Subject}", $"On commit: {commit.ShortHash} {commit.Subject}"), T("создать", "create"),
+            name => name.Length == 0 ? T("Введи имя тега, например v1.0", "Enter a tag name, e.g. v1.0")
+                : tags.Contains(name) ? T($"Тег {name} уже существует", $"Tag {name} already exists")
                 : BranchName.Check(name, []));
         App!.Run(dialog);
         if (dialog.Result is not { } name)
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.CreateTagAsync(name, commit, ct), $"Тег {name} поставлен на {commit.ShortHash}. На сервер: git push origin {name}");
+        return RunAsync(ct => _git.CreateTagAsync(name, commit, ct), T($"Тег {name} поставлен на {commit.ShortHash}. На сервер: git push origin {name}", $"Tag {name} set on {commit.ShortHash}. To the server: git push origin {name}"));
     }
 
     /// <summary>Вливает в текущую ветку ветку с этого коммита (локальную, иначе удалённую) или сам коммит.</summary>
@@ -247,7 +247,7 @@ public sealed class GraphWindow : Runnable<bool>
 
         if (IsHead(commit))
         {
-            ShowStatus($"{Theme.SymbolError} Это текущий коммит: выбери ветку, которую нужно влить", Theme.Error);
+            ShowStatus(T($"{Theme.SymbolError} Это текущий коммит: выбери ветку, которую нужно влить", $"{Theme.SymbolError} This is the current commit: pick a branch to merge"), Theme.Error);
             return Task.CompletedTask;
         }
 
@@ -255,7 +255,7 @@ public sealed class GraphWindow : Runnable<bool>
             ?? commit.Refs.FirstOrDefault(r => r.Kind == RefKind.Remote)?.Name
             ?? commit.Hash;
         var name = revision == commit.Hash ? commit.ShortHash : revision;
-        return RunAsync(ct => _git.MergeRevisionAsync(revision, ct), $"{name} влит в текущую ветку");
+        return RunAsync(ct => _git.MergeRevisionAsync(revision, ct), T($"{name} влит в текущую ветку", $"{name} merged into the current branch"));
     }
 
     private Task CherryPickAsync()
@@ -263,7 +263,7 @@ public sealed class GraphWindow : Runnable<bool>
         if (_busy || _list.Selected is not { } commit)
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.CherryPickAsync(commit.Hash, ct), $"Коммит {commit.ShortHash} скопирован в текущую ветку");
+        return RunAsync(ct => _git.CherryPickAsync(commit.Hash, ct), T($"Коммит {commit.ShortHash} скопирован в текущую ветку", $"Commit {commit.ShortHash} copied into the current branch"));
     }
 
     private Task RevertAsync()
@@ -271,11 +271,11 @@ public sealed class GraphWindow : Runnable<bool>
         if (_busy || _list.Selected is not { } commit)
             return Task.CompletedTask;
 
-        if (!Confirm($"Откатить коммит {commit.ShortHash} «{commit.Subject}»?", GitService.RevertArguments(commit),
-                "В текущей ветке появится новый коммит с обратными изменениями. История не меняется.", "Revert"))
+        if (!Confirm(T($"Откатить коммит {commit.ShortHash} «{commit.Subject}»?", $"Revert commit {commit.ShortHash} '{commit.Subject}'?"), GitService.RevertArguments(commit),
+                T("В текущей ветке появится новый коммит с обратными изменениями. История не меняется.", "A new commit with the opposite changes will appear in the current branch. History is not changed."), "Revert"))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _git.RevertAsync(commit, ct), $"Коммит {commit.ShortHash} откачен новым коммитом");
+        return RunAsync(ct => _git.RevertAsync(commit, ct), T($"Коммит {commit.ShortHash} откачен новым коммитом", $"Commit {commit.ShortHash} reverted with a new commit"));
     }
 
     private Task CopyHash()
@@ -284,7 +284,7 @@ public sealed class GraphWindow : Runnable<bool>
             return Task.CompletedTask;
 
         SystemClipboard.SetText(commit.Hash);
-        ShowStatus($"{Theme.SymbolSuccess} Хеш {commit.ShortHash} скопирован", Theme.Success);
+        ShowStatus(T($"{Theme.SymbolSuccess} Хеш {commit.ShortHash} скопирован", $"{Theme.SymbolSuccess} Hash {commit.ShortHash} copied"), Theme.Success);
         return Task.CompletedTask;
     }
 
@@ -296,7 +296,7 @@ public sealed class GraphWindow : Runnable<bool>
 
         _busy = true;
         Result = true;
-        ShowStatus($"{Theme.SpinnerFrames[0]} Выполняется…", Theme.Muted);
+        ShowStatus(T($"{Theme.SpinnerFrames[0]} Выполняется…", $"{Theme.SpinnerFrames[0]} Running…"), Theme.Muted);
         try
         {
             var result = await action(CancellationToken.None);

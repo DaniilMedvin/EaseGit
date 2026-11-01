@@ -9,6 +9,11 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <!-- T("ru", "en") — строки интерфейса на текущем языке, см. Localization/Loc.cs -->
+        <Using Include="LazyGit.Localization.Loc" Static="true" />
+    </ItemGroup>
+
+    <ItemGroup>
       <Compile Remove="docs\**" />
     </ItemGroup>
 

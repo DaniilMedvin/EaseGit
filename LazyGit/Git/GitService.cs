@@ -319,14 +319,14 @@ public sealed class GitService
     /// </summary>
     public async Task<RepoOperation> GetOperationAsync(CancellationToken ct = default)
     {
-        _gitDir ??= (await RunCheckedAsync(["rev-parse", "--absolute-git-dir"], ct)).Trim();
-        if (Directory.Exists(Path.Combine(_gitDir, "rebase-merge")) || Directory.Exists(Path.Combine(_gitDir, "rebase-apply")))
+        var gitDir = await GetGitDirAsync(ct);
+        if (Directory.Exists(Path.Combine(gitDir, "rebase-merge")) || Directory.Exists(Path.Combine(gitDir, "rebase-apply")))
             return RepoOperation.Rebase;
-        if (File.Exists(Path.Combine(_gitDir, "MERGE_HEAD")))
+        if (File.Exists(Path.Combine(gitDir, "MERGE_HEAD")))
             return RepoOperation.Merge;
-        if (File.Exists(Path.Combine(_gitDir, "CHERRY_PICK_HEAD")))
+        if (File.Exists(Path.Combine(gitDir, "CHERRY_PICK_HEAD")))
             return RepoOperation.CherryPick;
-        if (File.Exists(Path.Combine(_gitDir, "REVERT_HEAD")))
+        if (File.Exists(Path.Combine(gitDir, "REVERT_HEAD")))
             return RepoOperation.Revert;
         return RepoOperation.None;
     }
@@ -343,6 +343,60 @@ public sealed class GitService
 
     public Task<GitResult> AbortAsync(RepoOperation operation, CancellationToken ct = default) =>
         RunActionAsync(AbortArguments(operation), ct);
+
+    /// <summary>Аргументы продолжения операции после решения конфликтов (или правки коммита при rebase).</summary>
+    public static string[] ContinueArguments(RepoOperation operation) => operation switch
+    {
+        RepoOperation.Merge => ["merge", "--continue"],
+        RepoOperation.CherryPick => ["cherry-pick", "--continue"],
+        RepoOperation.Revert => ["revert", "--continue"],
+        RepoOperation.Rebase => ["rebase", "--continue"],
+        _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Нечего продолжать"),
+    };
+
+    /// <summary>Продолжает операцию. Сообщение коммита git берёт готовое: редактор не открывается.</summary>
+    public Task<GitResult> ContinueAsync(RepoOperation operation, CancellationToken ct = default) =>
+        RunActionAsync(ContinueArguments(operation), ct);
+
+    /// <summary>
+    /// Аргументы interactive rebase от <paramref name="oldest"/> (включительно) до HEAD.
+    /// У первого коммита репозитория родителя нет — тогда --root. --autostash прячет и возвращает незакоммиченные изменения.
+    /// </summary>
+    public static string[] InteractiveRebaseArguments(Commit oldest) =>
+        oldest.Parents.Count == 0
+            ? ["rebase", "--interactive", "--autostash", "--root"]
+            : ["rebase", "--interactive", "--autostash", oldest.Parents[0]];
+
+    /// <summary>
+    /// Выполняет interactive rebase по плану <paramref name="steps"/> (новые коммиты первыми, как в логе).
+    /// Todo и сообщения для reword пишутся в .git/lazygit-cs-rebase/ и подставляются через GIT_SEQUENCE_EDITOR,
+    /// поэтому редактор не открывается. При конфликте или edit git останавливается, операция остаётся незавершённой.
+    /// </summary>
+    public async Task<GitResult> InteractiveRebaseAsync(IReadOnlyList<RebaseStep> steps, CancellationToken ct = default)
+    {
+        var dir = Path.Combine(await GetGitDirAsync(ct), "lazygit-cs-rebase");
+        // Файлы прошлого rebase больше не нужны: новый не начнётся, пока тот не закончен.
+        if (Directory.Exists(dir))
+            Directory.Delete(dir, recursive: true);
+        Directory.CreateDirectory(dir);
+
+        foreach (var step in steps.Where(s => s.Action == RebaseAction.Reword))
+        {
+            var body = await RunCheckedAsync(["log", "-1", "--format=%b", step.Commit.Hash], ct);
+            await File.WriteAllTextAsync(MessageFile(step.Commit), RebaseTodo.RewordMessage(step.NewSubject ?? step.Commit.Subject, body), ct);
+        }
+
+        var todo = Path.Combine(dir, "todo");
+        await File.WriteAllTextAsync(todo, RebaseTodo.Build(steps, MessageFile), ct);
+
+        var environment = new Dictionary<string, string> { ["GIT_SEQUENCE_EDITOR"] = $"cp {RebaseTodo.ShellQuote(todo)}" };
+        return await RunActionAsync(InteractiveRebaseArguments(RebaseTodo.Oldest(steps)), ct, environment: environment);
+
+        string MessageFile(Commit commit) => Path.Combine(dir, $"message-{commit.Hash}");
+    }
+
+    private async Task<string> GetGitDirAsync(CancellationToken ct) =>
+        _gitDir ??= (await RunCheckedAsync(["rev-parse", "--absolute-git-dir"], ct)).Trim();
 
     /// <summary>
     /// Решает конфликт, оставляя целиком нашу (<paramref name="ours"/>) или их версию файлов, и добавляет их в индекс.
@@ -475,12 +529,13 @@ public sealed class GitService
         file.OriginalPath is null ? [file.Path] : [file.Path, file.OriginalPath];
 
     /// <summary>Выполняет изменяющую команду и записывает её в журнал, в том числе отменённую.</summary>
-    private async Task<GitResult> RunActionAsync(IReadOnlyList<string> args, CancellationToken ct, string? input = null)
+    private async Task<GitResult> RunActionAsync(IReadOnlyList<string> args, CancellationToken ct, string? input = null,
+        IReadOnlyDictionary<string, string>? environment = null)
     {
         var started = DateTimeOffset.Now;
         try
         {
-            var result = await _git.RunAsync(RepoRoot, args, ct, input);
+            var result = await _git.RunAsync(RepoRoot, args, ct, input, environment);
             var output = (result.StdErr.Trim() + "\n" + result.StdOut.Trim()).Trim();
             _log?.Add(new CommandLogEntry(started, args, result.ExitCode, DateTimeOffset.Now - started, output));
             return result;

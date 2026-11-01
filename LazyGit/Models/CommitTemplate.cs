@@ -13,20 +13,20 @@ public sealed record CommitTemplate(string Name, string? Type, string Subject, s
     /// <summary>Как будет выглядеть заголовок: «feat: add ».</summary>
     public string Title => Type is null || CommitMessage.HasTypePrefix(Subject) ? Subject : $"{Type}: {Subject}";
 
-    /// <summary>Встроенные шаблоны: самые частые поводы для коммита.</summary>
-    public static IReadOnlyList<CommitTemplate> BuiltIn { get; } =
+    /// <summary>Встроенные шаблоны: самые частые поводы для коммита. Свойство, а не поле: названия на текущем языке.</summary>
+    public static IReadOnlyList<CommitTemplate> BuiltIn =>
     [
-        new("Новая функция", "feat", "add "),
-        new("Исправление бага", "fix", "", "Причина:\n- \n\nИсправление:\n- "),
-        new("Опечатка", "fix", "correct typo in "),
-        new("Рефакторинг", "refactor", "simplify "),
-        new("Тесты", "test", "add tests for "),
-        new("Документация", "docs", "update "),
-        new("Обновить зависимости", "chore", "update dependencies"),
-        new("Ломающее изменение", null, "feat!: ", "BREAKING CHANGE: "),
-        new("Первый коммит", "chore", "initial commit"),
-        new("Добавить README", "docs", "add README"),
-        new("Добавить .gitignore", "chore", "add .gitignore"),
-        new("Работа в процессе", "chore", "wip"),
+        new(T("Новая функция", "New feature"), "feat", "add "),
+        new(T("Исправление бага", "Bug fix"), "fix", "", T("Причина:\n- \n\nИсправление:\n- ", "Cause:\n- \n\nFix:\n- ")),
+        new(T("Опечатка", "Typo"), "fix", "correct typo in "),
+        new(T("Рефакторинг", "Refactoring"), "refactor", "simplify "),
+        new(T("Тесты", "Tests"), "test", "add tests for "),
+        new(T("Документация", "Documentation"), "docs", "update "),
+        new(T("Обновить зависимости", "Update dependencies"), "chore", "update dependencies"),
+        new(T("Ломающее изменение", "Breaking change"), null, "feat!: ", "BREAKING CHANGE: "),
+        new(T("Первый коммит", "Initial commit"), "chore", "initial commit"),
+        new(T("Добавить README", "Add README"), "docs", "add README"),
+        new(T("Добавить .gitignore", "Add .gitignore"), "chore", "add .gitignore"),
+        new(T("Работа в процессе", "Work in progress"), "chore", "wip"),
     ];
 }

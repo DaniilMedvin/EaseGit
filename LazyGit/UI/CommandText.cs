@@ -16,7 +16,7 @@ public static class CommandText
         if (separator >= 0 && args.Count - separator - 1 > MaxPaths)
         {
             var hidden = args.Count - separator - 1 - MaxPaths;
-            shown = [.. shown.Take(separator + 1 + MaxPaths), $"… ещё {hidden}"];
+            shown = [.. shown.Take(separator + 1 + MaxPaths), T($"… ещё {hidden}", $"… {hidden} more")];
         }
 
         return "git " + string.Join(' ', shown);

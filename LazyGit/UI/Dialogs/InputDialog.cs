@@ -7,7 +7,7 @@ namespace LazyGit.UI.Dialogs;
 
 /// <summary>
 /// Окно ввода одной строки: поле «>», строка пояснения и подсказка, если ввод не подходит.
-/// Используется для новой ветки и сообщения stash. Result — введённый текст или null (Esc).
+/// Используется для новой ветки, сообщения stash и reword. Result — введённый текст или null (Esc).
 /// </summary>
 public sealed class InputDialog : Runnable<string?>
 {
@@ -22,7 +22,8 @@ public sealed class InputDialog : Runnable<string?>
     /// <param name="submit">Что делает enter: «создать и переключиться».</param>
     /// <param name="validate">Текст ошибки для введённого значения или null, если подходит. Пустой ввод
     /// проверяется только при enter, чтобы не ругаться на ещё не начатое поле.</param>
-    public InputDialog(string title, string info, string submit, Func<string, string?>? validate = null)
+    /// <param name="initial">Начальный текст поля, например прежний заголовок коммита.</param>
+    public InputDialog(string title, string info, string submit, Func<string, string?>? validate = null, string initial = "")
     {
         _validate = validate ?? (_ => null);
         X = Pos.Center();
@@ -46,7 +47,7 @@ public sealed class InputDialog : Runnable<string?>
         var prompt = new Label { Text = "> ", X = 0, Y = 0 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
 
-        _input = new ClipboardTextField { X = Pos.Right(prompt), Y = 0, Width = Dim.Fill() };
+        _input = new ClipboardTextField { X = Pos.Right(prompt), Y = 0, Width = Dim.Fill(), Text = initial };
         _input.SetScheme(Theme.Input);
         _input.TextChanged += (_, _) => UpdateTip(onSubmit: false);
         _input.Accepting += (_, e) =>
@@ -61,7 +62,7 @@ public sealed class InputDialog : Runnable<string?>
         _tip = new Label { X = 0, Y = 4, Width = Dim.Fill() };
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
-        hints.SetHints([new Hint("enter", submit), new Hint("esc", "отмена")]);
+        hints.SetHints([new Hint("enter", submit), new Hint("esc", T("отмена", "cancel"))]);
 
         box.Add(prompt, _input, infoLabel, _tip);
         Add(box, BoxTitle.For(box, title, Theme.Accent), hints);
