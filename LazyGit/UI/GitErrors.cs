@@ -50,7 +50,7 @@ public static class GitErrors
             if (stderr.Contains("You have unstaged changes") || stderr.Contains("cannot rebase: You have unstaged changes"))
                 return T("Есть изменения вне индекса: добавь их (space) или спрячь (s), затем снова C", "There are unstaged changes: stage them (space) or stash them (s), then C again");
             if (stderr.Contains("is now empty") || result.StdOut.Contains("is now empty"))
-                return T("Коммит стал пустым после решения конфликта. Пропусти его: git rebase --skip, или прерви rebase (A)", "The commit became empty after resolving the conflict. Skip it: git rebase --skip, or abort the rebase (A)");
+                return T("Коммит стал пустым после решения конфликта. Пропусти его: K, или прерви rebase: A", "The commit became empty after resolving the conflict. Skip it: K, or abort the rebase: A");
             if (stderr.Contains("execution failed") || result.StdOut.Contains("execution failed"))
                 return T("Не удалось сменить сообщение коммита (хук commit-msg?). Поправь и нажми C или прерви rebase (A)", "Couldn't change the commit message (commit-msg hook?). Fix it and press C, or abort the rebase (A)");
             if (stderr.Contains("could not apply") || stderr.Contains("CONFLICT") || result.StdOut.Contains("CONFLICT")

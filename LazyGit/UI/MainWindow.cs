@@ -82,6 +82,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     private RepoStatus? _repoStatus;
     private RepoOperation _repoOperation;
 
+    // Сколько коммитов грузить в панель коммитов: растёт на LogPage, когда выбор доходит до конца списка.
+    private int _logLimit = GitService.DefaultLogLimit;
+    private const int LogPage = GitService.DefaultLogLimit;
+
     // Адрес remote и репозиторий на GitHub — перечитываются с остальным состоянием, чтобы окно GitHub открывалось сразу.
     private string? _remoteUrl;
     private GitHubRepo? _gitHubRepo;
@@ -189,6 +193,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         _commits.SelectionChanged += (_, _) =>
         {
             UpdateTitles();
+            LoadMoreCommitsIfAtEnd();
             if (_commits.HasFocus)
                 _ = LoadDiffAsync();
         };
@@ -442,6 +447,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("conflict.back", T("Вернуться к файлам", "Back to files"), CommandScope.Conflict, CommandKey.Of("esc", Key.Esc),
             () => _files.SetFocus(), T("к файлам", "to files"), available: () => _conflict is not null);
 
+        Add("files.stashSelected", T("Спрятать в stash только это", "Stash only this"), CommandScope.Files, CommandKey.Of("S", Key.S.WithShift),
+            StashSelected, hintOptional: true, available: () => _files.SelectedRow is FileEntryRow or DirectoryRow,
+            preview: () => "git stash push --include-untracked -- <путь>", keywords: "стэш спрятать файл часть выбранное отложить");
         Add("files.history", T("История файла", "File history"), CommandScope.Files, CommandKey.Of("h", Key.H),
             OpenSelectedFileHistory, T("история", "history"), hintOptional: true,
             available: () => _files.SelectedRow is FileEntryRow { Section: not FileSection.Untracked },
@@ -493,6 +501,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Char('='), CompareSelectedBranch, T("сравнить", "compare"), hintOptional: true,
             available: () => _branches.Selected is { IsCurrent: false },
             keywords: "сравнить разница diff ветки что изменилось compare pr");
+        Add("branches.rename", T("Переименовать ветку", "Rename branch"), CommandScope.Branches, CommandKey.Of("R", Key.R.WithShift),
+            RenameSelectedBranch, T("переименовать", "rename"), hintOptional: true,
+            preview: () => BranchPreview(b => GitService.RenameBranchArguments(b, T("<имя>", "<name>"))), keywords: "переименовать имя ветки rename move");
         Add("branches.cherryPick", T("Cherry-pick вершины ветки", "Cherry-pick branch tip"), CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
             () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
@@ -541,6 +552,12 @@ public sealed class MainWindow : Runnable<MainResult?>
             available: () => _repoOperation != RepoOperation.None,
             preview: () => _repoOperation == RepoOperation.None ? null : CommandText.Format(GitService.AbortArguments(_repoOperation)),
             keywords: "abort отменить merge конфликт");
+        Add("operation.skip", T("Пропустить текущий коммит rebase / cherry-pick / revert", "Skip the current commit of rebase / cherry-pick / revert"),
+            CommandScope.Global, CommandKey.Of("K", Key.K.WithShift), () => _ = SkipOperationCommitAsync(), T("пропустить", "skip"), hintOptional: true,
+            dangerous: true, available: () => _repoOperation is RepoOperation.Rebase or RepoOperation.CherryPick or RepoOperation.Revert,
+            preview: () => _repoOperation is RepoOperation.Rebase or RepoOperation.CherryPick or RepoOperation.Revert
+                ? CommandText.Format(GitService.SkipArguments(_repoOperation)) : null,
+            keywords: "skip пропустить коммит пустой rebase cherry-pick");
         Add("operation.continue", T("Продолжить merge / cherry-pick / rebase", "Continue merge / cherry-pick / rebase"), CommandScope.Global, CommandKey.Of("C", Key.C.WithShift),
             () => _ = ContinueOperationAsync(), T("продолжить", "continue"),
             available: () => _repoOperation != RepoOperation.None,
@@ -596,6 +613,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
             OpenHistorySearch, T("поиск", "search"), hintOptional: true,
             keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
+        Add("view.tags", T("Теги", "Tags"), CommandScope.Global, CommandKey.Char('#'), OpenTags, keywords: "тег теги релиз версия tag tags release");
         Add("view.fileHistory", T("История любого файла…", "History of any file…"), CommandScope.Global, CommandKey.Of("F", Key.F.WithShift),
             PickFileHistory, keywords: "история файла лог найти файл history log file");
         Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
@@ -1032,6 +1050,92 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         using var window = new HistorySearchWindow(_git);
         App!.Run(window);
+    }
+
+    /// <summary>Выбор у конца загруженного лога, а коммитов там ровно сколько грузили, — значит, есть ещё: грузим следующую порцию.</summary>
+    private void LoadMoreCommitsIfAtEnd()
+    {
+        var count = _commits.Items.Count;
+        if (count < _logLimit || _commits.SelectedIndex < count - 5)
+            return;
+
+        _logLimit += LogPage;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T($"Загружаю ещё коммиты (до {_logLimit})…", $"Loading more commits (up to {_logLimit})…")}", Theme.Muted, autoHide: true);
+        _ = RefreshAsync(silent: true);
+    }
+
+    /// <summary>Окно тегов: создать на HEAD, отправить, удалить.</summary>
+    private void OpenTags()
+    {
+        if (_busy)
+            return;
+
+        using var window = new TagsWindow(_git);
+        App!.Run(window);
+        if (window.Changed)
+            _ = RefreshAsync();
+    }
+
+    /// <summary>Переименовывает выбранную ветку; имя проверяется так же, как у новой.</summary>
+    private void RenameSelectedBranch()
+    {
+        if (_busy || _branches.Selected is not { } branch)
+            return;
+
+        var others = _branches.Items.Where(b => b.Name != branch.Name).Select(b => b.Name).ToList();
+        using var dialog = new InputDialog(T("Переименовать ветку", "Rename branch"),
+            branch.Upstream is null
+                ? T($"Сейчас: {branch.Name}", $"Now: {branch.Name}")
+                : T($"Сейчас: {branch.Name}. Ветка на сервере ({branch.Upstream}) не переименуется", $"Now: {branch.Name}. The server branch ({branch.Upstream}) is not renamed"),
+            T("переименовать", "rename"), name => name == branch.Name ? T("Это то же имя", "Same name") : BranchName.Check(name, others), initial: branch.Name);
+        App!.Run(dialog);
+        if (dialog.Result is not { } name)
+            return;
+
+        _ = RunAsync(ct => _git.RenameBranchAsync(branch, name, ct), T($"Ветка {branch.Name} теперь {name}", $"Branch {branch.Name} is now {name}"));
+    }
+
+    /// <summary>Прячет в stash только файл или папку под курсором (с новыми файлами), остальные изменения остаются.</summary>
+    private void StashSelected()
+    {
+        if (_busy)
+            return;
+
+        var (paths, name) = _files.SelectedRow switch
+        {
+            FileEntryRow f => ((IReadOnlyList<string>)[f.File.Path], f.File.Path),
+            DirectoryRow d => (d.Files.Select(e => e.File.Path).Distinct().ToList(), $"{d.Path}/"),
+            _ => ([], ""),
+        };
+        if (paths.Count == 0)
+            return;
+
+        using var dialog = new InputDialog("Stash", T($"Спрятать только {name}. Сообщение — по желанию", $"Stash only {name}. Message is optional"),
+            T("спрятать", "stash"));
+        App!.Run(dialog);
+        if (dialog.Result is not { } message)
+            return;
+
+        _ = RunAsync(ct => _git.StashPathsAsync(message, paths, ct), T($"{name} спрятан в stash, остальное на месте", $"{name} stashed, the rest stays"));
+    }
+
+    /// <summary>Пропускает текущий коммит rebase / cherry-pick / revert после подтверждения: его изменения выбрасываются.</summary>
+    private Task SkipOperationCommitAsync()
+    {
+        if (_busy || _repoOperation is not (RepoOperation.Rebase or RepoOperation.CherryPick or RepoOperation.Revert))
+            return Task.CompletedTask;
+
+        var operation = _repoOperation;
+        if (!Confirm(T("Пропустить текущий коммит?", "Skip the current commit?"), GitService.SkipArguments(operation),
+                T($"Изменения этого коммита не попадут в результат ({RepoHeader.OperationName(operation)} пойдёт дальше без него). Обычно так делают с коммитом, ставшим пустым.",
+                    $"This commit's changes won't be applied ({RepoHeader.OperationName(operation)} goes on without it). Usually done for a commit that became empty."),
+                T("Пропустить", "Skip")))
+            return Task.CompletedTask;
+
+        return RunAsync(ct => _git.SkipAsync(operation, ct), async _ =>
+            await _git.GetOperationAsync() == operation
+                ? T("Коммит пропущен, операция продолжается", "Commit skipped, the operation goes on")
+                : T("Коммит пропущен, операция завершена", "Commit skipped, the operation is finished"));
     }
 
     /// <summary>Окно графа всех веток. Действия в нём выполняются сразу, после закрытия экран обновляется.</summary>
@@ -1929,7 +2033,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             var statusTask = _git.GetStatusAsync();
             var branchesTask = _git.GetBranchesAsync();
-            var logTask = _git.GetLogAsync();
+            var logTask = _git.GetLogAsync(_logLimit);
             var stashTask = _git.GetStashesAsync();
             var operationTask = _git.GetOperationAsync();
             var remoteTask = _git.GetRemoteUrlAsync();
@@ -2066,7 +2170,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         var files = _files.Entries.Select(e => e.File.Path).Distinct().Count();
         _filesTitle.Text = $" {T("[1] Файлы", "[1] Files")}{(files > 0 ? $" {Theme.SymbolSeparator} {files}" : "")} ";
         _branchesTitle.Text = $" {T("[2] Ветки", "[2] Branches")}{Position(_branches)} ";
-        _commitsTitle.Text = $" {T("[3] Коммиты", "[3] Commits")}{Position(_commits, GitService.DefaultLogLimit)} ";
+        _commitsTitle.Text = $" {T("[3] Коммиты", "[3] Commits")}{Position(_commits, _logLimit)} ";
         _stashTitle.Text = $" [4] Stash{Position(_stash)} ";
     }
 

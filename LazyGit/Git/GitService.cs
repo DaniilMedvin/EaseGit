@@ -289,6 +289,44 @@ public sealed class GitService
     public Task<GitResult> MergeRevisionAsync(string revision, CancellationToken ct = default) =>
         RunActionAsync(MergeRevisionArguments(revision), ct);
 
+    public static string[] RenameBranchArguments(Branch branch, string name) => ["branch", "--move", branch.Name, name];
+
+    /// <summary>Переименовывает локальную ветку. Ветку на сервере git не трогает: её upstream остаётся прежним.</summary>
+    public Task<GitResult> RenameBranchAsync(Branch branch, string name, CancellationToken ct = default) =>
+        RunActionAsync(RenameBranchArguments(branch, name), ct);
+
+    public async Task<IReadOnlyList<Tag>> GetTagsAsync(CancellationToken ct = default) =>
+        TagParser.Parse(await RunCheckedAsync(TagParser.Arguments, ct));
+
+    /// <summary>Аргументы аннотированного тега на HEAD (с сообщением) или лёгкого, если сообщение пустое.</summary>
+    public static string[] CreateTagOnHeadArguments(string name, string message) =>
+        message.Length == 0 ? ["tag", name] : ["tag", "--annotate", name, "--message", message];
+
+    public Task<GitResult> CreateTagOnHeadAsync(string name, string message, CancellationToken ct = default) =>
+        RunActionAsync(CreateTagOnHeadArguments(name, message), ct);
+
+    public static string[] PushTagArguments(string remote, Tag tag) => ["push", remote, $"refs/tags/{tag.Name}"];
+
+    public Task<GitResult> PushTagAsync(string remote, Tag tag, CancellationToken ct = default) =>
+        RunActionAsync(PushTagArguments(remote, tag), ct);
+
+    public static string[] DeleteTagArguments(Tag tag) => ["tag", "--delete", tag.Name];
+
+    public static string[] DeleteRemoteTagArguments(string remote, Tag tag) => ["push", remote, "--delete", $"refs/tags/{tag.Name}"];
+
+    /// <summary>Удаляет тег локально и, с <paramref name="remote"/>, на сервере (сначала на сервере: если там не вышло, локальный цел).</summary>
+    public async Task<GitResult> DeleteTagAsync(Tag tag, string? remote, CancellationToken ct = default)
+    {
+        if (remote is not null)
+        {
+            var remoteResult = await RunActionAsync(DeleteRemoteTagArguments(remote, tag), ct);
+            if (!remoteResult.Success)
+                return remoteResult;
+        }
+
+        return await RunActionAsync(DeleteTagArguments(tag), ct);
+    }
+
     /// <summary>Создаёт ветку от HEAD и переключается на неё. В репозитории без коммитов — просто меняет имя ветки.</summary>
     public Task<GitResult> CreateBranchAsync(string name, CancellationToken ct = default) =>
         RunActionAsync(["switch", "--create", name], ct);
@@ -398,6 +436,13 @@ public sealed class GitService
     public Task<GitResult> StashAsync(string message, CancellationToken ct = default) =>
         RunActionAsync(StashArguments(message), ct);
 
+    /// <summary>Аргументы stash только этих файлов (вместе с новыми среди них); остальные изменения остаются.</summary>
+    public static string[] StashPathsArguments(string message, IReadOnlyList<string> paths) =>
+        [.. StashArguments(message), "--", .. paths];
+
+    public Task<GitResult> StashPathsAsync(string message, IReadOnlyList<string> paths, CancellationToken ct = default) =>
+        RunActionAsync(StashPathsArguments(message, paths), ct);
+
     /// <summary>Применяет stash и удаляет его. При конфликте git stash не удаляет.</summary>
     public Task<GitResult> StashPopAsync(StashEntry stash, CancellationToken ct = default) =>
         RunActionAsync(["stash", "pop", stash.Ref], ct);
@@ -460,6 +505,18 @@ public sealed class GitService
         RepoOperation.Rebase => ["rebase", "--continue"],
         _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Нечего продолжать"),
     };
+
+    /// <summary>Аргументы пропуска текущего коммита операции: его изменения выбрасываются, операция идёт дальше.</summary>
+    public static string[] SkipArguments(RepoOperation operation) => operation switch
+    {
+        RepoOperation.CherryPick => ["cherry-pick", "--skip"],
+        RepoOperation.Revert => ["revert", "--skip"],
+        RepoOperation.Rebase => ["rebase", "--skip"],
+        _ => throw new ArgumentOutOfRangeException(nameof(operation), operation, "Нечего пропускать"),
+    };
+
+    public Task<GitResult> SkipAsync(RepoOperation operation, CancellationToken ct = default) =>
+        RunActionAsync(SkipArguments(operation), ct);
 
     /// <summary>Продолжает операцию. Сообщение коммита git берёт готовое: редактор не открывается.</summary>
     public Task<GitResult> ContinueAsync(RepoOperation operation, CancellationToken ct = default) =>
