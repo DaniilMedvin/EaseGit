@@ -388,7 +388,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             OpenCommitDialog, "коммит", preview: () => "git commit --file=- --cleanup=strip");
         Add("repo.createGitIgnore", "Создать .gitignore (Visual Studio)", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
             () => _ = CreateGitIgnoreAsync(),
-            ".gitignore", preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
+            ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
             keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: "уже есть");
         Add("repo.createReadme", "Создать README.md", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
             () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, "Добавить README"),
