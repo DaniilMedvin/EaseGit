@@ -10,6 +10,19 @@ A calm, keyboard-driven git client for the terminal, written in C# on .NET 10 an
 
 ![Main screen: files, branches, commits and a highlighted C# diff](docs/screenshots/main-en.svg)
 
+## Made for C# / .NET
+
+LGit works with any git repository, but it is tuned for C# developers:
+
+- **C# syntax highlighting in diffs** is powered by Roslyn, the real C# compiler (`Microsoft.CodeAnalysis`), with the
+  Visual Studio dark theme colors. Other languages are shown as a plain colored diff.
+- **`.gitignore` for .NET in one key** (`I`): the latest official
+  [VisualStudio.gitignore](https://github.com/github/gitignore/blob/main/VisualStudio.gitignore) from GitHub,
+  with a built-in copy when offline.
+- Ignores `bin/`, `obj/` and `.vs/` noise out of the box once that `.gitignore` is in place.
+
+Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Features
 
 - **Files**: staged / changes / new / conflicts, folder tree, stage a file, a folder or everything, discard with confirmation.
@@ -121,6 +134,11 @@ scripts/screenshots.sh      # re-shoot the screenshots in docs/screenshots (need
 Project docs (in Russian): [plan](docs/PLAN.md), [architecture](docs/ARCHITECTURE.md), [conventions](docs/CONVENTIONS.md), [design](docs/DESIGN.md).
 
 Releases are built by GitHub Actions: push a tag `v*` and binaries for Linux, Windows and macOS are attached to the release.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome: see [CONTRIBUTING.md](CONTRIBUTING.md).
+Only the maintainer can merge into `main`, every change goes through a reviewed pull request.
 
 ## License
 

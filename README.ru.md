@@ -10,6 +10,19 @@
 
 ![Главный экран: файлы, ветки, коммиты и diff C# с подсветкой](docs/screenshots/main-ru.svg)
 
+## Сделан для C# / .NET
+
+LGit работает с любым git-репозиторием, но заточен под C#-разработчиков:
+
+- **Подсветка C# в diff** работает на Roslyn — настоящем компиляторе C# (`Microsoft.CodeAnalysis`) — в цветах
+  тёмной темы Visual Studio. Остальные языки показываются обычным цветным diff.
+- **`.gitignore` для .NET одной клавишей** (`I`): актуальный официальный
+  [VisualStudio.gitignore](https://github.com/github/gitignore/blob/main/VisualStudio.gitignore) с GitHub,
+  без сети — встроенная копия.
+- С таким `.gitignore` мусор из `bin/`, `obj/` и `.vs/` не попадает в список файлов.
+
+Подсветку других языков можно добавить — см. [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Возможности
 
 - **Файлы**: staged / изменения / новые / конфликты, дерево папок, stage файла, папки или всего сразу, сброс с подтверждением.
@@ -121,6 +134,11 @@ scripts/screenshots.sh      # переснять скриншоты в docs/scre
 Документация проекта: [план](docs/PLAN.md), [архитектура](docs/ARCHITECTURE.md), [соглашения](docs/CONVENTIONS.md), [дизайн](docs/DESIGN.md).
 
 Релизы собирает GitHub Actions: отправь тег `v*`, и к релизу приложатся бинарники для Linux, Windows и macOS.
+
+## Участие
+
+Сообщения об ошибках, идеи и pull request приветствуются: см. [CONTRIBUTING.md](CONTRIBUTING.md).
+Вливать в `main` может только автор, каждое изменение проходит через проверенный pull request.
 
 ## Лицензия
 
