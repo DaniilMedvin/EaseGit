@@ -186,6 +186,13 @@ public sealed class GitService
         CommitDiffParser.Parse(await RunCheckedAsync(
             CommitDiffParser.Arguments(revision.Commit.Hash, revision.OldPath is null ? [revision.Path] : [revision.OldPath, revision.Path]), ct));
 
+    /// <summary>
+    /// Кто и в каком коммите написал каждую строку. Без <paramref name="revision"/> — рабочая копия:
+    /// незакоммиченные строки с нулевым хешем. Переименования git прослеживает сам.
+    /// </summary>
+    public async Task<IReadOnlyList<BlameLine>> GetBlameAsync(string path, string? revision = null, CancellationToken ct = default) =>
+        BlameParser.Parse(await RunCheckedAsync(BlameParser.Arguments(path, revision), ct));
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);

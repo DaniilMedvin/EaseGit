@@ -44,6 +44,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   `enter` on a PR of another project opens its local copy or clones it; `/` picks any repository
   (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.
+- **Blame** (`B` on a file, `b` in file history): who wrote each line and in which commit; `p` jumps to the version
+  before that commit to see who wrote the line earlier.
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message, pop, apply, drop, see its diff.
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.

@@ -44,6 +44,7 @@ public sealed class FileHistoryWindow : Runnable
         [
             new Hint("↑↓", T("коммит", "commit")),
             new Hint("a", T("весь коммит / файл", "whole commit / file")),
+            new Hint("b", "blame"),
             new Hint("y", T("хеш", "hash"), Optional: true),
             new Hint("ctrl+d/u", "diff", Optional: true),
             new Hint("esc", T("закрыть", "close")),
@@ -66,6 +67,14 @@ public sealed class FileHistoryWindow : Runnable
         if (key == Key.Esc)
         {
             RequestStop();
+            return true;
+        }
+
+        // Blame файла в выбранном коммите (тем именем, какое у него было тогда).
+        if (key == Key.B && _list.Selected is { Status: not 'D' } blamed)
+        {
+            using var blame = new BlameWindow(_git, blamed.Path, blamed.Commit.Hash);
+            App!.Run(blame);
             return true;
         }
 

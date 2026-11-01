@@ -27,6 +27,9 @@ public abstract class ListPanel<T> : View where T : class
     /// <summary>Номер выбранной строки с нуля или -1, если список пуст.</summary>
     public int SelectedIndex => _selected;
 
+    /// <summary>Выбирает строку по номеру (с ограничением границами списка), например чтобы вернуться на прежнее место.</summary>
+    public void SelectIndex(int index) => Select(index);
+
     /// <summary>Выбранный элемент или null, если список пуст.</summary>
     public T? Selected => _selected >= 0 ? _items[_selected] : null;
 

@@ -447,6 +447,11 @@ public sealed class MainWindow : Runnable<MainResult?>
             available: () => _files.SelectedRow is FileEntryRow { Section: not FileSection.Untracked },
             keywords: "история лог коммиты файла history log blame кто менял");
 
+        Add("files.blame", T("Blame: кто написал каждую строку", "Blame: who wrote each line"), CommandScope.Files, CommandKey.Of("B", Key.B.WithShift),
+            OpenSelectedBlame, "blame", hintOptional: true,
+            available: () => _files.SelectedRow is FileEntryRow { Section: not (FileSection.Untracked or FileSection.Conflicts) },
+            keywords: "blame кто автор строка аннотация annotate");
+
         Add("diff.stageLines", T("Stage строки / выделения", "Stage line / selection"), CommandScope.Diff, CommandKey.Of("space", Key.Space),
             () => _ = ApplyLinesAsync(hunk: false), "stage", available: () => _staging is { Staged: false },
             preview: () => CommandText.Format(GitService.ApplyToIndexArguments(reverse: false)), keywords: "строка добавить");
@@ -901,6 +906,16 @@ public sealed class MainWindow : Runnable<MainResult?>
         App!.Run(picker);
         if (picker.Result is { } path)
             OpenFileHistory(path);
+    }
+
+    /// <summary>Blame файла под курсором в рабочей копии: незакоммиченные строки тоже видны.</summary>
+    private void OpenSelectedBlame()
+    {
+        if (_busy || _files.SelectedRow is not FileEntryRow row)
+            return;
+
+        using var window = new BlameWindow(_git, row.File.Path);
+        App!.Run(window);
     }
 
     private void OpenFileHistory(string path)
