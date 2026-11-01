@@ -116,7 +116,7 @@ public sealed class StartWindow : Runnable<StartAction?>
         {
             if (!_auth.GhInstalled)
             {
-                ShowStatus(T($"{Theme.SymbolError} gh не найден. Установи: sudo dnf install gh", $"{Theme.SymbolError} gh not found. Install it: sudo dnf install gh"), Theme.Error);
+                ShowStatus(T($"{Theme.SymbolError} gh не найден. Установи: {GhInstallHint.Command()}", $"{Theme.SymbolError} gh not found. Install it: {GhInstallHint.Command()}"), Theme.Error);
                 return true;
             }
 

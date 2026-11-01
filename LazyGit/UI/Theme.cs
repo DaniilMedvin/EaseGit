@@ -44,7 +44,8 @@ public static class Theme
     public const string SymbolEmpty = "○";
     public const string SymbolSuccess = "✓";
     public const string SymbolError = "✗";
-    public const string SymbolWarning = "⚠";
+    // Не ⚠: многие терминалы рисуют его эмодзи двойной ширины, и он налезает на текст.
+    public const string SymbolWarning = "▲";
     public const string SymbolSeparator = "·";
     public const string SymbolSelection = "❯";
     public const string SymbolBranch = "⎇";

@@ -43,7 +43,8 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
         {
             Text = status.GhInstalled
                 ? T("Войди в GitHub, чтобы делать push и pull\nбез лишних вопросов.\n\nВход выполнится через gh в браузере.\nПароли и токены LGit не хранит.", "Sign in to GitHub to push and pull\nwithout extra prompts.\n\nSign-in goes through gh in the browser.\nLGit stores no passwords or tokens.")
-                : T("Для входа нужен GitHub CLI (gh), он не найден.\nУстанови его и перезапусти LGit:\n\n  sudo dnf install gh", "Signing in needs the GitHub CLI (gh), and it was not found.\nInstall it and restart LGit:\n\n  sudo dnf install gh"),
+                : T($"Для входа нужен GitHub CLI (gh), он не найден.\nУстанови его и перезапусти LGit:\n\n  {GhInstallHint.Command()}",
+                    $"Signing in needs the GitHub CLI (gh), and it was not found.\nInstall it and restart LGit:\n\n  {GhInstallHint.Command()}"),
             X = 0,
             Y = 0,
         };
