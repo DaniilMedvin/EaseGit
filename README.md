@@ -52,6 +52,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   (what a PR would contain) or between tips.
 - **Blame** (`B` on a file, `b` in file history): who wrote each line and in which commit; `p` jumps to the version
   before that commit to see who wrote the line earlier.
+- **Build and test** on demand (`F5`): `dotnet build` and `dotnet test` with live output, a summary and the failed tests.
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message (everything or only the selected file or folder, `S`), pop, apply, drop, see its diff.
 - **Tags** (`#`): list, create on HEAD (annotated with a message), push, delete locally or on the server.

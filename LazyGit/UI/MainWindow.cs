@@ -1,6 +1,7 @@
 using LazyGit.Auth;
 using LazyGit.Commands;
 using LazyGit.Config;
+using LazyGit.DotNet;
 using LazyGit.Git;
 using LazyGit.GitHub;
 using LazyGit.Highlighting;
@@ -82,6 +83,9 @@ public sealed class MainWindow : Runnable<MainResult?>
     private bool _refreshPending;
     private RepoStatus? _repoStatus;
     private RepoOperation _repoOperation;
+
+    // Что собирать по F5 (.sln / .csproj) — ищется при обновлении экрана, а не на каждую проверку доступности команды.
+    private string? _dotnetTarget;
 
     // «Подробнее» (ctrl+e): над diff файла, коммита и stash — какие классы и методы C# изменились. По умолчанию выключено.
     private bool _codeDetails;
@@ -617,6 +621,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
             CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
             keywords: "подробнее методы классы что изменилось код roslyn сводка details");
+        Add("dotnet.check", T("Проверка: dotnet build и test", "Check: dotnet build and test"), CommandScope.Global,
+            CommandKey.Of("F5", Key.F5), OpenCheck, T("проверка", "check"), hintOptional: true,
+            available: () => _dotnetTarget is not null, unavailableNote: T("нет .sln / .csproj", "no .sln / .csproj"),
+            preview: () => _dotnetTarget is { } target ? $"dotnet build {target} && dotnet test {target} --no-build" : null,
+            keywords: "сборка тесты build test проверка dotnet перед push собрать");
         Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
             OpenHistorySearch, T("поиск", "search"), hintOptional: true,
             keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
@@ -1056,6 +1065,16 @@ public sealed class MainWindow : Runnable<MainResult?>
             return;
 
         using var window = new HistorySearchWindow(_git);
+        App!.Run(window);
+    }
+
+    /// <summary>Сборка и тесты по F5: окно с выводом по мере выполнения. Ничего не запускается само.</summary>
+    private void OpenCheck()
+    {
+        if (_busy || _dotnetTarget is not { } target)
+            return;
+
+        using var window = new CheckWindow(_git.RepoRoot, target);
         App!.Run(window);
     }
 
@@ -2054,17 +2073,20 @@ public sealed class MainWindow : Runnable<MainResult?>
             var stashTask = _git.GetStashesAsync();
             var operationTask = _git.GetOperationAsync();
             var remoteTask = _git.GetRemoteUrlAsync();
+            var targetTask = Task.Run(() => DotnetTarget.Find(_git.RepoRoot));
             var status = await statusTask;
             var branches = await branchesTask;
             var log = await logTask;
             var stashes = await stashTask;
             var operation = await operationTask;
             var remoteUrl = await remoteTask;
+            var dotnetTarget = await targetTask;
             App?.Invoke(() =>
             {
                 _repoStatus = status;
                 _repoOperation = operation;
                 _remoteUrl = remoteUrl;
+                _dotnetTarget = dotnetTarget;
                 _gitHubRepo = remoteUrl is null ? null : GitHubRepo.FromRemoteUrl(remoteUrl);
                 _header.SetStatus(status, operation);
                 _ = UpdateCiAsync();

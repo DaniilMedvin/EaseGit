@@ -41,6 +41,9 @@ public sealed class FilePickerDialog : Runnable<string?>
         box.SetScheme(Theme.Text(Theme.Accent));
         box.Padding!.Thickness = new Thickness(1, 0, 1, 0);
 
+        // Список создаётся раньше поля: обработчик enter в поле обращается к нему.
+        _list = new PathsPanel { X = 0, Y = 2, Width = Dim.Fill(), Height = Dim.Fill(), BorderStyle = LineStyle.None, CanFocus = false };
+
         var prompt = new Label { Text = "> ", X = 0, Y = 0 };
         prompt.SetScheme(Theme.Text(Theme.Accent, TextStyle.Bold));
         _query = new ClipboardTextField { X = Pos.Right(prompt), Y = 0, Width = Dim.Fill(10) };
@@ -58,7 +61,6 @@ public sealed class FilePickerDialog : Runnable<string?>
         _count = new Label { X = Pos.AnchorEnd(), Y = 0 };
         _count.SetScheme(Theme.Text(Theme.Dim));
 
-        _list = new PathsPanel { X = 0, Y = 2, Width = Dim.Fill(), Height = Dim.Fill(), BorderStyle = LineStyle.None, CanFocus = false };
 
         var hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
         hints.SetHints([new Hint("↑↓", T("выбор", "choose")), new Hint("enter", T("открыть", "open")), new Hint("esc", T("отмена", "cancel"))]);
