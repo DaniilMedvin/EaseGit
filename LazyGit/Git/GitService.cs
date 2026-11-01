@@ -377,6 +377,36 @@ public sealed class GitService
             : null;
     }
 
+    public async Task<IReadOnlyList<Worktree>> GetWorktreesAsync(CancellationToken ct = default) =>
+        WorktreeParser.Parse(await RunCheckedAsync(WorktreeParser.Arguments, ct));
+
+    /// <summary>Сколько файлов изменено в рабочей папке <paramref name="path"/> (другого worktree); null — папки нет.</summary>
+    public async Task<int?> CountChangesAsync(string path, CancellationToken ct = default)
+    {
+        if (!Directory.Exists(path))
+            return null;
+
+        var result = await _git.RunAsync(path, ["status", "--porcelain=v1", "-z"], ct);
+        return result.Success ? result.StdOut.Split('\0', StringSplitOptions.RemoveEmptyEntries).Length : null;
+    }
+
+    /// <summary>Аргументы нового worktree: существующая ветка — её checkout в папке, новая — создать от HEAD.</summary>
+    public static string[] AddWorktreeArguments(string path, string branch, bool newBranch) =>
+        newBranch ? ["worktree", "add", "-b", branch, path] : ["worktree", "add", path, branch];
+
+    public Task<GitResult> AddWorktreeAsync(string path, string branch, bool newBranch, CancellationToken ct = default) =>
+        RunActionAsync(AddWorktreeArguments(path, branch, newBranch), ct);
+
+    /// <summary>Аргументы удаления worktree: без <paramref name="force"/> git откажет, если в папке есть изменения.</summary>
+    public static string[] RemoveWorktreeArguments(string path, bool force) =>
+        force ? ["worktree", "remove", "--force", path] : ["worktree", "remove", path];
+
+    public Task<GitResult> RemoveWorktreeAsync(string path, bool force, CancellationToken ct = default) =>
+        RunActionAsync(RemoveWorktreeArguments(path, force), ct);
+
+    /// <summary>Убирает записи о worktree, чьи папки удалили вручную.</summary>
+    public Task<GitResult> PruneWorktreesAsync(CancellationToken ct = default) => RunActionAsync(["worktree", "prune"], ct);
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);

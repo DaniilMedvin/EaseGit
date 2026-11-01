@@ -33,7 +33,11 @@ public sealed class DiffPanel : View
     private IReadOnlyList<DiffLine> _lines = [];
     private IReadOnlyList<HighlightSpan>?[] _highlights = [];
     private string? _message;
+    // Прокрутка — в экранных строках: с переносом одна строка diff может занимать несколько.
     private int _scroll;
+    private bool _wrap = true;
+    private List<(int Line, int Part, int Start, int Length)> _rows = [];
+    private int _rowsWidth = -1;
     private int _numberWidth = 3;
 
     // Ширина колонки путей и самое большое число изменений среди строк Stat: по ним выравнивается сводка.
@@ -295,20 +299,46 @@ public sealed class DiffPanel : View
         return header.Length > 5 ? header[2..((header.Length - 1) / 2)] : header;
     }
 
+    /// <summary>
+    /// Перенос длинных строк кода и сообщения коммита на следующие экранные строки (по умолчанию включён); без него —
+    /// обрезаются по ширине панели.
+    /// </summary>
+    public bool Wrap
+    {
+        get => _wrap;
+        set
+        {
+            if (_wrap == value)
+                return;
+
+            // Та же строка diff остаётся вверху после переключения.
+            var top = RowToLine(_scroll);
+            _wrap = value;
+            _rowsWidth = -1;
+            _scroll = ClampScroll(FirstRow(top));
+            SetNeedsDraw();
+        }
+    }
+
     /// <summary>Показывает diff. Без <paramref name="keepScroll"/> прокручивает в начало.</summary>
     public void SetDiff(PreparedDiff diff, bool keepScroll = false)
     {
+        var topLine = RowToLine(_scroll);
         _lines = diff.Lines;
         _highlights = diff.Highlights;
         _source = diff.Source;
         _message = _lines.Count == 0 ? T("Нет изменений для показа", "No changes to show") : null;
-        _scroll = keepScroll ? Math.Clamp(_scroll, 0, Math.Max(0, _lines.Count - Viewport.Height)) : 0;
+        _rowsWidth = -1;
+
+        var maxNumber = _lines.Select(l => Math.Max(l.OldNumber ?? 0, l.NewNumber ?? 0)).DefaultIfEmpty(0).Max();
+        _numberWidth = Math.Max(3, maxNumber.ToString().Length);
+        _scroll = keepScroll ? ClampScroll(FirstRow(topLine)) : 0;
         if (_staging)
         {
             // После stage строки сдвигаются: курсор встаёт на ближайшее изменение на прежнем месте.
             // Другой diff (переключение staged / не staged) — с первого изменения.
             _anchor = null;
-            _cursor = NearestChange(keepScroll && _cursor >= 0 ? _cursor : _scroll);
+            _cursor = NearestChange(keepScroll && _cursor >= 0 ? _cursor : RowToLine(_scroll));
             EnsureCursorVisible();
         }
 
@@ -317,11 +347,105 @@ public sealed class DiffPanel : View
         _statMaxTotal = stats.Select(l => l.Counts is var (a, r) ? a + r : 0).DefaultIfEmpty(0).Max();
         // Шире числа только «Bin» у бинарного файла.
         _statCountWidth = Math.Max(_statMaxTotal.ToString().Length, stats.Any(l => l.Counts is null) ? 3 : 1);
-
-        var maxNumber = _lines.Select(l => Math.Max(l.OldNumber ?? 0, l.NewNumber ?? 0)).DefaultIfEmpty(0).Max();
-        _numberWidth = Math.Max(3, maxNumber.ToString().Length);
         SetNeedsDraw();
     }
+
+    /// <summary>
+    /// Экранные строки: строка diff, номер куска и его символы. Пересчитываются при смене diff, ширины или переноса.
+    /// </summary>
+    private List<(int Line, int Part, int Start, int Length)> Rows
+    {
+        get
+        {
+            if (_rowsWidth == Viewport.Width)
+                return _rows;
+
+            _rowsWidth = Viewport.Width;
+            _rows = new List<(int, int, int, int)>(_lines.Count);
+            for (var i = 0; i < _lines.Count; i++)
+            {
+                var chunk = ChunkWidth(_lines[i]);
+                if (!_wrap || chunk == 0 || Viewport.Width <= 0)
+                {
+                    _rows.Add((i, 0, 0, int.MaxValue));
+                    continue;
+                }
+
+                var part = 0;
+                foreach (var (start, length) in Breaks(ExpandTabs(_lines[i].Text), chunk))
+                    _rows.Add((i, part++, start, length));
+            }
+
+            return _rows;
+        }
+    }
+
+    /// <summary>
+    /// Куски строки по ширине <paramref name="chunk"/>: перенос по последнему пробелу, если он не дальше половины куска,
+    /// иначе (длинное слово) — ровно по ширине. Пустая строка — один пустой кусок.
+    /// </summary>
+    public static IEnumerable<(int Start, int Length)> Breaks(string text, int chunk)
+    {
+        var start = 0;
+        do
+        {
+            var end = Math.Min(text.Length, start + chunk);
+            if (end < text.Length)
+            {
+                var space = text.LastIndexOf(' ', end - 1, end - start);
+                if (space >= start + chunk / 2)
+                    end = space + 1;
+            }
+
+            yield return (start, end - start);
+            start = end;
+        }
+        while (start < text.Length);
+    }
+
+    /// <summary>Ширина колонок номеров и знака перед кодом: «  12  13 + ».</summary>
+    private int CodePrefix => _numberWidth * 2 + 4;
+
+    /// <summary>Сколько символов строки помещается в одну экранную строку; 0 — строка не переносится.</summary>
+    private int ChunkWidth(DiffLine line) => line.Kind switch
+    {
+        DiffLineKind.Context or DiffLineKind.Added or DiffLineKind.Removed => Math.Max(10, Viewport.Width - CodePrefix),
+        DiffLineKind.Message => Math.Max(10, Viewport.Width - 1),
+        _ => 0,
+    };
+
+    /// <summary>Сколько экранных строк занимает строка diff.</summary>
+    private int Parts(int index)
+    {
+        var first = FirstRow(index);
+        var rows = Rows;
+        var count = 0;
+        while (first + count < rows.Count && rows[first + count].Line == index)
+            count++;
+        return Math.Max(1, count);
+    }
+
+    /// <summary>Первая экранная строка строки diff <paramref name="line"/>.</summary>
+    private int FirstRow(int line)
+    {
+        var rows = Rows;
+        int low = 0, high = rows.Count - 1;
+        while (low < high)
+        {
+            var middle = (low + high) / 2;
+            if (rows[middle].Line < line)
+                low = middle + 1;
+            else
+                high = middle;
+        }
+
+        return Math.Max(0, low);
+    }
+
+    /// <summary>Строка diff, которой принадлежит экранная строка <paramref name="row"/>.</summary>
+    private int RowToLine(int row) => Rows.Count == 0 ? 0 : Rows[Math.Clamp(row, 0, Rows.Count - 1)].Line;
+
+    private int ClampScroll(int scroll) => Math.Clamp(scroll, 0, Math.Max(0, Rows.Count - Viewport.Height));
 
     /// <summary>
     /// Маскот в правом нижнем углу. Рисуется, только если diff до него не доходит и панель достаточно широкая,
@@ -345,7 +469,7 @@ public sealed class DiffPanel : View
     {
         _staging = true;
         _anchor = null;
-        _cursor = NearestChange(_scroll);
+        _cursor = NearestChange(RowToLine(_scroll));
         EnsureCursorVisible();
         CanFocus = true;
         SetFocus();
@@ -451,11 +575,12 @@ public sealed class DiffPanel : View
             return;
 
         // Заголовок фрагмента над первой строкой тоже виден: по нему понятно, где мы в файле.
-        var top = _cursor > 0 && _lines[_cursor - 1].Kind == DiffLineKind.Hunk ? _cursor - 1 : _cursor;
+        var top = FirstRow(_cursor > 0 && _lines[_cursor - 1].Kind == DiffLineKind.Hunk ? _cursor - 1 : _cursor);
+        var bottom = FirstRow(_cursor) + Parts(_cursor) - 1;
         if (top < _scroll)
             _scroll = top;
-        else if (_cursor >= _scroll + Viewport.Height)
-            _scroll = _cursor - Viewport.Height + 1;
+        else if (bottom >= _scroll + Viewport.Height)
+            _scroll = Math.Max(top, bottom - Viewport.Height + 1);
     }
 
     protected override bool OnKeyDown(Key key)
@@ -490,14 +615,14 @@ public sealed class DiffPanel : View
         _anchor = null;
         _message = message;
         _scroll = 0;
+        _rowsWidth = -1;
         SetNeedsDraw();
     }
 
     /// <summary>Прокрутка на <paramref name="delta"/> строк; отрицательное значение — вверх.</summary>
     public void ScrollBy(int delta)
     {
-        var max = Math.Max(0, _lines.Count - Viewport.Height);
-        var scroll = Math.Clamp(_scroll + delta, 0, max);
+        var scroll = ClampScroll(_scroll + delta);
         if (scroll == _scroll)
             return;
 
@@ -526,10 +651,15 @@ public sealed class DiffPanel : View
             return true;
         }
 
-        for (var row = 0; row < Viewport.Height && _scroll + row < _lines.Count; row++)
-            DrawLine(row, _scroll + row);
+        var rows = Rows;
+        _scroll = ClampScroll(_scroll);
+        for (var row = 0; row < Viewport.Height && _scroll + row < rows.Count; row++)
+        {
+            var (line, part, start, length) = rows[_scroll + row];
+            DrawLine(row, line, part, start, length);
+        }
 
-        DrawMascot(usedRows: Math.Min(Viewport.Height, _lines.Count - _scroll));
+        DrawMascot(usedRows: Math.Min(Viewport.Height, rows.Count - _scroll));
         return true;
     }
 
@@ -544,11 +674,22 @@ public sealed class DiffPanel : View
         MascotArt.Draw(this, x, y, _mascot);
     }
 
-    private void DrawLine(int row, int index)
+    /// <param name="part">Кусок перенесённой строки: 0 — начало (с номерами и знаком), дальше — продолжения.</param>
+    /// <param name="start">Первый символ куска в строке (с развёрнутыми табуляциями).</param>
+    /// <param name="length">Длина куска; без переноса — вся строка.</param>
+    private void DrawLine(int row, int index, int part = 0, int start = 0, int length = int.MaxValue)
     {
         var line = _lines[index];
         var highlight = _highlights[index];
         var width = Viewport.Width;
+        if (line.Kind == DiffLineKind.Message && _wrap)
+        {
+            var subjectLine = index == 0 || _lines[index - 1].Kind != DiffLineKind.Message;
+            this.DrawSegments(1, row, Slice([new Segment(ExpandTabs(line.Text), Theme.Fg, subjectLine ? TextStyle.Bold : TextStyle.None)],
+                start, length), width - 1);
+            return;
+        }
+
         switch (line.Kind)
         {
             case DiffLineKind.File:
@@ -608,19 +749,46 @@ public sealed class DiffPanel : View
             AddStr(0, row, new string(' ', width));
         }
 
-        var old = line.OldNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
-        var @new = line.NewNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
-        var segments = new List<Segment>
+        List<Segment> segments;
+        if (part == 0)
         {
-            new($"{old} {@new} ", Theme.Dim),
-            new(marker + " ", color, TextStyle.Bold),
-        };
-        if (highlight is null)
-            segments.Add(new Segment(ExpandTabs(line.Text), line.Kind == DiffLineKind.Context ? Theme.Fg : color));
+            var old = line.OldNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
+            var @new = line.NewNumber?.ToString().PadLeft(_numberWidth) ?? new string(' ', _numberWidth);
+            segments = [new($"{old} {@new} ", Theme.Dim), new(marker + " ", color, TextStyle.Bold)];
+        }
         else
-            segments.AddRange(SyntaxSegments(line.Text, highlight));
+        {
+            // Продолжение перенесённой строки: номера пустые, «↪» вместо знака — код остаётся в своей колонке.
+            segments = [new(new string(' ', _numberWidth * 2 + 2), Theme.Dim), new("↪ ", Theme.Dim)];
+        }
 
+        var code = highlight is null
+            ? [new Segment(ExpandTabs(line.Text), line.Kind == DiffLineKind.Context ? Theme.Fg : color)]
+            : SyntaxSegments(line.Text, highlight).ToList();
+        if (_wrap && length != int.MaxValue)
+            code = Slice(code, start, length);
+
+        segments.AddRange(code);
         this.DrawSegments(0, row, segments, width, background);
+    }
+
+    /// <summary>Символы [<paramref name="start"/>, start + <paramref name="length"/>) из цветных фрагментов — кусок для переноса.</summary>
+    private static List<Segment> Slice(IReadOnlyList<Segment> segments, int start, int length)
+    {
+        var result = new List<Segment>();
+        var position = 0;
+        foreach (var segment in segments)
+        {
+            var from = Math.Max(start, position);
+            var to = (int)Math.Min((long)start + length, position + segment.Text.Length);
+            if (to > from)
+                result.Add(segment with { Text = segment.Text[(from - position)..(to - position)] });
+            position += segment.Text.Length;
+            if (position >= (long)start + length)
+                break;
+        }
+
+        return result;
     }
 
     /// <summary>

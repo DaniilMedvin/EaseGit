@@ -27,7 +27,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 
 - **Files**: staged / changes / new / conflicts, folder tree, stage a file, a folder or everything, discard with confirmation.
 - **Line-by-line staging**: `enter` on a file, then stage, unstage or discard single lines, selections (`v`) or hunks.
-- **Diff** with line numbers and syntax highlighting in the Visual Studio dark style: C#, project files and XAML,
+- **Diff** with line numbers, word wrap for long lines (`w`) and syntax highlighting in the Visual Studio dark style: C#, project files and XAML,
   Razor, JSON; NuGet version changes in project files are called out above the diff (major bumps highlighted);
   `ctrl+e` adds which C# classes and methods were added, changed or removed (Roslyn, formatting-only edits are ignored).
 - **Commits** in the style of Conventional Commits: type picker, live preview, length counter, templates (`ctrl+t`),
@@ -58,6 +58,7 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   pick which tests to run by class or one by one (`space`, `a` for all).
 - **GitHub Actions** (`ctrl+o`): runs of the branch, jobs and steps, the log of failed steps right in LGit,
   rerun failed jobs or the whole run, cancel; refreshes itself while something is running.
+- **Worktrees** (`W`): working folders for other branches — list with their state, create, open in LGit, delete, prune.
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message (everything or only the selected file or folder, `S`), pop, apply, drop, see its diff.
 - **Tags** (`#`): list, create on HEAD (annotated with a message), push, delete locally or on the server.

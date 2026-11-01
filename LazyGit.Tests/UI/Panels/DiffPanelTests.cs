@@ -114,4 +114,14 @@ public class DiffPanelTests
 
         Assert.DoesNotContain(prepared.Lines, l => l.Kind == DiffLineKind.Stat);
     }
+
+    [Theory]
+    [InlineData("short", 10, new[] { "short" })]
+    [InlineData("", 10, new[] { "" })]
+    [InlineData("one two three four", 10, new[] { "one two ", "three four" })]
+    [InlineData("averyveryverylongword tail", 10, new[] { "averyveryv", "erylongwor", "d tail" })]
+    public void Breaks_WrapAtSpacesOrByWidth(string text, int chunk, string[] expected)
+    {
+        Assert.Equal(expected, DiffPanel.Breaks(text, chunk).Select(b => text.Substring(b.Start, b.Length)));
+    }
 }

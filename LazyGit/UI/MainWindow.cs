@@ -247,6 +247,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             Visible = false,
         };
         _diff.Mascot = config.Load().Mascot;
+        _diff.Wrap = config.Load().WrapDiff ?? true;
 
         _log = new CommandLogPanel
         {
@@ -630,6 +631,8 @@ public sealed class MainWindow : Runnable<MainResult?>
             CommandKey.Of("ctrl+o", Key.O.WithCtrl), OpenActions,
             available: () => _gitHubRepo is not null && _auth.IsAuthorized,
             keywords: "ci actions сборка тесты проверки лог github workflow");
+        Add("view.wrap", T("Перенос длинных строк в diff", "Wrap long lines in the diff"), CommandScope.Global, CommandKey.Of("w", Key.W),
+            ToggleWrap, keywords: "перенос строки длинные wrap не влезает ширина");
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
             CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
             keywords: "подробнее методы классы что изменилось код roslyn сводка details");
@@ -641,6 +644,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
             OpenHistorySearch, T("поиск", "search"), hintOptional: true,
             keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
+        Add("view.worktrees", T("Worktrees: рабочие папки для других веток", "Worktrees: working folders for other branches"), CommandScope.Global,
+            CommandKey.Of("W", Key.W.WithShift), OpenWorktrees, keywords: "worktree рабочая папка вторая копия параллельно ветка");
         Add("view.tags", T("Теги", "Tags"), CommandScope.Global, CommandKey.Char('#'), OpenTags, keywords: "тег теги релиз версия tag tags release");
         Add("view.fileHistory", T("История любого файла…", "History of any file…"), CommandScope.Global, CommandKey.Of("F", Key.F.WithShift),
             PickFileHistory, keywords: "история файла лог найти файл history log file");
@@ -1090,6 +1095,14 @@ public sealed class MainWindow : Runnable<MainResult?>
         App!.Run(window);
     }
 
+    private void ToggleWrap()
+    {
+        _diff.Wrap = !_diff.Wrap;
+        _config.Save(_config.Load() with { WrapDiff = _diff.Wrap });
+        ShowStatus(_diff.Wrap ? T("Длинные строки в diff переносятся (w — обрезать)", "Long lines in the diff wrap (w to cut)")
+            : T("Длинные строки в diff обрезаются (w — переносить)", "Long lines in the diff are cut (w to wrap)"), Theme.Muted, autoHide: true);
+    }
+
     private void ToggleCodeDetails()
     {
         _codeDetails = !_codeDetails;
@@ -1190,6 +1203,26 @@ public sealed class MainWindow : Runnable<MainResult?>
         _logLimit += LogPage;
         ShowStatus($"{Theme.SpinnerFrames[0]} {T($"Загружаю ещё коммиты (до {_logLimit})…", $"Loading more commits (up to {_logLimit})…")}", Theme.Muted, autoHide: true);
         _ = RefreshAsync(silent: true);
+    }
+
+    /// <summary>Окно worktrees; enter в нём — открыть другую рабочую папку в LGit.</summary>
+    private void OpenWorktrees()
+    {
+        if (_busy)
+            return;
+
+        using var window = new WorktreesWindow(_git);
+        App!.Run(window);
+        if (window.OpenPath is { } path)
+        {
+            OpenRepoPath = path;
+            Result = MainResult.OpenRepo;
+            RequestStop();
+        }
+        else if (window.Changed)
+        {
+            _ = RefreshAsync();
+        }
     }
 
     /// <summary>Окно тегов: создать на HEAD, отправить, удалить.</summary>
@@ -2171,6 +2204,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             var operationTask = _git.GetOperationAsync();
             var remoteTask = _git.GetRemoteUrlAsync();
             var targetTask = Task.Run(() => DotnetTarget.Find(_git.RepoRoot));
+            var worktreesTask = _git.GetWorktreesAsync();
             var status = await statusTask;
             var branches = await branchesTask;
             var log = await logTask;
@@ -2178,12 +2212,14 @@ public sealed class MainWindow : Runnable<MainResult?>
             var operation = await operationTask;
             var remoteUrl = await remoteTask;
             var dotnetTarget = await targetTask;
+            var worktrees = await worktreesTask;
             App?.Invoke(() =>
             {
                 _repoStatus = status;
                 _repoOperation = operation;
                 _remoteUrl = remoteUrl;
                 _dotnetTarget = dotnetTarget;
+                _branches.InWorktrees = worktrees.Where(w => w.Branch is not null && w.Path != _git.RepoRoot).ToDictionary(w => w.Branch!, w => w.Path);
                 _gitHubRepo = remoteUrl is null ? null : GitHubRepo.FromRemoteUrl(remoteUrl);
                 _header.SetStatus(status, operation);
                 _ = UpdateCiAsync();

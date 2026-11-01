@@ -35,6 +35,9 @@ public sealed class BranchesPanel : ListPanel<Branch>
         return base.DefaultIndex(items);
     }
 
+    /// <summary>Ветки, открытые в других worktree: ветка → папка. Переключиться на них здесь git не даст.</summary>
+    public IReadOnlyDictionary<string, string> InWorktrees { get; set; } = new Dictionary<string, string>();
+
     /// <summary>Ветки, влитые копиями (rebase / squash): плашка «≈ влита» после имени.</summary>
     public IReadOnlyDictionary<string, MergedCopy> Merged { get; set; } = new Dictionary<string, MergedCopy>();
 
@@ -54,6 +57,7 @@ public sealed class BranchesPanel : ListPanel<Branch>
                 ? new Segment(branch.Name, Theme.Info, TextStyle.Bold)
                 : new Segment(branch.Name, Theme.Fg),
             Merged.ContainsKey(branch.Name) ? new Segment(T("  ≈ влита", "  ≈ merged"), Theme.Info, TextStyle.Italic) : new Segment("", Theme.Fg),
+            InWorktrees.TryGetValue(branch.Name, out var folder) ? new Segment($"  ⌂ {Path.GetFileName(folder)}", Theme.Dim) : new Segment("", Theme.Fg),
         ], nameWidth, background);
 
         if (trackWidth > 0)

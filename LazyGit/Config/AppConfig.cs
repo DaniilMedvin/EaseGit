@@ -22,6 +22,9 @@ public sealed record AppConfig
     /// <summary>Маскот в углу панели diff, выбирается в окне настроек.</summary>
     public Mascot Mascot { get; init; }
 
+    /// <summary>Перенос длинных строк в diff (клавиша w); не задано — включён.</summary>
+    public bool? WrapDiff { get; init; }
+
     /// <summary>Панель Command Log под diff открыта (переключается клавишей ~).</summary>
     public bool ShowCommandLog { get; init; }
 
