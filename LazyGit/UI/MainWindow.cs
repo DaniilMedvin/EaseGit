@@ -489,6 +489,10 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = DeleteSelectedBranchAsync(), T("удалить", "delete"), dangerous: true,
             preview: () => BranchPreview(b => GitService.DeleteBranchArguments(b, force: false)), keywords: "удалить бранч");
 
+        Add("branches.compare", T("Сравнить с текущей веткой", "Compare with the current branch"), CommandScope.Branches,
+            CommandKey.Char('='), CompareSelectedBranch, T("сравнить", "compare"), hintOptional: true,
+            available: () => _branches.Selected is { IsCurrent: false },
+            keywords: "сравнить разница diff ветки что изменилось compare pr");
         Add("branches.cherryPick", T("Cherry-pick вершины ветки", "Cherry-pick branch tip"), CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
             () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
@@ -511,6 +515,10 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("commits.cherryPick", T("Cherry-pick по хешу или имени", "Cherry-pick by hash or name"), CommandScope.Commits, CommandKey.Of("C", Key.C.WithShift),
             OpenCherryPickDialog, "cherry-pick", hintOptional: true, preview: () => T("git cherry-pick <хеш>", "git cherry-pick <hash>"),
             available: () => _repoOperation == RepoOperation.None, keywords: "черри пик скопировать коммит перенести");
+        Add("commits.compare", T("Изменения с этого коммита до HEAD", "Changes from this commit to HEAD"), CommandScope.Commits,
+            CommandKey.Char('='), CompareSelectedCommit, T("сравнить", "compare"), hintOptional: true,
+            available: () => _commits.Selected is { } c && _commits.Items.Count > 0 && _commits.Items[0].Hash != c.Hash,
+            keywords: "сравнить разница diff коммиты что изменилось с тех пор compare");
         Add("commits.rebase", T("Interactive rebase от коммита", "Interactive rebase from commit"), CommandScope.Commits, CommandKey.Of("i", Key.I),
             () => _ = StartInteractiveRebaseAsync(), "rebase -i", dangerous: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => CommitPreview(GitService.InteractiveRebaseArguments),
@@ -921,6 +929,26 @@ public sealed class MainWindow : Runnable<MainResult?>
     private void OpenFileHistory(string path)
     {
         using var window = new FileHistoryWindow(_git, path);
+        App!.Run(window);
+    }
+
+    /// <summary>Текущая ветка против выбранной: по умолчанию — что принесёт выбранная (от общего предка, как в PR).</summary>
+    private void CompareSelectedBranch()
+    {
+        if (_busy || _branches.Selected is not { IsCurrent: false } branch)
+            return;
+
+        using var window = new CompareWindow(_git, _repoStatus?.Branch ?? "HEAD", branch.Name);
+        App!.Run(window);
+    }
+
+    /// <summary>Выбранный коммит против HEAD: всё, что изменилось после него.</summary>
+    private void CompareSelectedCommit()
+    {
+        if (_busy || _commits.Selected is not { } commit)
+            return;
+
+        using var window = new CompareWindow(_git, commit.Hash, "HEAD");
         App!.Run(window);
     }
 

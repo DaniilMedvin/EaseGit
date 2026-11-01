@@ -50,6 +50,7 @@ public sealed class GraphWindow : Runnable<bool>
             new Hint("M", "merge", Optional: true),
             new Hint("C", "cherry-pick", Optional: true),
             new Hint("v", "revert", Optional: true),
+            new Hint("=", T("сравнить с HEAD", "compare with HEAD"), Optional: true),
             new Hint("y", T("хеш", "hash"), Optional: true),
             new Hint("ctrl+d/u", "diff", Optional: true),
             new Hint("esc", T("закрыть", "close")),
@@ -86,6 +87,13 @@ public sealed class GraphWindow : Runnable<bool>
             return Handled(CherryPickAsync());
         if (key == Key.V)
             return Handled(RevertAsync());
+        if (Commands.CommandKey.Char('=').Matches(key) && _list.Selected is { } compared)
+        {
+            using var compare = new CompareWindow(_git, compared.Hash, "HEAD");
+            App!.Run(compare);
+            return true;
+        }
+
         if (key == Key.Y)
             return Handled(CopyHash());
         if (key == Key.R)

@@ -193,6 +193,42 @@ public sealed class GitService
     public async Task<IReadOnlyList<BlameLine>> GetBlameAsync(string path, string? revision = null, CancellationToken ct = default) =>
         BlameParser.Parse(await RunCheckedAsync(BlameParser.Arguments(path, revision), ct));
 
+    /// <summary>Изменённые файлы между <paramref name="left"/> и <paramref name="right"/> со счётчиками строк.</summary>
+    /// <param name="fromMergeBase">От общего предка (что принесла <paramref name="right"/>) или между вершинами.</param>
+    public async Task<IReadOnlyList<ComparedFile>> CompareFilesAsync(string left, string right, bool fromMergeBase, CancellationToken ct = default)
+    {
+        var range = CompareParser.Range(left, right, fromMergeBase);
+        var nameStatus = RunCheckedAsync(CompareParser.NameStatusArguments(range), ct);
+        var numstat = RunCheckedAsync(CompareParser.NumstatArguments(range), ct);
+        return CompareParser.Parse(await nameStatus, await numstat);
+    }
+
+    /// <summary>Diff одного файла сравнения (с прежним именем у переименования).</summary>
+    public async Task<IReadOnlyList<DiffLine>> CompareFileDiffAsync(string left, string right, bool fromMergeBase, ComparedFile file,
+        CancellationToken ct = default) =>
+        DiffParser.Parse(await RunCheckedAsync(
+            ["diff", .. DiffOptions, "--find-renames", CompareParser.Range(left, right, fromMergeBase), "--",
+             .. file.OldPath is null ? (string[])[file.Path] : [file.OldPath, file.Path]], ct));
+
+    /// <summary>Коммиты, которые есть в <paramref name="right"/> и нет в <paramref name="left"/>, новые первыми.</summary>
+    public async Task<IReadOnlyList<Commit>> CommitsOnlyInAsync(string left, string right, CancellationToken ct = default) =>
+        LogParser.Parse(await RunCheckedAsync(LogParser.Arguments(GraphLogLimit, range: $"{left}..{right}"), ct));
+
+    /// <summary>Сколько коммитов только в <paramref name="left"/> и только в <paramref name="right"/>.</summary>
+    public async Task<(int OnlyLeft, int OnlyRight)> CountDivergenceAsync(string left, string right, CancellationToken ct = default)
+    {
+        var parts = (await RunCheckedAsync(["rev-list", "--left-right", "--count", $"{left}...{right}", "--"], ct))
+            .Split((char[])['\t', ' '], StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 2 && int.TryParse(parts[0], out var l) && int.TryParse(parts[1], out var r) ? (l, r) : (0, 0);
+    }
+
+    /// <summary>Общий предок двух веток или коммитов; null — общей истории нет.</summary>
+    public async Task<string?> GetMergeBaseAsync(string left, string right, CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["merge-base", left, right], ct);
+        return result.Success ? result.StdOut.Trim() : null;
+    }
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);
