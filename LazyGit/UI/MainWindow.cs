@@ -87,6 +87,11 @@ public sealed class MainWindow : Runnable<MainResult?>
     // Что собирать по F5 (.sln / .csproj) — ищется при обновлении экрана, а не на каждую проверку доступности команды.
     private string? _dotnetTarget;
 
+    // Ветки, влитые копиями (rebase / squash), и кэш проверок: ключ — ветка, её вершина и вершина базы.
+    private IReadOnlyDictionary<string, MergedCopy> _mergedCopies = new Dictionary<string, MergedCopy>();
+    private readonly Dictionary<string, MergedCopy?> _mergedCache = [];
+    private bool _mergedLoading;
+
     // Исключённые в окне проверки тесты: выбор живёт, пока открыт репозиторий, и не теряется между F5.
     private readonly HashSet<string> _excludedTests = new(StringComparer.Ordinal);
 
@@ -515,6 +520,10 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("branches.rename", T("Переименовать ветку", "Rename branch"), CommandScope.Branches, CommandKey.Of("R", Key.R.WithShift),
             RenameSelectedBranch, T("переименовать", "rename"), hintOptional: true,
             preview: () => BranchPreview(b => GitService.RenameBranchArguments(b, T("<имя>", "<name>"))), keywords: "переименовать имя ветки rename move");
+        Add("branches.deleteMerged", T("Удалить ветки, влитые через rebase / squash", "Delete branches merged by rebase / squash"), CommandScope.Branches,
+            CommandKey.Of("X", Key.X.WithShift), DeleteMergedCopies, T("убрать влитые", "clean merged"), hintOptional: true,
+            available: () => _branches.Items.Any(b => !b.IsCurrent && _mergedCopies.ContainsKey(b.Name)),
+            keywords: "удалить влитые ветки очистить rebase squash merged cleanup prune");
         Add("branches.cherryPick", T("Cherry-pick вершины ветки", "Cherry-pick branch tip"), CommandScope.Branches, CommandKey.Of("C", Key.C.WithShift),
             () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
@@ -1091,6 +1100,86 @@ public sealed class MainWindow : Runnable<MainResult?>
         _ = LoadDiffAsync();
     }
 
+    /// <summary>
+    /// Ищет ветки, влитые в основную копиями (rebase / squash), — в фоне после обновления экрана. Основная — origin/main
+    /// (влитое на GitHub видно сразу после fetch), иначе локальная; проверки кэшируются по вершинам веток.
+    /// </summary>
+    private async Task UpdateMergedCopiesAsync()
+    {
+        if (_mergedLoading)
+            return;
+
+        _mergedLoading = true;
+        try
+        {
+            var tips = await _git.GetBranchTipsAsync();
+            var main = await _git.GetRemoteDefaultBranchAsync() ?? (tips.ContainsKey("main") ? "main" : tips.ContainsKey("master") ? "master" : null);
+            if (main is null)
+                return;
+
+            var baseRef = tips.ContainsKey($"origin/{main}") ? $"origin/{main}" : main;
+            if (!tips.TryGetValue(baseRef, out var baseTip))
+                return;
+
+            var found = new Dictionary<string, MergedCopy>();
+            foreach (var (name, tip) in tips.Where(t => t.Key != main && t.Key != $"origin/{main}"))
+            {
+                var key = $"{name}\0{tip}\0{baseTip}";
+                if (!_mergedCache.TryGetValue(key, out var copy))
+                {
+                    copy = await _git.FindMergedCopyAsync(name, tip, baseRef);
+                    _mergedCache[key] = copy;
+                }
+
+                if (copy is not null)
+                    found[name] = copy;
+            }
+
+            App?.Invoke(() =>
+            {
+                _mergedCopies = found;
+                _branches.Merged = found;
+                _commits.Merged = found;
+                _branches.SetNeedsDraw();
+                _commits.SetNeedsDraw();
+            });
+        }
+        catch (GitCommandException)
+        {
+            // Подписи «≈ влита» — подсказка: если git не ответил, их просто нет.
+        }
+        finally
+        {
+            _mergedLoading = false;
+        }
+    }
+
+    /// <summary>Удаляет локальные ветки, влитые копиями (rebase / squash), кроме текущей — после подтверждения со списком.</summary>
+    private void DeleteMergedCopies()
+    {
+        if (_busy)
+            return;
+
+        var branches = _branches.Items.Where(b => !b.IsCurrent && _mergedCopies.ContainsKey(b.Name)).ToList();
+        if (branches.Count == 0)
+        {
+            ShowStatus(T("Веток, влитых через rebase или squash, нет", "No branches merged by rebase or squash"), Theme.Muted, autoHide: true);
+            return;
+        }
+
+        var names = string.Join(", ", branches.Select(b => b.Name));
+        if (!Confirm(T($"Удалить {Plural(branches.Count, "влитую ветку", "влитые ветки", "влитых веток", "merged branch", "merged branches")}?",
+                    $"Delete {Plural(branches.Count, "влитую ветку", "влитые ветки", "влитых веток", "merged branch", "merged branches")}?"),
+                ["branch", "-D", .. branches.Select(b => b.Name)],
+                T($"{names}. Их изменения уже в основной ветке (через rebase или squash), так что ничего не теряется. На сервере ветки не удаляются.",
+                    $"{names}. Their changes are already in the base branch (via rebase or squash), nothing is lost. Branches on the server are not deleted."),
+                T("Удалить", "Delete")))
+            return;
+
+        _ = RunAsync(ct => _git.DeleteBranchesAsync(branches, ct),
+            T($"Удалено: {names}", $"Deleted: {names}"));
+    }
+
     /// <summary>Выбор у конца загруженного лога, а коммитов там ровно сколько грузили, — значит, есть ещё: грузим следующую порцию.</summary>
     private void LoadMoreCommitsIfAtEnd()
     {
@@ -1183,7 +1272,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         if (_busy)
             return;
 
-        using var graph = new GraphWindow(_git);
+        using var graph = new GraphWindow(_git, _mergedCopies);
         App!.Run(graph);
         if (graph.Result)
             _ = RefreshAsync();
@@ -2098,6 +2187,7 @@ public sealed class MainWindow : Runnable<MainResult?>
                 _gitHubRepo = remoteUrl is null ? null : GitHubRepo.FromRemoteUrl(remoteUrl);
                 _header.SetStatus(status, operation);
                 _ = UpdateCiAsync();
+                _ = UpdateMergedCopiesAsync();
                 _files.SetStatus(status);
                 _branches.SetItems(branches);
                 _commits.SetItems(log);

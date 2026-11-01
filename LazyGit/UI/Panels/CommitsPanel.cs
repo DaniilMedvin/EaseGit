@@ -22,6 +22,9 @@ public sealed class CommitsPanel : ListPanel<Commit>
     /// <summary>Граф слева. Без него — для коммитов не подряд (результаты поиска): линии были бы бессмысленны.</summary>
     public bool ShowGraph { get; init; } = true;
 
+    /// <summary>Ветки, влитые копиями (rebase / squash): у их вершины подпись «≈ влита в main как a1b2c3d».</summary>
+    public IReadOnlyDictionary<string, MergedCopy> Merged { get; set; } = new Dictionary<string, MergedCopy>();
+
     /// <summary>Подпись пустого списка; по умолчанию — «Коммитов пока нет».</summary>
     public string? Empty { get; set; }
 
@@ -54,6 +57,10 @@ public sealed class CommitsPanel : ListPanel<Commit>
         foreach (var reference in commit.Refs.OrderBy(RefOrder))
             segments.Add(RefSegment(reference));
         segments.Add(new Segment(" " + commit.Subject, Theme.Fg));
+        // Линия такой ветки обрывается: её изменения уже в основной ветке под другими хешами.
+        if (commit.Refs.Select(r => Merged.GetValueOrDefault(r.Name)).FirstOrDefault(m => m is not null) is { } merged)
+            segments.Add(new Segment(T($"  ≈ влита в {merged.Base} как {merged.ShortCommit}{(merged.Squashed ? " (squash)" : "")}",
+                $"  ≈ merged into {merged.Base} as {merged.ShortCommit}{(merged.Squashed ? " (squash)" : "")}"), Theme.Info, TextStyle.Italic));
         this.DrawSegments(1, line, segments, textWidth, background);
 
         if (showAge)

@@ -27,7 +27,8 @@ public sealed class GraphWindow : Runnable<bool>
     private CancellationTokenSource? _detailsLoading;
     private bool _busy;
 
-    public GraphWindow(GitService git)
+    /// <param name="merged">Ветки, влитые копиями (rebase / squash): подпись на графе вместо голого обрыва линии.</param>
+    public GraphWindow(GitService git, IReadOnlyDictionary<string, MergedCopy>? merged = null)
     {
         _git = git;
         Width = Dim.Fill();
@@ -35,6 +36,7 @@ public sealed class GraphWindow : Runnable<bool>
         SetScheme(Theme.Base);
 
         _list = new CommitsPanel { ShowAuthor = true, X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Percent(55) };
+        _list.Merged = merged ?? new Dictionary<string, MergedCopy>();
         _list.SelectionChanged += (_, _) => _ = LoadDetailsAsync();
 
         _details = new DiffPanel { X = 0, Y = Pos.Bottom(_list), Width = Dim.Fill(), Height = Dim.Fill(2) };

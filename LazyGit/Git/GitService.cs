@@ -324,6 +324,59 @@ public sealed class GitService
         return result;
     }
 
+    /// <summary>Вершины всех веток, локальных и удалённых («origin/HEAD» пропускается): имя → хеш.</summary>
+    public async Task<IReadOnlyDictionary<string, string>> GetBranchTipsAsync(CancellationToken ct = default)
+    {
+        var output = await RunCheckedAsync(["for-each-ref", "--format=%(refname:short)%00%(objectname)", "refs/heads", "refs/remotes"], ct);
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Select(line => line.Split('\0'))
+            .Where(parts => parts.Length == 2 && !parts[0].EndsWith("/HEAD", StringComparison.Ordinal) && parts[0] != "origin")
+            .ToDictionary(parts => parts[0], parts => parts[1]);
+    }
+
+    /// <summary>Отпечатки (patch-id) коммитов диапазона: отпечаток → коммит.</summary>
+    private async Task<IReadOnlyList<(string PatchId, string Commit)>> PatchIdsAsync(string range, CancellationToken ct)
+    {
+        var log = await RunCheckedAsync(["log", "-p", "--no-color", "--no-ext-diff", "--format=commit %H", range, "--"], ct);
+        return log.Length == 0 ? [] : PatchIdParser.Parse(await RunCheckedAsync(PatchIdParser.Arguments, ct, log));
+    }
+
+    /// <summary>
+    /// Влита ли ветка в <paramref name="baseRef"/> копиями (rebase / squash), а не merge: только чтение, по отпечаткам
+    /// изменений. Обычный merge (ветка — предок базы), пустая ветка и ветки без общей истории — null.
+    /// </summary>
+    public async Task<MergedCopy?> FindMergedCopyAsync(string branch, string tip, string baseRef, CancellationToken ct = default)
+    {
+        if ((await _git.RunAsync(RepoRoot, ["merge-base", "--is-ancestor", tip, baseRef], ct)).Success)
+            return null;
+
+        var mergeBase = await GetMergeBaseAsync(tip, baseRef, ct);
+        if (mergeBase is null || mergeBase == tip)
+            return null;
+
+        var onBase = await PatchIdsAsync($"{mergeBase}..{baseRef}", ct);
+        if (onBase.Count == 0)
+            return null;
+
+        var byPatch = new Dictionary<string, string>();
+        foreach (var (patch, commit) in onBase)
+            byPatch.TryAdd(patch, commit);
+
+        // Rebase: у каждого коммита ветки есть копия в базе.
+        var own = await PatchIdsAsync($"{mergeBase}..{tip}", ct);
+        if (own.Count > 0 && own.All(p => byPatch.ContainsKey(p.PatchId)))
+            return new MergedCopy(branch, baseRef, byPatch[own[0].PatchId], Squashed: false);
+
+        // Squash: всё изменение ветки целиком — один коммит базы.
+        var diff = await RunCheckedAsync(["diff", "--no-color", "--no-ext-diff", mergeBase, tip, "--"], ct);
+        if (diff.Length == 0)
+            return null;
+        var whole = PatchIdParser.Parse(await RunCheckedAsync(PatchIdParser.Arguments, ct, diff));
+        return whole.Count == 1 && byPatch.TryGetValue(whole[0].PatchId, out var squash)
+            ? new MergedCopy(branch, baseRef, squash, Squashed: true)
+            : null;
+    }
+
     /// <summary>Файлы репозитория в HEAD и индексе (для выбора файла, чью историю смотреть).</summary>
     public async Task<IReadOnlyList<string>> GetTrackedFilesAsync(CancellationToken ct = default) =>
         (await RunCheckedAsync(["ls-files", "-z"], ct)).Split('\0', StringSplitOptions.RemoveEmptyEntries);
@@ -413,6 +466,10 @@ public sealed class GitService
     /// </summary>
     public static string[] DeleteBranchArguments(Branch branch, bool force) =>
         ["branch", force ? "-D" : "-d", branch.Name];
+
+    /// <summary>Удаляет несколько веток одной командой (-D: они влиты копиями, обычная проверка git их бы не пропустила).</summary>
+    public Task<GitResult> DeleteBranchesAsync(IReadOnlyList<Branch> branches, CancellationToken ct = default) =>
+        RunActionAsync(["branch", "-D", .. branches.Select(b => b.Name)], ct);
 
     public Task<GitResult> DeleteBranchAsync(Branch branch, bool force, CancellationToken ct = default) =>
         RunActionAsync(DeleteBranchArguments(branch, force), ct);
@@ -859,9 +916,9 @@ public sealed class GitService
         }
     }
 
-    private async Task<string> RunCheckedAsync(IReadOnlyList<string> args, CancellationToken ct)
+    private async Task<string> RunCheckedAsync(IReadOnlyList<string> args, CancellationToken ct, string? input = null)
     {
-        var result = await _git.RunAsync(RepoRoot, args, ct);
+        var result = await _git.RunAsync(RepoRoot, args, ct, input);
         return result.Success ? result.StdOut : throw new GitCommandException(result);
     }
 }
