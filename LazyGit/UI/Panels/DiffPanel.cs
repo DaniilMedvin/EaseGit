@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using LazyGit.Config;
 using LazyGit.Highlighting;
 using LazyGit.Models;
@@ -83,7 +84,90 @@ public sealed class DiffPanel : View
         foreach (var text in diff.Message.Split('\n'))
             Add(new DiffLine(DiffLineKind.Message, text.TrimEnd('\r')));
 
-        var files = SplitByFile(diff.Lines);
+        AddFiles(diff.Lines, lines, highlights, T("В коммите нет изменений файлов", "The commit has no file changes"));
+        return new PreparedDiff(lines, highlights.ToArray());
+    }
+
+    /// <summary>
+    /// Подготовка PR: «#12 · ветка → main · автор · обновлён», состояние (CI, ревью, конфликты), заголовок и описание,
+    /// проверки CI по одной, затем сводка файлов и diff — как у коммита.
+    /// </summary>
+    public static PreparedDiff PreparePullRequest(PullRequest pr, IReadOnlyList<DiffLine> diff, DateTimeOffset now)
+    {
+        var lines = new List<DiffLine>();
+        var highlights = new List<IReadOnlyList<HighlightSpan>?>();
+        void Add(DiffLine line)
+        {
+            lines.Add(line);
+            highlights.Add(null);
+        }
+
+        var branches = pr.HeadRef is null ? "" : $" {Theme.SymbolSeparator} {pr.HeadRef} → {pr.BaseRef}";
+        Add(new DiffLine(DiffLineKind.Header,
+            $"{pr.Repo}#{pr.Number}{branches} {Theme.SymbolSeparator} {pr.Author} {Theme.SymbolSeparator} {RelativeTime.Ago(pr.UpdatedAt, now)}"));
+        Add(new DiffLine(DiffLineKind.Header, PullRequestState(pr)));
+        Add(new DiffLine(DiffLineKind.Message, pr.Title));
+
+        // Комментарии <!-- … --> из шаблонов PR на GitHub не видны — здесь тоже.
+        var body = Regex.Replace(pr.Body ?? "", "<!--.*?-->", "", RegexOptions.Singleline).Replace("\r", "");
+        // После вырезанных комментариев остаются пачки пустых строк — оставляем по одной.
+        body = Regex.Replace(body, "\n[ \t]*(\n[ \t]*)+\n", "\n\n").Trim();
+        if (body.Length > 0)
+        {
+            Add(new DiffLine(DiffLineKind.Message, ""));
+            foreach (var text in body.Split('\n'))
+                Add(new DiffLine(DiffLineKind.Message, text.TrimEnd('\r')));
+        }
+
+        if (pr.CheckRuns.Count > 0)
+        {
+            Add(new DiffLine(DiffLineKind.Message, ""));
+            foreach (var check in pr.CheckRuns.OrderBy(c => c.State switch { CheckState.Failure => 0, CheckState.Pending => 1, _ => 2 }))
+                Add(new DiffLine(DiffLineKind.Header, $"{CheckSymbol(check.State)} {check.Name}"));
+        }
+
+        AddFiles(diff, lines, highlights, T("В PR нет изменений файлов", "The PR has no file changes"));
+        return new PreparedDiff(lines, highlights.ToArray());
+    }
+
+    /// <summary>«✓ CI · ● нужно ревью · ✓ можно влить» — то, что решает, можно ли вливать PR.</summary>
+    public static string PullRequestState(PullRequest pr)
+    {
+        var parts = new List<string>();
+        if (pr.IsDraft)
+            parts.Add(T("черновик", "draft"));
+        if (pr.Checks != CheckState.None)
+            parts.Add($"{CheckSymbol(pr.Checks)} CI");
+        parts.Add(pr.Review switch
+        {
+            ReviewState.Approved => $"{Theme.SymbolSuccess} {T("одобрен", "approved")}",
+            ReviewState.ChangesRequested => $"{Theme.SymbolError} {T("просят правки", "changes requested")}",
+            ReviewState.Required => $"{Theme.SymbolCurrent} {T("ждёт ревью", "review required")}",
+            _ => T("без ревью", "no review"),
+        });
+        if (pr.Mergeable == "CONFLICTING")
+            parts.Add($"{Theme.SymbolError} {T("конфликт с базовой веткой", "conflicts with the base branch")}");
+        return string.Join($" {Theme.SymbolSeparator} ", parts);
+    }
+
+    public static string CheckSymbol(CheckState state) => state switch
+    {
+        CheckState.Success => Theme.SymbolSuccess,
+        CheckState.Failure => Theme.SymbolError,
+        CheckState.Pending => Theme.SymbolCurrent,
+        _ => " ",
+    };
+
+    /// <summary>Сводка файлов как git show --stat и diff каждого файла под заголовком с путём.</summary>
+    private static void AddFiles(IReadOnlyList<DiffLine> diff, List<DiffLine> lines, List<IReadOnlyList<HighlightSpan>?> highlights, string empty)
+    {
+        void Add(DiffLine line)
+        {
+            lines.Add(line);
+            highlights.Add(null);
+        }
+
+        var files = SplitByFile(diff);
         if (files.Count > 0)
         {
             // Сводка как в git show --stat: какие файлы изменены и насколько.
@@ -117,10 +201,9 @@ public sealed class DiffPanel : View
         if (files.Count == 0)
         {
             Add(new DiffLine(DiffLineKind.Message, ""));
-            Add(new DiffLine(DiffLineKind.Header, T("В коммите нет изменений файлов", "The commit has no file changes")));
+            Add(new DiffLine(DiffLineKind.Header, empty));
         }
 
-        return new PreparedDiff(lines, highlights.ToArray());
     }
 
     /// <summary>Делит diff нескольких файлов на части по строкам «diff --git». Строки до первой отбрасываются.</summary>

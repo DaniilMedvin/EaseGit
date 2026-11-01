@@ -37,6 +37,9 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **Graph of all branches** (`G`) with per-branch colors, tags and actions on any commit.
 - **Sync**: fetch, pull, push with `↑ahead ↓behind`, a spinner, `esc` to cancel, and a guided `push -u` for new branches.
 - **Conflicts**: keep ours / theirs / both per file, continue (`C`) or abort (`A`) merge, cherry-pick, revert and rebase.
+- **GitHub pull requests** (`g`): PRs of this repository, your PRs and review requests across all repositories,
+  with CI and review status, description, checks and diff; checkout, merge (squash / merge / rebase), approve,
+  open in browser; create a PR from the current branch (`N`) with the title and description taken from commits.
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message, pop, apply, drop, see its diff.
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.
@@ -122,6 +125,7 @@ lgit ~/projects/x # open a specific repository
 | `enter` on a file | line-by-line staging | `i` in commits | interactive rebase |
 | `z` | undo last action | `G` | graph of all branches |
 | `C` / `A` | continue / abort an operation | `T` / `L` | theme / language |
+| `g` | GitHub pull requests | `N` | create a PR |
 | `~` | Command Log | `q` | quit |
 
 Panel-specific keys are always shown in the bottom line.

@@ -2,6 +2,7 @@ using LazyGit.Auth;
 using LazyGit.Commands;
 using LazyGit.Config;
 using LazyGit.Git;
+using LazyGit.GitHub;
 using LazyGit.Localization;
 using LazyGit.Models;
 using LazyGit.Templates;
@@ -59,6 +60,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     private readonly Label _branchesTitle;
     private readonly Label _commitsTitle;
     private readonly CommandLogPanel _log;
+    private readonly CommandLog _commandLog;
     private readonly Label _logTitle;
     private readonly Label _diffTitle;
     private readonly Label _status;
@@ -75,6 +77,10 @@ public sealed class MainWindow : Runnable<MainResult?>
     private bool _refreshPending;
     private RepoStatus? _repoStatus;
     private RepoOperation _repoOperation;
+
+    // Адрес remote и репозиторий на GitHub — перечитываются с остальным состоянием, чтобы окно GitHub открывалось сразу.
+    private string? _remoteUrl;
+    private GitHubRepo? _gitHubRepo;
 
     // Что сейчас показано справа (файл или коммит): при обновлении того же самого прокрутка сохраняется.
     private object? _diffKey;
@@ -98,6 +104,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     {
         _notice = notice;
         _git = git;
+        _commandLog = log;
         _config = config;
         _auth = auth;
         Width = Dim.Fill();
@@ -498,6 +505,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("history.undo", T("Отменить последнее действие", "Undo last action"), CommandScope.Global, CommandKey.Of("z", Key.Z),
             () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
         Add("view.refresh", T("Обновить", "Refresh"), CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
+        Add("github.open", T("GitHub: pull requests", "GitHub: pull requests"), CommandScope.Global, CommandKey.Of("g", Key.G),
+            () => OpenGitHub(GitHubTab.Repository), "GitHub", hintOptional: true,
+            keywords: "гитхаб github pr пулл реквест pull request ревью review merge дашборд");
+        Add("github.createPr", T("Создать PR из текущей ветки", "Create a PR from the current branch"), CommandScope.Global,
+            CommandKey.Of("N", Key.N.WithShift), () => _ = CreatePullRequestAsync(), preview: () => T("gh pr create --head <ветка> --base <main>", "gh pr create --head <branch> --base <main>"),
+            available: () => _repoStatus is { IsDetached: false, Upstream: not null },
+            keywords: "гитхаб github pr пулл реквест pull request создать новый открыть");
         Add("view.graph", T("Граф всех веток", "Graph of all branches"), CommandScope.Global, CommandKey.Of("G", Key.G.WithShift), OpenGraph, T("граф", "graph"),
             hintOptional: true, available: () => _commits.Items.Count > 0, keywords: "граф ветки история дерево git graph");
         Add("view.commandLog", "Command Log", CommandScope.Global, CommandKey.Char('~'), ToggleCommandLog, keywords: "журнал лог история команд");
@@ -1380,7 +1394,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             _pushUpstreamOffer = null;
             var count = status.Ahead > 0 ? Plural(status.Ahead, "коммит", "коммита", "коммитов", "commit", "commits") + " " : "";
-            await RunAsync(ct => _git.PushAsync(ct), T($"Отправлено {count}в {upstream}", $"Pushed {count}to {upstream}"), T($"Отправка в {upstream}…", $"Pushing to {upstream}…"));
+            await RunAsync(ct => _git.PushAsync(ct),
+                async _ => T($"Отправлено {count}в {upstream}", $"Pushed {count}to {upstream}") + await PullRequestHintAsync(branch),
+                T($"Отправка в {upstream}…", $"Pushing to {upstream}…"));
             return;
         }
 
@@ -1415,6 +1431,138 @@ public sealed class MainWindow : Runnable<MainResult?>
         await RunAsync(ct => _git.PushSetUpstreamAsync(remote, branch, ct),
             T($"Ветка {branch} опубликована в {remote}, upstream настроен", $"Branch {branch} published to {remote}, upstream set"), T($"Публикация {branch} в {remote}…", $"Publishing {branch} to {remote}…"));
     }
+
+    /// <summary>
+    /// «· N — создать PR» после push ветки, которая не основная (по origin/HEAD, без сети). Только при входе в GitHub.
+    /// </summary>
+    private async Task<string> PullRequestHintAsync(string branch)
+    {
+        if (!_auth.IsAuthorized)
+            return "";
+
+        var main = await _git.GetRemoteDefaultBranchAsync();
+        return main is null || main == branch ? "" : T($" {Theme.SymbolSeparator} N — создать PR", $" {Theme.SymbolSeparator} N creates a PR");
+    }
+
+    /// <summary>Репозиторий проекта на GitHub или null с объяснением в строке статуса (gh не установлен, не вошёл, remote не GitHub).</summary>
+    private GitHubRepo? ResolveGitHubRepo()
+    {
+        if (!_auth.GhInstalled)
+        {
+            ShowStatus(T($"{Theme.SymbolError} gh не найден. Установи: {GhInstallHint.Command()}",
+                $"{Theme.SymbolError} gh not found. Install it: {GhInstallHint.Command()}"), Theme.Error);
+            return null;
+        }
+
+        if (!_auth.IsAuthorized)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Сначала войди в GitHub: ctrl+g", $"{Theme.SymbolError} Sign in to GitHub first: ctrl+g"), Theme.Error);
+            return null;
+        }
+
+        if (_gitHubRepo is null)
+            ShowStatus(_remoteUrl is null
+                ? T($"{Theme.SymbolError} У репозитория нет remote. Добавь: git remote add origin <адрес>", $"{Theme.SymbolError} The repository has no remote. Add one: git remote add origin <url>")
+                : T($"{Theme.SymbolError} Remote не на GitHub: {_remoteUrl}", $"{Theme.SymbolError} The remote is not on GitHub: {_remoteUrl}"), Theme.Error);
+        return _gitHubRepo;
+    }
+
+    private GitHubService CreateGitHubService() => new(new GhRunner(), _git.RepoRoot, _commandLog);
+
+    /// <summary>
+    /// Окно GitHub. Открывается прямо из обработчика клавиши, а не из App.Invoke: внутри Invoke окно не получило бы
+    /// результаты своих фоновых загрузок. Если в нём сделали checkout — экран обновляется, «n» — открывается окно нового PR.
+    /// </summary>
+    private void OpenGitHub(GitHubTab tab)
+    {
+        if (_busy || ResolveGitHubRepo() is not { } repo)
+            return;
+
+        using var window = new GitHubWindow(CreateGitHubService(), repo, tab);
+        App!.Run(window);
+        switch (window.Result)
+        {
+            case GitHubAction.Refresh:
+                _ = RefreshAsync();
+                break;
+            case GitHubAction.CreatePullRequest:
+                _ = CreatePullRequestAsync();
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Новый PR из текущей ветки в основную. Ветка должна быть отправлена: иначе подсказка сделать push.
+    /// Заголовок — из единственного коммита или имени ветки, описание — список коммитов ветки.
+    /// </summary>
+    private async Task CreatePullRequestAsync()
+    {
+        if (_busy || _repoStatus is not { Branch: { } branch } status)
+            return;
+
+        if (status.Upstream is null || status.Ahead > 0)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Сначала отправь ветку на GitHub: P", $"{Theme.SymbolError} Push the branch to GitHub first: P"), Theme.Error);
+            return;
+        }
+
+        if (ResolveGitHubRepo() is not { } repo)
+            return;
+
+        var github = CreateGitHubService();
+        App?.Invoke(() => ShowStatus($"{Theme.SpinnerFrames[0]} {T("Проверяю ветку на GitHub…", "Checking the branch on GitHub…")}", Theme.Muted));
+        string main;
+        PullRequest? existing;
+        try
+        {
+            main = await github.GetDefaultBranchAsync(repo);
+            existing = await github.FindForBranchAsync(repo, branch);
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}", Theme.Error));
+            return;
+        }
+
+        if (branch == main)
+        {
+            App?.Invoke(() => ShowStatus(T($"{Theme.SymbolError} Ты на основной ветке {main}: создай ветку для изменений (n в ветках)",
+                $"{Theme.SymbolError} You are on the base branch {main}: create a branch for the changes (n in branches)"), Theme.Error));
+            return;
+        }
+
+        if (existing is not null)
+        {
+            App?.Invoke(() => ShowStatus(T($"{Theme.SymbolWarning} PR #{existing.Number} из {branch} уже открыт: g — посмотреть",
+                $"{Theme.SymbolWarning} PR #{existing.Number} from {branch} is already open: g to view it"), Theme.Warning));
+            return;
+        }
+
+        var remote = status.Upstream.Split('/')[0];
+        var subjects = await _git.GetCommitSubjectsAsync($"{remote}/{main}..HEAD");
+        var title = subjects.Count == 1 ? subjects[0] : TitleFromBranch(branch);
+        var body = subjects.Count > 1 ? string.Join('\n', subjects.Select(s => $"- {s}")) : "";
+        var commits = Plural(subjects.Count, "коммит", "коммита", "коммитов", "commit", "commits");
+
+        App?.Invoke(() =>
+        {
+            ShowStatus("", Theme.Muted);
+            using var dialog = new PullRequestDialog(repo.NameWithOwner, $"{Theme.SymbolBranch} {branch} → {main} {Theme.SymbolSeparator} {commits}", title, body);
+            App!.Run(dialog);
+            if (dialog.Result is not { } pr)
+                return;
+
+            _ = RunAsync(ct => github.CreateAsync(repo, branch, main, pr.Title, pr.Body, pr.Draft, ct), result =>
+            {
+                var url = result.StdOut.Trim().Split('\n').LastOrDefault() ?? "";
+                return Task.FromResult(T($"PR создан: {url} (g — открыть список)", $"PR created: {url} (g opens the list)"));
+            }, T("Создание PR…", "Creating the PR…"));
+        });
+    }
+
+    /// <summary>«feature/hourly-forecast» → «hourly forecast».</summary>
+    public static string TitleFromBranch(string branch) =>
+        branch[(branch.LastIndexOf('/') + 1)..].Replace('-', ' ').Replace('_', ' ');
 
     /// <summary>Спиннер в строке статуса: «⠹ Отправка в origin/main…  esc отмена».</summary>
     private void StartSpinner(string text)
@@ -1486,15 +1634,19 @@ public sealed class MainWindow : Runnable<MainResult?>
             var logTask = _git.GetLogAsync();
             var stashTask = _git.GetStashesAsync();
             var operationTask = _git.GetOperationAsync();
+            var remoteTask = _git.GetRemoteUrlAsync();
             var status = await statusTask;
             var branches = await branchesTask;
             var log = await logTask;
             var stashes = await stashTask;
             var operation = await operationTask;
+            var remoteUrl = await remoteTask;
             App?.Invoke(() =>
             {
                 _repoStatus = status;
                 _repoOperation = operation;
+                _remoteUrl = remoteUrl;
+                _gitHubRepo = remoteUrl is null ? null : GitHubRepo.FromRemoteUrl(remoteUrl);
                 _header.SetStatus(status, operation);
                 _files.SetStatus(status);
                 _branches.SetItems(branches);

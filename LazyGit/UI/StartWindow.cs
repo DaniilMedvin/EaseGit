@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using LazyGit.Auth;
 using LazyGit.Git;
+using LazyGit.GitHub;
 using LazyGit.UI.Widgets;
 using Terminal.Gui.Drawing;
 using Terminal.Gui.Input;
@@ -89,6 +90,8 @@ public sealed class StartWindow : Runnable<StartAction?>
         var hintList = new List<Hint> { new("enter", T("открыть", "open")), new("ctrl+o", T("выбрать папку", "choose folder")), new("ctrl+n", "git init") };
         if (!auth.IsAuthorized)
             hintList.Add(new Hint("ctrl+g", T("войти в GitHub", "sign in to GitHub")));
+        else
+            hintList.Add(new Hint("ctrl+g", T("мои PR", "my PRs")));
         hintList.Add(new Hint("esc", T("выход", "quit")));
         hints.SetHints(hintList);
 
@@ -122,6 +125,14 @@ public sealed class StartWindow : Runnable<StartAction?>
 
             Result = StartAction.Login;
             RequestStop();
+            return true;
+        }
+
+        // После входа ctrl+g — дашборд PR по всем репозиториям.
+        if (key == Key.G.WithCtrl)
+        {
+            using var window = new GitHubWindow(new GitHubService(new GhRunner(), Environment.CurrentDirectory), repo: null, GitHubTab.Mine);
+            App!.Run(window);
             return true;
         }
 

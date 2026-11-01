@@ -115,4 +115,27 @@ public sealed class GraphActionsTests : IAsyncLifetime
         Assert.Equal("feat: only in feature", log.First(l => l.Kind == GraphLogLineKind.Commit).Text);
         Assert.Equal("main", (await _service.GetStatusAsync()).Branch);
     }
+
+    [Fact]
+    public async Task GetCommitSubjects_Range_OldestFirstAndUnknownRangeEmpty()
+    {
+        await _repo.RunAsync("switch", "-c", "feature/subjects");
+        _repo.Write("s1.txt", "1\n");
+        await _repo.CommitAsync("feat: one");
+        _repo.Write("s2.txt", "2\n");
+        await _repo.CommitAsync("feat: two");
+
+        Assert.Equal(["feat: one", "feat: two"], await _service.GetCommitSubjectsAsync("main..HEAD"));
+        Assert.Empty(await _service.GetCommitSubjectsAsync("origin/nothing..HEAD"));
+    }
+
+    [Fact]
+    public async Task GetRemoteDefaultBranch_FromOriginHead()
+    {
+        Assert.Null(await _service.GetRemoteDefaultBranchAsync());
+        await _repo.RunAsync("update-ref", "refs/remotes/origin/main", "HEAD");
+        await _repo.RunAsync("symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main");
+
+        Assert.Equal("main", await _service.GetRemoteDefaultBranchAsync());
+    }
 }

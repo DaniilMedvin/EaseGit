@@ -66,7 +66,7 @@ public sealed class CommandLogPanel : View
         [
             new Segment(entry.Time.ToLocalTime().ToString("HH:mm:ss") + " ", Theme.Dim),
             new Segment(symbol + " ", color),
-            new Segment(CommandText.Format(entry.Args), Theme.Fg),
+            new Segment(CommandText.Format(entry.Args, entry.Tool), Theme.Fg),
         ], Math.Max(0, durationX - 2));
         this.DrawSegments(durationX, row, [new Segment(duration, Theme.Dim)], duration.Length);
     }

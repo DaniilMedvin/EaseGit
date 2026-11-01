@@ -38,6 +38,10 @@ LazyGit/
 │       ├── LogParser.cs
 │       ├── DiffParser.cs
 │       └── CommitDiffParser.cs    git show: сообщение коммита + diff
+├── GitHub/
+│   ├── GhRunner.cs            запуск gh (как GitRunner: ArgumentList, без вопросов, без цвета)
+│   ├── GitHubService.cs       PR: список, поиск по всем репозиториям, просмотр, diff, checkout, merge, approve, create
+│   └── PullRequestParser.cs   JSON из gh --json → PullRequest
 ├── Localization/
 │   └── Loc.cs                 язык интерфейса: T("ru", "en"), Plural, выбор по конфигу или системе
 ├── Config/

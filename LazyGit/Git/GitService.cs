@@ -257,6 +257,32 @@ public sealed class GitService
     public Task<GitResult> PushSetUpstreamAsync(string remote, string branch, CancellationToken ct = default) =>
         RunActionAsync(PushSetUpstreamArguments(remote, branch), ct);
 
+    /// <summary>Заголовки коммитов диапазона (например, origin/main..HEAD), старые первыми; неизвестный диапазон — пусто.</summary>
+    public async Task<IReadOnlyList<string>> GetCommitSubjectsAsync(string range, CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["log", "--reverse", "--format=%s", range, "--"], ct);
+        return result.Success ? result.StdOut.Split('\n', StringSplitOptions.RemoveEmptyEntries) : [];
+    }
+
+    /// <summary>Основная ветка сервера по refs/remotes/origin/HEAD («main») без обращения к сети; null — неизвестна.</summary>
+    public async Task<string?> GetRemoteDefaultBranchAsync(string remote = "origin", CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["symbolic-ref", "--quiet", "--short", $"refs/remotes/{remote}/HEAD"], ct);
+        var name = result.StdOut.Trim();
+        return result.Success && name.StartsWith(remote + "/") ? name[(remote.Length + 1)..] : null;
+    }
+
+    /// <summary>Адрес remote origin, а без него — первого remote; null, если remote нет.</summary>
+    public async Task<string?> GetRemoteUrlAsync(CancellationToken ct = default)
+    {
+        var remotes = await GetRemotesAsync(ct);
+        if (remotes.Count == 0)
+            return null;
+
+        var result = await _git.RunAsync(RepoRoot, ["remote", "get-url", remotes[0]], ct);
+        return result.Success ? result.StdOut.Trim() : null;
+    }
+
     /// <summary>Имена remote: origin первым, если он есть.</summary>
     public async Task<IReadOnlyList<string>> GetRemotesAsync(CancellationToken ct = default)
     {

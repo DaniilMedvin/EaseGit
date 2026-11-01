@@ -23,6 +23,28 @@ public static class GitErrors
         if (stderr.Contains("No local changes to save") || result.StdOut.Contains("No local changes to save"))
             return T("Нечего сохранять в stash: изменений нет", "Nothing to stash: no changes");
 
+        if (result.Command.StartsWith("gh "))
+        {
+            if (stderr.Contains("Can not approve your own pull request") || stderr.Contains("can not approve your own"))
+                return T("Свой PR одобрить нельзя: попроси ревью у другого человека", "You can't approve your own PR: ask someone else to review it");
+            if (stderr.Contains("already exists"))
+                return T("PR из этой ветки уже открыт: он во вкладке «Этот репозиторий» (g)", "A PR from this branch is already open: see the This repository tab (g)");
+            if (stderr.Contains("must first push") || stderr.Contains("No commits between") || stderr.Contains("Head sha can't be blank"))
+                return T("Ветки нет на GitHub или в ней нет новых коммитов: сначала сделай push (P)", "The branch is not on GitHub or has no new commits: push first (P)");
+            if (stderr.Contains("not mergeable") || stderr.Contains("merge conflict"))
+                return T("PR нельзя влить: конфликт с базовой веткой. Разреши его в ветке PR и сделай push", "The PR can't be merged: it conflicts with the base branch. Resolve it in the PR branch and push");
+            if (stderr.Contains("Required status check") || stderr.Contains("required status") || stderr.Contains("protected branch"))
+                return T("PR нельзя влить: ветка защищена (нужны зелёный CI или одобрение)", "The PR can't be merged: the branch is protected (green CI or an approval is required)");
+            if (stderr.Contains("not allowed") && stderr.Contains("merge"))
+                return T("Этот способ merge выключен в настройках репозитория: выбери другой", "This merge method is disabled in the repository settings: choose another one");
+            if (stderr.Contains("gh auth login") || stderr.Contains("authentication") || stderr.Contains("HTTP 401"))
+                return T("gh не авторизован: войди в GitHub (ctrl+g)", "gh is not signed in: sign in to GitHub (ctrl+g)");
+            if (stderr.Contains("Could not resolve to a Repository") || stderr.Contains("HTTP 404") || stderr.Contains("HTTP 403"))
+                return T("Нет доступа к репозиторию на GitHub", "No access to the repository on GitHub");
+            if (stderr.Contains("error connecting") || stderr.Contains("dial tcp") || stderr.Contains("no such host"))
+                return T("Нет связи с GitHub: проверь сеть", "Can't reach GitHub: check the network");
+        }
+
         if (result.Command.StartsWith("git rebase"))
         {
             if (stderr.Contains("You have unstaged changes") || stderr.Contains("cannot rebase: You have unstaged changes"))

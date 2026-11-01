@@ -9,7 +9,7 @@ public static class CommandText
     /// «git restore -- 'my file.txt' b.txt». Аргументы с пробелами и кавычками берутся в одинарные кавычки,
     /// чтобы команду можно было скопировать в терминал. Больше трёх путей после «--» сокращаются: «… ещё 5».
     /// </summary>
-    public static string Format(IReadOnlyList<string> args)
+    public static string Format(IReadOnlyList<string> args, string tool = "git")
     {
         var separator = args.ToList().IndexOf("--");
         var shown = args.Select(Quote).ToList();
@@ -19,7 +19,7 @@ public static class CommandText
             shown = [.. shown.Take(separator + 1 + MaxPaths), T($"… ещё {hidden}", $"… {hidden} more")];
         }
 
-        return "git " + string.Join(' ', shown);
+        return tool + " " + string.Join(' ', shown);
     }
 
     private static string Quote(string arg) =>

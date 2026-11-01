@@ -1,10 +1,12 @@
 namespace LazyGit.Git;
 
-/// <summary>Выполненная git-команда.</summary>
-/// <param name="Args">Аргументы без «git».</param>
+/// <summary>Выполненная команда git или gh.</summary>
+/// <param name="Args">Аргументы без имени программы.</param>
 /// <param name="ExitCode">Код выхода или null, если команда отменена.</param>
 /// <param name="Output">stderr и stdout вместе, без пустых строк по краям.</param>
-public sealed record CommandLogEntry(DateTimeOffset Time, IReadOnlyList<string> Args, int? ExitCode, TimeSpan Duration, string Output)
+/// <param name="Tool">Программа: «git» или «gh».</param>
+public sealed record CommandLogEntry(DateTimeOffset Time, IReadOnlyList<string> Args, int? ExitCode, TimeSpan Duration, string Output,
+    string Tool = "git")
 {
     public bool Success => ExitCode == 0;
 
