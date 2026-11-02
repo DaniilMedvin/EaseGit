@@ -61,10 +61,20 @@ public static class FileRows
     /// На каждом уровне сначала папки, затем файлы, по алфавиту.
     /// </summary>
     /// <param name="collapsed">Свёрнутые папки: раздел и путь папки. Их содержимое не выводится.</param>
-    public static IReadOnlyList<FileRow> Build(RepoStatus status, IReadOnlySet<(FileSection, string)>? collapsed = null)
+    /// <param name="filter">
+    /// Только файлы, в пути которых есть этот текст (без учёта регистра). С фильтром папки не сворачиваются: найденное видно сразу.
+    /// </param>
+    public static IReadOnlyList<FileRow> Build(RepoStatus status, IReadOnlySet<(FileSection, string)>? collapsed = null, string? filter = null)
     {
         var rows = new List<FileRow>();
-        foreach (var group in Entries(status).GroupBy(e => e.Section))
+        var files = Entries(status);
+        if (!string.IsNullOrEmpty(filter))
+        {
+            files = files.Where(e => PanelFilter.Matches(e.File.Path, filter) || e.File.OriginalPath is { } old && PanelFilter.Matches(old, filter)).ToList();
+            collapsed = null;
+        }
+
+        foreach (var group in files.GroupBy(e => e.Section))
         {
             var entries = group.ToList();
             rows.Add(new SectionHeaderRow(group.Key, entries.Count));

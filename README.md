@@ -56,6 +56,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.
 - **Search history** (`ctrl+f`): by message, author, or where a line of code appeared or disappeared (`git log -S`),
   in the current branch or all branches, results as you type.
+- **Filter panels** (`/` in files or commits): files by path, commits by subject, author, hash, branch or tag, as you type;
+  `enter` keeps the filter (shown in the panel title, `/panel 3 of 22`), `esc` clears it and keeps the selected item.
 - **Compare** branches or commits (`=`): files with +/− and diffs, commits only on one side; from the merge base
   (what a PR would contain) or between tips.
 - **Blame** (`B` on a file, `b` in file history): who wrote each line and in which commit; `p` jumps to the version

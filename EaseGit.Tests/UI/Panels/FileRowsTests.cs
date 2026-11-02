@@ -60,6 +60,30 @@ public class FileRowsTests
         Assert.Equal(["a.txt", "b.txt"], rows.OfType<FileEntryRow>().Select(r => r.File.Path));
     }
 
+    [Fact]
+    public void Build_Filter_KeepsMatchingPathsIgnoringCaseAndCollapsedFolders()
+    {
+        var collapsed = new HashSet<(FileSection, string)> { (FileSection.Unstaged, "EaseGit/UI") };
+
+        var rows = FileRows.Build(Status(
+            Modified("EaseGit/UI/Panels/FilesPanel.cs"),
+            Modified("EaseGit/UI/MainWindow.cs"),
+            Modified("README.md")), collapsed, filter: "panel");
+
+        Assert.Equal(["EaseGit/UI/Panels/", "  FilesPanel.cs"], Tree(rows));
+        Assert.Equal(1, rows.OfType<SectionHeaderRow>().Single().Count);
+    }
+
+    [Fact]
+    public void Build_FilterMatchesOldPathOfRename()
+    {
+        var renamed = new FileChange("docs/new.md", ChangeKind.Renamed, ChangeKind.Unmodified, "docs/old.md");
+
+        var rows = FileRows.Build(Status(renamed, Modified("a.txt")), filter: "OLD");
+
+        Assert.Equal("docs/new.md", rows.OfType<FileEntryRow>().Single().File.Path);
+    }
+
     private static FileChange Modified(string path) => File(path, ChangeKind.Unmodified, ChangeKind.Modified);
 
     /// <summary>Строки без заголовков разделов в виде «отступ + имя», у папок — «/» в конце.</summary>

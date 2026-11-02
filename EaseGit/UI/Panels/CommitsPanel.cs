@@ -7,6 +7,7 @@ namespace EaseGit.UI.Panels;
 /// <summary>
 /// Лог текущей ветки, новые коммиты сверху: граф, короткий хеш, ветки и теги, заголовок и давность справа.
 /// Если вершина лога сменилась (коммит, merge, checkout), выбирается новый верхний коммит.
+/// «/» — фильтр по заголовку, автору, хешу, веткам и тегам среди загруженных; с фильтром граф скрыт (коммиты не подряд).
 /// </summary>
 public sealed class CommitsPanel : ListPanel<Commit>
 {
@@ -38,6 +39,10 @@ public sealed class CommitsPanel : ListPanel<Commit>
 
     protected override string KeyOf(Commit item) => item.Hash;
 
+    protected override bool Matches(Commit item, string filter) =>
+        PanelFilter.Matches(item.Subject, filter) || PanelFilter.Matches(item.AuthorName, filter)
+        || item.Hash.StartsWith(filter, StringComparison.OrdinalIgnoreCase) || item.Refs.Any(r => PanelFilter.Matches(r.Name, filter));
+
     protected override void DrawItem(int line, Commit commit, bool selected, Color? background)
     {
         // Давность прижата к правому краю; на узкой панели её место отдаётся заголовку.
@@ -51,7 +56,7 @@ public sealed class CommitsPanel : ListPanel<Commit>
         var textWidth = Viewport.Width - 1 - (showAge ? age.Length + 2 : 1);
 
         var segments = new List<Segment> { Marker(selected) };
-        if (ShowGraph)
+        if (ShowGraph && !Filter.Active)
             segments.AddRange(GraphSegments(commit, textWidth / 3));
         segments.Add(new Segment(commit.ShortHash, Theme.Muted));
         foreach (var reference in commit.Refs.OrderBy(RefOrder))
