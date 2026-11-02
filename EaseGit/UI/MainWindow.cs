@@ -346,10 +346,9 @@ public sealed class MainWindow : Runnable<MainResult?>
         base.OnIsRunningChanged(newIsRunning);
         if (newIsRunning)
         {
-            _ = RefreshAsync();
+            _ = StartAsync();
             StartWatching();
             StartAutoFetch();
-            ShowStartupMessage();
         }
         else
         {
@@ -362,6 +361,13 @@ public sealed class MainWindow : Runnable<MainResult?>
                 App?.RemoveTimeout(_ciTimer);
             _ciTimer = null;
         }
+    }
+
+    /// <summary>Первое обновление, затем сообщение о конфиге: иначе «Обновление…» по завершении стёрло бы его.</summary>
+    private async Task StartAsync()
+    {
+        await RefreshAsync();
+        App?.Invoke(ShowStartupMessage);
     }
 
     /// <summary>Сообщает о смене темы или о проблемах в config.json; по ним же ничего не ломается, берутся значения по умолчанию.</summary>
@@ -774,6 +780,161 @@ public sealed class MainWindow : Runnable<MainResult?>
         }, T("выход", "quit"), hintPinned: true);
 
         ReportKeyProblems(keyOverrides, overridden);
+        RegisterCustomCommands(config.CustomCommands ?? []);
+    }
+
+    /// <summary>
+    /// Свои команды из config.json — после встроенных. Без key или command, с неизвестным scope или клавишей, занятой
+    /// встроенной командой того же экрана, команда не добавляется, а причина видна в строке статуса при запуске.
+    /// </summary>
+    private void RegisterCustomCommands(IReadOnlyList<CustomCommand> commands)
+    {
+        for (var i = 0; i < commands.Count; i++)
+        {
+            var custom = commands[i];
+            var name = custom.Title ?? custom.Command ?? $"#{i + 1}";
+            if (string.IsNullOrWhiteSpace(custom.Key) || string.IsNullOrWhiteSpace(custom.Command))
+            {
+                _configProblems.Add(T($"своя команда «{name}»: нужны key и command", $"custom command '{name}': key and command are required"));
+                continue;
+            }
+
+            CommandScope? scope = (custom.Scope ?? "global").ToLowerInvariant() switch
+            {
+                "global" => CommandScope.Global,
+                "files" => CommandScope.Files,
+                "commits" => CommandScope.Commits,
+                "branches" => CommandScope.Branches,
+                "stash" => CommandScope.Stash,
+                _ => null,
+            };
+            if (scope is not { } where)
+            {
+                _configProblems.Add(T($"своя команда «{name}»: scope {custom.Scope} — нужен global, files, commits, branches или stash",
+                    $"custom command '{name}': scope {custom.Scope} must be global, files, commits, branches or stash"));
+                continue;
+            }
+
+            var (key, error) = KeyParser.Parse(custom.Key);
+            if (key is null)
+            {
+                _configProblems.Add(T($"своя команда «{name}»: клавиша {custom.Key}: {error}", $"custom command '{name}': key {custom.Key}: {error}"));
+                continue;
+            }
+
+            // Глобальная клавиша действует во всех панелях, клавиша панели — вместе с глобальными: пересечение с ними — конфликт.
+            if (_commands.All.FirstOrDefault(c => c.Key.Label == key.Label && (c.Scope == where || c.Scope == CommandScope.Global || where == CommandScope.Global))
+                is { } taken)
+            {
+                _configProblems.Add(T($"своя команда «{name}»: клавиша {key.Label} уже занята ({taken.Title})", $"custom command '{name}': key {key.Label} is taken ({taken.Title})"));
+                continue;
+            }
+
+            _commands.Add(new AppCommand
+            {
+                Id = $"custom.{i + 1}",
+                Title = name,
+                Scope = where,
+                Key = key,
+                Execute = () => RunCustomCommand(custom, name),
+                Hint = name.Length <= 20 ? name : name[..19] + Theme.SymbolEllipsis,
+                HintMinor = true,
+                Preview = () => CommandTemplate.Expand(custom.Command, CustomContext(), OperatingSystem.IsWindows()).Command ?? custom.Command,
+                Keywords = "своя команда custom command " + custom.Command,
+            });
+        }
+    }
+
+    /// <summary>Значения подстановок своей команды: что выбрано в панелях сейчас.</summary>
+    private PlaceholderValues CustomContext()
+    {
+        var root = _git.RepoRoot;
+        var file = _files.SelectedFile is { } entry ? Path.GetFullPath(Path.Combine(root, entry.File.Path)) : null;
+        var dir = file is not null ? Path.GetDirectoryName(file)
+            : _files.SelectedDirectory is { } folder ? Path.GetFullPath(Path.Combine(root, folder.Path)) : null;
+        return new PlaceholderValues(root, file, dir, _commits.Selected?.Hash, _branches.Selected?.Name, _repoStatus?.Branch);
+    }
+
+    private bool _customRunning;
+
+    /// <summary>Своя команда: подстановки, подтверждение (confirm), затем окно с выводом (output) или запуск в фоне.</summary>
+    private void RunCustomCommand(CustomCommand custom, string name)
+    {
+        var (command, missing) = CommandTemplate.Expand(custom.Command!, CustomContext(), OperatingSystem.IsWindows());
+        if (command is null)
+        {
+            ShowStatus(T($"{Theme.SymbolError} «{name}»: нет значения для {{{missing}}} — {MissingHint(missing!)}",
+                $"{Theme.SymbolError} '{name}': no value for {{{missing}}}: {MissingHint(missing!)}"), Theme.Error);
+            return;
+        }
+
+        if (custom.Confirm)
+        {
+            using var confirm = new ConfirmDialog(T($"Запустить «{name}»?", $"Run '{name}'?"), command,
+                T("Команда из config.json выполнится в корне репозитория.", "The command from config.json runs in the repository root."), T("Запустить", "Run"));
+            App!.Run(confirm);
+            if (confirm.Result != true)
+                return;
+        }
+
+        if (custom.Output)
+        {
+            using var window = new CommandOutputWindow(_git.RepoRoot, name, command);
+            App!.Run(window);
+            _ = RefreshAsync(silent: true);
+            return;
+        }
+
+        _ = RunCustomInBackgroundAsync(name, command);
+    }
+
+    private static string MissingHint(string placeholder) => placeholder switch
+    {
+        "file" => T("выбери файл в панели файлов", "select a file in the files panel"),
+        "dir" => T("выбери файл или папку в панели файлов", "select a file or folder in the files panel"),
+        "commit" => T("в ветке ещё нет коммитов", "the branch has no commits yet"),
+        "branch" => T("выбери ветку в панели веток", "select a branch in the branches panel"),
+        _ => T("сейчас нет текущей ветки (detached HEAD)", "there is no current branch (detached HEAD)"),
+    };
+
+    /// <summary>Своя команда без окна: итог — в строке статуса, при ошибке — последняя строка вывода.</summary>
+    private async Task RunCustomInBackgroundAsync(string name, string command)
+    {
+        if (_customRunning)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Своя команда ещё выполняется", $"{Theme.SymbolError} A custom command is still running"), Theme.Error);
+            return;
+        }
+
+        _customRunning = true;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {name}…", Theme.Muted);
+        var lines = new List<string>();
+        try
+        {
+            var exit = await new ShellRunner().RunAsync(_git.RepoRoot, command, line =>
+            {
+                lock (lines)
+                    lines.Add(line);
+            });
+            string? last;
+            lock (lines)
+                last = lines.LastOrDefault(l => l.Trim().Length > 0)?.Trim();
+            App?.Invoke(() =>
+            {
+                if (exit == 0)
+                    ShowStatus($"{Theme.SymbolSuccess} {name}", Theme.Success, autoHide: true);
+                else
+                    ShowStatus(exit is null
+                        ? T($"{Theme.SymbolError} «{name}»: shell не найден", $"{Theme.SymbolError} '{name}': shell not found")
+                        : T($"{Theme.SymbolError} «{name}»: код выхода {exit}{(last is null ? "" : $" — {last}")}", $"{Theme.SymbolError} '{name}': exit code {exit}{(last is null ? "" : $": {last}")}"),
+                        Theme.Error);
+            });
+            await RefreshAsync(silent: true);
+        }
+        finally
+        {
+            _customRunning = false;
+        }
     }
 
     /// <summary>Находит в разделе keys неизвестные команды и клавиши, занятые другой командой того же экрана.</summary>

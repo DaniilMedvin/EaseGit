@@ -45,6 +45,9 @@ public sealed record AppConfig
 
     public const int DefaultAutoFetchMinutes = 5;
 
+    /// <summary>Свои команды: клавиша → команда shell с подстановками (открыть файл в Rider, скрипт, gh browse).</summary>
+    public IReadOnlyList<CustomCommand>? CustomCommands { get; init; }
+
     /// <summary>Свои клавиши: id команды («files.stage») → клавиша («s», «ctrl+x», «F5»).</summary>
     public Dictionary<string, string>? Keys { get; init; }
 }
