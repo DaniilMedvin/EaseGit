@@ -79,6 +79,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.
 - **Command palette** (`ctrl+p` or `:`) with fuzzy search, help (`?`) generated from the actual key bindings.
 - **Themes** (dark, light, your own) and **remappable keys** in `config.json`; **English and Russian** UI (`L` switches).
+- **Custom commands** in `config.json`: a key runs a shell command with `{file}`, `{commit}`, `{branch}` and other
+  placeholders (open the file in Rider, run a script), in the background or with an output window.
 
 | Interactive rebase | Graph of all branches |
 |---|---|
