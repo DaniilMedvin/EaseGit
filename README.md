@@ -49,6 +49,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   open in browser; create a PR from the current branch (`N`) with the title and description taken from commits;
   `enter` on a PR of another project opens its local copy or clones it; `w` shows its Actions; `/` picks any repository
   (recent local ones, yours on GitHub or any `owner/repo`) to review and merge its PRs. CI status of HEAD in the header (`✓ CI`).
+- **Review comments** right in the PR diff: threads under their lines, resolved ones folded to one line; `d` moves into
+  the diff, `n` / `N` jump between threads, `c` replies or comments the line under the cursor, `x` resolves or reopens.
 - **GitHub Issues** (the Issues tab in `g`): open issues with labels, assignees and comments; create (`n`),
   comment (`c`), close (`x`), open in browser.
 - **File history** (`h` on a file, `F` for any file): every commit that changed it, following renames, with the diff of that file.

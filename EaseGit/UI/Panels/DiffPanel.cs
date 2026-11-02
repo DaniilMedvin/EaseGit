@@ -47,6 +47,8 @@ public sealed class DiffPanel : View
     private Mascot _mascot;
     private IReadOnlyList<DiffLine>? _source;
     private bool _staging;
+    // Режим ревью PR: курсор ходит по всем строкам кода и по началам обсуждений, а не только по изменениям.
+    private bool _review;
     private int _cursor = -1;
     private int? _anchor;
 
@@ -112,10 +114,11 @@ public sealed class DiffPanel : View
     }
 
     /// <summary>
-    /// Подготовка PR: «#12 · ветка → main · автор · обновлён», состояние (CI, ревью, конфликты), заголовок и описание,
-    /// проверки CI по одной, затем сводка файлов и diff — как у коммита.
+    /// Подготовка PR: «#12 · ветка → main · автор · обновлён», состояние (CI, ревью, конфликты), счётчик обсуждений,
+    /// заголовок и описание, проверки CI по одной, затем сводка файлов и diff — как у коммита, с обсуждениями под строками.
     /// </summary>
-    public static PreparedDiff PreparePullRequest(PullRequest pr, IReadOnlyList<DiffLine> diff, DateTimeOffset now)
+    public static PreparedDiff PreparePullRequest(PullRequest pr, IReadOnlyList<DiffLine> diff, DateTimeOffset now,
+        IReadOnlyList<ReviewThread>? threads = null)
     {
         var lines = new List<DiffLine>();
         var highlights = new List<IReadOnlyList<HighlightSpan>?>();
@@ -129,6 +132,14 @@ public sealed class DiffPanel : View
         Add(new DiffLine(DiffLineKind.Header,
             $"{pr.Repo}#{pr.Number}{branches} {Theme.SymbolSeparator} {pr.Author} {Theme.SymbolSeparator} {RelativeTime.Ago(pr.UpdatedAt, now)}"));
         Add(new DiffLine(DiffLineKind.Header, PullRequestState(pr)));
+        if (threads is { Count: > 0 })
+        {
+            var open = threads.Count(t => !t.IsResolved);
+            Add(new DiffLine(DiffLineKind.Header, T(
+                $"Обсуждения: {open} открыто {Theme.SymbolSeparator} {threads.Count - open} решено {Theme.SymbolSeparator} d — к обсуждениям",
+                $"Review threads: {open} open {Theme.SymbolSeparator} {threads.Count - open} resolved {Theme.SymbolSeparator} d — go to threads")));
+        }
+
         Add(new DiffLine(DiffLineKind.Message, pr.Title));
 
         // Комментарии <!-- … --> из шаблонов PR на GitHub не видны — здесь тоже.
@@ -149,7 +160,7 @@ public sealed class DiffPanel : View
                 Add(new DiffLine(DiffLineKind.Header, $"{CheckSymbol(check.State)} {check.Name}"));
         }
 
-        AddFiles(diff, lines, highlights, T("В PR нет изменений файлов", "The PR has no file changes"));
+        AddFiles(diff, lines, highlights, T("В PR нет изменений файлов", "The PR has no file changes"), threads, now);
         return new PreparedDiff(lines, highlights.ToArray());
     }
 
@@ -188,14 +199,12 @@ public sealed class DiffPanel : View
     /// <summary>Текст Markdown строками сообщения: комментарии &lt;!-- --&gt; скрыты, пачки пустых строк — по одной.</summary>
     private static void AddMarkdown(List<DiffLine> lines, string? markdown)
     {
-        var text = Regex.Replace(markdown ?? "", "<!--.*?-->", "", RegexOptions.Singleline).Replace("\r", "");
-        text = Regex.Replace(text, "\n[ \t]*(\n[ \t]*)+\n", "\n\n").Trim();
-        if (text.Length == 0)
+        var text = MarkdownLines(markdown ?? "").ToList();
+        if (text.Count == 0)
             return;
 
         lines.Add(new DiffLine(DiffLineKind.Message, ""));
-        foreach (var line in text.Split('\n'))
-            lines.Add(new DiffLine(DiffLineKind.Message, line));
+        lines.AddRange(text.Select(line => new DiffLine(DiffLineKind.Message, line)));
     }
 
     /// <summary>«✓ CI · ● нужно ревью · ✓ можно влить» — то, что решает, можно ли вливать PR.</summary>
@@ -226,8 +235,12 @@ public sealed class DiffPanel : View
         _ => " ",
     };
 
-    /// <summary>Сводка файлов как git show --stat и diff каждого файла под заголовком с путём.</summary>
-    private static void AddFiles(IReadOnlyList<DiffLine> diff, List<DiffLine> lines, List<IReadOnlyList<HighlightSpan>?> highlights, string empty)
+    /// <summary>
+    /// Сводка файлов как git show --stat и diff каждого файла под заголовком с путём. Обсуждения ревью (у PR) — под своей
+    /// строкой; устаревшие, чьей строки в diff уже нет, — сразу под заголовком файла.
+    /// </summary>
+    private static void AddFiles(IReadOnlyList<DiffLine> diff, List<DiffLine> lines, List<IReadOnlyList<HighlightSpan>?> highlights, string empty,
+        IReadOnlyList<ReviewThread>? threads = null, DateTimeOffset now = default)
     {
         void Add(DiffLine line)
         {
@@ -262,8 +275,30 @@ public sealed class DiffPanel : View
             Add(new DiffLine(DiffLineKind.Message, ""));
             Add(new DiffLine(DiffLineKind.File, path));
             var prepared = Prepare(file, path);
-            lines.AddRange(prepared.Lines);
-            highlights.AddRange(prepared.Highlights);
+            var anchored = new Dictionary<int, List<ReviewThread>>();
+            foreach (var thread in threads?.Where(t => t.Path == path) ?? [])
+            {
+                var at = ThreadAnchor(prepared.Lines, thread);
+                if (at < 0)
+                {
+                    foreach (var line in ThreadLines(thread, now, anchored: false))
+                        Add(line);
+                    continue;
+                }
+
+                if (!anchored.TryGetValue(at, out var list))
+                    anchored[at] = list = [];
+                list.Add(thread);
+            }
+
+            for (var i = 0; i < prepared.Lines.Count; i++)
+            {
+                lines.Add(prepared.Lines[i]);
+                highlights.Add(prepared.Highlights[i]);
+                foreach (var thread in anchored.GetValueOrDefault(i) ?? [])
+                    foreach (var line in ThreadLines(thread, now, anchored: true))
+                        Add(line);
+            }
         }
 
         if (files.Count == 0)
@@ -272,6 +307,70 @@ public sealed class DiffPanel : View
             Add(new DiffLine(DiffLineKind.Header, empty));
         }
 
+    }
+
+    /// <summary>Строка diff, под которой стоит обсуждение: по номеру на его стороне. -1 — строки в diff нет.</summary>
+    private static int ThreadAnchor(IReadOnlyList<DiffLine> lines, ReviewThread thread)
+    {
+        if (thread.Line is not { } number)
+            return -1;
+
+        for (var i = 0; i < lines.Count; i++)
+        {
+            var line = lines[i];
+            var match = thread.Side == ReviewSide.Left
+                ? line.Kind is DiffLineKind.Removed or DiffLineKind.Context && line.OldNumber == number
+                : line.Kind is DiffLineKind.Added or DiffLineKind.Context && line.NewNumber == number;
+            if (match)
+                return i;
+        }
+
+        return -1;
+    }
+
+    /// <summary>
+    /// Строки обсуждения: решённое — одной строкой «✓ решено · alice: начало первого комментария», открытое — каждый
+    /// комментарий с автором и давностью. У устаревшего (строки в diff нет) — пометка, к какой строке он был.
+    /// </summary>
+    public static IEnumerable<DiffLine> ThreadLines(ReviewThread thread, DateTimeOffset now, bool anchored)
+    {
+        var where = anchored
+            ? ""
+            : T($" {Theme.SymbolSeparator} к старой версии, стр. {thread.Line ?? thread.OriginalLine}",
+                $" {Theme.SymbolSeparator} on an older version, line {thread.Line ?? thread.OriginalLine}");
+        if (thread.IsResolved)
+        {
+            var first = thread.Comments.FirstOrDefault();
+            var preview = first is null ? "" : $"{first.Author}: {MarkdownLines(first.Body).FirstOrDefault(l => l.Length > 0)}";
+            var answers = thread.Comments.Count > 1 ? $" (+{thread.Comments.Count - 1})" : "";
+            yield return new DiffLine(DiffLineKind.Comment, $"{Theme.SymbolSuccess} {T("решено", "resolved")}{where} {Theme.SymbolSeparator} {preview}{answers}")
+            {
+                Thread = thread,
+                ThreadStart = true,
+            };
+            yield break;
+        }
+
+        for (var i = 0; i < thread.Comments.Count; i++)
+        {
+            var comment = thread.Comments[i];
+            yield return new DiffLine(DiffLineKind.Comment, $"{comment.Author} {Theme.SymbolSeparator} {RelativeTime.Ago(comment.CreatedAt, now)}{(i == 0 ? where : "")}")
+            {
+                Thread = thread,
+                ThreadStart = i == 0,
+                CommentAuthor = true,
+            };
+            foreach (var text in MarkdownLines(comment.Body))
+                yield return new DiffLine(DiffLineKind.Comment, text) { Thread = thread };
+        }
+    }
+
+    /// <summary>Строки Markdown без комментариев &lt;!-- --&gt; и без пачек пустых строк.</summary>
+    private static IEnumerable<string> MarkdownLines(string markdown)
+    {
+        var text = Regex.Replace(markdown, "<!--.*?-->", "", RegexOptions.Singleline).Replace("\r", "");
+        text = Regex.Replace(text, "\n[ \t]*(\n[ \t]*)+\n", "\n\n").Trim();
+        return text.Length == 0 ? [] : text.Split('\n');
     }
 
     /// <summary>
@@ -454,7 +553,7 @@ public sealed class DiffPanel : View
     /// <summary>Сколько символов строки помещается в одну экранную строку; 0 — строка не переносится.</summary>
     private int ChunkWidth(DiffLine line) => line.Kind switch
     {
-        DiffLineKind.Context or DiffLineKind.Added or DiffLineKind.Removed => Math.Max(10, Viewport.Width - CodePrefix),
+        DiffLineKind.Context or DiffLineKind.Added or DiffLineKind.Removed or DiffLineKind.Comment => Math.Max(10, Viewport.Width - CodePrefix),
         // Служебные строки тоже переносятся: длинный «@@ … @@ контекст», строка автора, заметка NuGet.
         DiffLineKind.Message or DiffLineKind.Header or DiffLineKind.Hunk or DiffLineKind.Note or DiffLineKind.Binary => Math.Max(10, Viewport.Width - 1),
         _ => 0,
@@ -522,10 +621,86 @@ public sealed class DiffPanel : View
         SetNeedsDraw();
     }
 
-    /// <summary>Выключает режим построчного stage. Фокус к этому моменту уже должен быть у другой панели.</summary>
+    /// <summary>
+    /// Режим ревью PR: панель получает фокус, курсор — на первом открытом обсуждении (нет — на первом обсуждении,
+    /// нет и их — на первой видимой строке кода). Выключается так же, как построчный stage, — <see cref="StopStaging"/>.
+    /// </summary>
+    public void StartReview()
+    {
+        _staging = true;
+        _review = true;
+        _anchor = null;
+        var open = FindIndex(l => l.ThreadStart && l.Thread is { IsResolved: false });
+        var any = FindIndex(l => l.ThreadStart);
+        _cursor = open >= 0 ? open : any >= 0 ? any : NearestChange(RowToLine(_scroll));
+        EnsureCursorVisible();
+        CanFocus = true;
+        SetFocus();
+        SetNeedsDraw();
+    }
+
+    public bool Reviewing => _review;
+
+    /// <summary>Строка под курсором (в режиме stage или ревью) или null.</summary>
+    public DiffLine? CursorLine => _cursor >= 0 && _cursor < _lines.Count ? _lines[_cursor] : null;
+
+    /// <summary>Путь файла, в котором стоит курсор: ближайший заголовок файла выше.</summary>
+    public string? CursorPath
+    {
+        get
+        {
+            for (var i = Math.Min(_cursor, _lines.Count - 1); i >= 0; i--)
+                if (_lines[i].Kind == DiffLineKind.File)
+                    return _lines[i].Text;
+            return null;
+        }
+    }
+
+    /// <summary>Курсор — на следующее (<paramref name="direction"/> &gt; 0) или предыдущее обсуждение. false — дальше нет.</summary>
+    public bool MoveToThread(int direction)
+    {
+        if (!_review)
+            return false;
+
+        for (var i = _cursor + Math.Sign(direction); i >= 0 && i < _lines.Count; i += Math.Sign(direction))
+        {
+            if (!_lines[i].ThreadStart)
+                continue;
+
+            _cursor = i;
+            EnsureCursorVisible();
+            SetNeedsDraw();
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>Курсор — на обсуждение с этим id (после перезагрузки обсуждений).</summary>
+    public void SelectThread(string id)
+    {
+        var index = FindIndex(l => l.ThreadStart && l.Thread?.Id == id);
+        if (!_review || index < 0)
+            return;
+
+        _cursor = index;
+        EnsureCursorVisible();
+        SetNeedsDraw();
+    }
+
+    private int FindIndex(Func<DiffLine, bool> match)
+    {
+        for (var i = 0; i < _lines.Count; i++)
+            if (match(_lines[i]))
+                return i;
+        return -1;
+    }
+
+    /// <summary>Выключает режим построчного stage или ревью. Фокус к этому моменту уже должен быть у другой панели.</summary>
     public void StopStaging()
     {
         _staging = false;
+        _review = false;
         _anchor = null;
         _cursor = -1;
         CanFocus = false;
@@ -580,15 +755,19 @@ public sealed class DiffPanel : View
 
     private static bool IsChange(DiffLine line) => line.Kind is DiffLineKind.Added or DiffLineKind.Removed;
 
+    /// <summary>Куда встаёт курсор: при stage — изменения, при ревью — любая строка кода и начало обсуждения.</summary>
+    private bool IsMovable(DiffLine line) =>
+        _review ? line.Kind is DiffLineKind.Added or DiffLineKind.Removed or DiffLineKind.Context || line.ThreadStart : IsChange(line);
+
     /// <summary>Ближайшая к <paramref name="index"/> строка изменения: сначала ниже, потом выше. -1 — изменений нет.</summary>
     private int NearestChange(int index)
     {
         index = Math.Clamp(index, 0, Math.Max(0, _lines.Count - 1));
         for (var i = index; i < _lines.Count; i++)
-            if (IsChange(_lines[i]))
+            if (IsMovable(_lines[i]))
                 return i;
         for (var i = Math.Min(index, _lines.Count) - 1; i >= 0; i--)
-            if (IsChange(_lines[i]))
+            if (IsMovable(_lines[i]))
                 return i;
         return -1;
     }
@@ -603,7 +782,7 @@ public sealed class DiffPanel : View
         var target = _cursor;
         for (var i = _cursor + direction; i >= 0 && i < _lines.Count && steps != 0; i += direction)
         {
-            if (!IsChange(_lines[i]))
+            if (!IsMovable(_lines[i]))
                 continue;
             target = i;
             steps -= direction;
@@ -621,8 +800,23 @@ public sealed class DiffPanel : View
             return;
 
         // Заголовок фрагмента над первой строкой тоже виден: по нему понятно, где мы в файле.
-        var top = FirstRow(_cursor > 0 && _lines[_cursor - 1].Kind == DiffLineKind.Hunk ? _cursor - 1 : _cursor);
-        var bottom = FirstRow(_cursor) + Parts(_cursor) - 1;
+        var first = _cursor;
+        // Над обсуждением видна строка кода, к которой оно оставлено.
+        if (_lines[_cursor].ThreadStart)
+        {
+            while (first > 0 && _lines[first - 1].Kind == DiffLineKind.Comment)
+                first--;
+            if (first > 0 && _lines[first - 1].Kind is not (DiffLineKind.File or DiffLineKind.Header))
+                first--;
+        }
+
+        var top = FirstRow(first > 0 && _lines[first - 1].Kind == DiffLineKind.Hunk ? first - 1 : first);
+        var last = _cursor;
+        // Обсуждение под курсором видно целиком, если помещается.
+        if (_lines[_cursor].ThreadStart)
+            while (last + 1 < _lines.Count && _lines[last + 1].Kind == DiffLineKind.Comment && !_lines[last + 1].ThreadStart)
+                last++;
+        var bottom = Math.Min(FirstRow(last) + Parts(last) - 1, top + Viewport.Height - 1);
         if (top < _scroll)
             _scroll = top;
         else if (bottom >= _scroll + Viewport.Height)
@@ -745,6 +939,9 @@ public sealed class DiffPanel : View
 
         switch (line.Kind)
         {
+            case DiffLineKind.Comment:
+                DrawComment(row, index, start, length);
+                return;
             case DiffLineKind.File:
                 SetAttribute(new Attribute(Theme.Fg, Theme.SelectionBg));
                 AddStr(0, row, new string(' ', width));
@@ -822,6 +1019,33 @@ public sealed class DiffPanel : View
             code = Slice(code, start, length);
 
         segments.AddRange(code);
+        this.DrawSegments(0, row, segments, width, background);
+    }
+
+    /// <summary>
+    /// Строка обсуждения в колонке кода за полосой «┃»: accent — открытое, dim — решённое. Обсуждение под курсором
+    /// подсвечено целиком.
+    /// </summary>
+    private void DrawComment(int row, int index, int start, int length)
+    {
+        var line = _lines[index];
+        var width = Viewport.Width;
+        var resolved = line.Thread?.IsResolved == true;
+        var selected = _review && CursorLine?.Thread is { } current && current.Id == line.Thread?.Id;
+        Color? background = selected ? Theme.SelectionBg : null;
+        if (background is { } bg)
+        {
+            SetAttribute(new Attribute(Theme.Fg, bg));
+            AddStr(0, row, new string(' ', width));
+        }
+
+        var (color, style) = resolved ? (Theme.Muted, TextStyle.None)
+            : line.CommentAuthor ? (Theme.Accent, TextStyle.Bold)
+            : (Theme.Fg, TextStyle.None);
+        List<Segment> text = [new Segment(ExpandTabs(line.Text), color, style)];
+        if (_wrap && length != int.MaxValue)
+            text = Slice(text, start, length);
+        List<Segment> segments = [new(new string(' ', CodePrefix - 2), Theme.Dim), new("┃ ", resolved ? Theme.Dim : Theme.Accent), .. text];
         this.DrawSegments(0, row, segments, width, background);
     }
 

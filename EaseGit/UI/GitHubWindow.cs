@@ -18,7 +18,9 @@ namespace EaseGit.UI;
 /// (состояние, описание, проверки CI, сводка файлов и diff с подсветкой). Над PR: checkout (только PR текущего
 /// репозитория), открыть в браузере, merge, approve, скопировать адрес; n — новый PR из текущей ветки;
 /// enter на PR другого проекта — открыть его локальную копию или склонировать; / — выбрать любой репозиторий
-/// и посмотреть (и влить) его PR в отдельной вкладке.
+/// и посмотреть (и влить) его PR в отдельной вкладке. Обсуждения строк (комментарии ревью) — под строками diff;
+/// d — курсор в diff: n / N — следующее / предыдущее обсуждение, c — ответить или прокомментировать строку,
+/// x — решено / снова открыть, esc — обратно к списку.
 /// Result — что сделать главному окну после закрытия или null.
 /// </summary>
 public sealed class GitHubWindow : Runnable<GitHubAction?>
@@ -51,6 +53,10 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
     // PR под курсором, загруженный целиком: по нему решается, можно ли влить и что предупредить.
     private PullRequest? _full;
+
+    // Diff и обсуждения выбранного PR: после ответа перечитываются только обсуждения, diff — тот же.
+    private IReadOnlyList<DiffLine> _diffLines = [];
+    private PullRequestThreads? _threads;
     private bool _busy;
 
     /// <param name="repo">Репозиторий открытого проекта на GitHub или null: тогда только вкладки по всем репозиториям.</param>
@@ -99,6 +105,9 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
 
     protected override bool OnKeyDown(Key key)
     {
+        if (_details.Reviewing && OnReviewKey(key))
+            return true;
+
         if (key == Key.Esc)
         {
             RequestStop();
@@ -165,6 +174,8 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return Handled(ApproveAsync());
         if (key == Key.Y)
             return Handled(CopyUrl());
+        if (key == Key.D)
+            return StartReview();
         if (key == Key.W && _list.Selected is { } prRun)
         {
             // Actions ветки PR: почему у него ✗ CI.
@@ -194,6 +205,161 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     }
 
     private static bool Handled(Task _) => true;
+
+    /// <summary>Клавиши режима ревью; остальные (o, M, a, y…) работают как обычно.</summary>
+    private bool OnReviewKey(Key key)
+    {
+        if (key == Key.Esc)
+        {
+            StopReview();
+            return true;
+        }
+
+        if (key == Key.N || key == Key.N.WithShift)
+        {
+            if (!_details.MoveToThread(key == Key.N ? +1 : -1))
+                ShowStatus(T(key == Key.N ? "Ниже обсуждений нет" : "Выше обсуждений нет", key == Key.N ? "No threads below" : "No threads above"), Theme.Muted);
+            return true;
+        }
+
+        if (key == Key.C)
+            return Handled(CommentAsync());
+        if (key == Key.X)
+            return Handled(ResolveAsync());
+        // Вкладки и обновление перезагружают PR: сначала выходим из ревью.
+        if (key == Key.Tab || key == Key.Tab.WithShift || key == Key.R || CommandKey.Char('/').Matches(key))
+            StopReview();
+        return false;
+    }
+
+    /// <summary>d: курсор в diff PR — к обсуждениям и строкам кода.</summary>
+    private bool StartReview()
+    {
+        if (_full is null || _list.Selected is null)
+        {
+            ShowStatus(T("PR ещё загружается", "The PR is still loading"), Theme.Muted);
+            return true;
+        }
+
+        _details.StartReview();
+        ShowStatus(_threads is null
+            ? T($"{Theme.SymbolWarning} Обсуждения не загрузились: видно только diff", $"{Theme.SymbolWarning} Review threads didn't load: only the diff is shown")
+            : T("↑↓ — строка, n / N — обсуждение, c — комментарий или ответ, x — решено", "↑↓ line, n / N thread, c comment or reply, x resolve"),
+            _threads is null ? Theme.Warning : Theme.Muted);
+        UpdateHints();
+        return true;
+    }
+
+    private void StopReview()
+    {
+        if (!_details.Reviewing)
+            return;
+
+        _list.SetFocus();
+        _details.StopStaging();
+        ShowStatus("", Theme.Muted);
+        UpdateHints();
+    }
+
+    /// <summary>
+    /// c: курсор на обсуждении — ответ в нём; на строке кода — новое обсуждение этой строки (удалённая — к старой
+    /// версии, остальные — к новой).
+    /// </summary>
+    private Task CommentAsync()
+    {
+        if (_busy || _list.Selected is not { } pr || _details.CursorLine is not { } line)
+            return Task.CompletedTask;
+
+        if (line.Thread is { } thread)
+        {
+            var first = thread.Comments.FirstOrDefault();
+            using var reply = new IssueDialog(T($"Ответ {Theme.SymbolSeparator} {thread.Path}", $"Reply {Theme.SymbolSeparator} {thread.Path}"),
+                first is null ? thread.Path : $"{first.Author}: {first.Body.Split('\n')[0]}", withTitle: false);
+            App!.Run(reply);
+            if (reply.Result is not { } answer)
+                return Task.CompletedTask;
+
+            return RunReviewAsync(ct => _github.ReplyAsync(thread, answer.Body, ct), T("Ответ отправлен", "Reply posted"), thread.Id);
+        }
+
+        var side = line.Kind == DiffLineKind.Removed ? ReviewSide.Left : ReviewSide.Right;
+        if (_details.CursorPath is not { } path || (side == ReviewSide.Left ? line.OldNumber : line.NewNumber) is not { } number)
+            return Task.CompletedTask;
+
+        if (_threads is not { HeadSha.Length: > 0 } threads)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Обсуждения PR не загрузились: r — обновить", $"{Theme.SymbolError} The PR threads didn't load: r refreshes"), Theme.Error);
+            return Task.CompletedTask;
+        }
+
+        using var dialog = new IssueDialog(T($"Комментарий {Theme.SymbolSeparator} {path}:{number}", $"Comment {Theme.SymbolSeparator} {path}:{number}"),
+            line.Text.Trim(), withTitle: false);
+        App!.Run(dialog);
+        if (dialog.Result is not { } text)
+            return Task.CompletedTask;
+
+        return RunReviewAsync(ct => _github.CommentLineAsync(pr, threads.HeadSha, path, number, side, text.Body, ct),
+            T($"Комментарий к {path}:{number} отправлен", $"Comment on {path}:{number} posted"), null);
+    }
+
+    /// <summary>x: обсуждение под курсором — решено или снова открыто.</summary>
+    private Task ResolveAsync()
+    {
+        if (_busy || _details.CursorLine?.Thread is not { } thread)
+        {
+            ShowStatus(T("Встань на обсуждение: n — следующее", "Move to a thread: n — next"), Theme.Muted);
+            return Task.CompletedTask;
+        }
+
+        return RunReviewAsync(ct => _github.ResolveAsync(thread, !thread.IsResolved, ct),
+            thread.IsResolved ? T("Обсуждение снова открыто", "Thread reopened") : T("Обсуждение решено", "Thread resolved"), thread.Id);
+    }
+
+    /// <summary>Действие с обсуждением через gh; после успеха обсуждения перечитываются, курсор остаётся на месте.</summary>
+    private async Task RunReviewAsync(Func<CancellationToken, Task<GitResult>> action, string success, string? threadId)
+    {
+        _busy = true;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T("Отправляю на GitHub…", "Sending to GitHub…")}", Theme.Muted);
+        try
+        {
+            var result = await action(CancellationToken.None);
+            App?.Invoke(() => ShowStatus(result.Success ? $"{Theme.SymbolSuccess} {success}" : $"{Theme.SymbolError} {GitErrors.Explain(result)}",
+                result.Success ? Theme.Success : Theme.Error));
+            if (result.Success)
+                await ReloadThreadsAsync(threadId);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    /// <summary>Перечитывает обсуждения выбранного PR и перерисовывает diff на том же месте.</summary>
+    private async Task ReloadThreadsAsync(string? threadId)
+    {
+        if (_full is not { } full)
+            return;
+
+        try
+        {
+            var threads = await _github.GetThreadsAsync(full);
+            var prepared = await Task.Run(() => DiffPanel.PreparePullRequest(full, _diffLines, DateTimeOffset.Now, threads.Threads));
+            App?.Invoke(() =>
+            {
+                if (_full != full)
+                    return;
+
+                _threads = threads;
+                _details.SetDiff(prepared, keepScroll: true);
+                if (threadId is not null)
+                    _details.SelectThread(threadId);
+            });
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}", Theme.Error));
+        }
+    }
 
     private Task ScrollDetails(int direction)
     {
@@ -334,6 +500,20 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
             return;
         }
 
+        if (_details.Reviewing)
+        {
+            _hints.SetHints(
+            [
+                new Hint("↑↓", T("строка", "line"), Optional: true),
+                new Hint("n N", T("обсуждение", "thread")),
+                new Hint("c", T("комментарий / ответ", "comment / reply")),
+                new Hint("x", T("решено", "resolve")),
+                new Hint("o", T("браузер", "browser"), Optional: true),
+                new Hint("esc", T("к списку", "back to list")),
+            ]);
+            return;
+        }
+
         var local = _list.Selected is { } pr && IsCurrentRepo(pr);
         var hints = new List<Hint> { new("tab", T("вкладка", "tab")), new("/", T("репозиторий", "repository")) };
         if (local)
@@ -341,6 +521,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         else if (_list.Selected is not null)
             hints.Add(new Hint("enter", T("открыть проект", "open project")));
         hints.Add(new Hint("o", T("браузер", "browser")));
+        hints.Add(new Hint("d", T("обсуждения", "threads")));
         hints.Add(new Hint("w", "Actions", Optional: true));
         hints.Add(new Hint("M", "merge", Optional: true));
         hints.Add(new Hint("a", "approve", Optional: true));
@@ -409,7 +590,9 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     private async Task LoadDetailsAsync()
     {
         _detailsLoading?.Cancel();
+        StopReview();
         _full = null;
+        _threads = null;
         UpdateHints();
         if (_list.Selected is not { } pr)
         {
@@ -426,15 +609,19 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         {
             var fullTask = _github.GetAsync(pr, loading.Token);
             var diffTask = _github.GetDiffAsync(pr, loading.Token);
+            var threadsTask = LoadThreadsAsync(pr, loading.Token);
             var full = await fullTask ?? pr;
             var diff = await diffTask;
-            var prepared = await Task.Run(() => DiffPanel.PreparePullRequest(full, diff, DateTimeOffset.Now), loading.Token);
+            var threads = await threadsTask;
+            var prepared = await Task.Run(() => DiffPanel.PreparePullRequest(full, diff, DateTimeOffset.Now, threads?.Threads), loading.Token);
             App?.Invoke(() =>
             {
                 if (loading.IsCancellationRequested)
                     return;
 
                 _full = full;
+                _diffLines = diff;
+                _threads = threads;
                 _details.SetDiff(prepared);
             });
         }
@@ -445,6 +632,19 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         catch (GitCommandException ex)
         {
             App?.Invoke(() => _details.SetMessage($"{Theme.SymbolError} {GitErrors.Explain(ex.Result)}"));
+        }
+    }
+
+    /// <summary>Обсуждения PR; не загрузились (нет прав на GraphQL, сбой) — null, а PR и diff показываются всё равно.</summary>
+    private async Task<PullRequestThreads?> LoadThreadsAsync(PullRequest pr, CancellationToken ct)
+    {
+        try
+        {
+            return await _github.GetThreadsAsync(pr, ct);
+        }
+        catch (GitCommandException)
+        {
+            return null;
         }
     }
 

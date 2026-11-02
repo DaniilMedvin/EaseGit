@@ -1,3 +1,4 @@
+using System.Text.Json;
 using EaseGit.Git;
 using EaseGit.Git.Parsers;
 using EaseGit.Models;
@@ -70,6 +71,49 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
     /// <summary>Изменения PR как обычный diff нескольких файлов.</summary>
     public async Task<IReadOnlyList<DiffLine>> GetDiffAsync(PullRequest pr, CancellationToken ct = default) =>
         DiffParser.Parse(await RunCheckedAsync(["pr", "diff", pr.Number.ToString(), "--repo", pr.Repo.NameWithOwner, "--color", "never"], ct));
+
+    /// <summary>Обсуждения строк PR (комментарии ревью) и последний коммит ветки PR.</summary>
+    public async Task<PullRequestThreads> GetThreadsAsync(PullRequest pr, CancellationToken ct = default) =>
+        ReviewThreadParser.Parse(await RunCheckedAsync(
+            ["api", "graphql", "-f", $"query={ReviewThreadParser.Query}", "-f", $"owner={pr.Repo.Owner}", "-f", $"name={pr.Repo.Name}",
+             "-F", $"number={pr.Number}"], ct));
+
+    /// <summary>GraphQL-запросы с текстом пользователя идут через stdin (--input -): JSON с query и variables.</summary>
+    public static readonly string[] GraphQlArguments = ["api", "graphql", "--input", "-"];
+
+    private const string ReplyMutation = """
+        mutation($thread: ID!, $body: String!) {
+          addPullRequestReviewThreadReply(input: { pullRequestReviewThreadId: $thread, body: $body }) { comment { id } }
+        }
+        """;
+
+    private const string ResolveMutation = "mutation($thread: ID!) { resolveReviewThread(input: { threadId: $thread }) { thread { id } } }";
+
+    private const string UnresolveMutation = "mutation($thread: ID!) { unresolveReviewThread(input: { threadId: $thread }) { thread { id } } }";
+
+    public static string GraphQlBody(string query, IReadOnlyDictionary<string, string> variables) =>
+        JsonSerializer.Serialize(new { query, variables });
+
+    /// <summary>Ответ в обсуждении строки PR.</summary>
+    public Task<GitResult> ReplyAsync(ReviewThread thread, string body, CancellationToken ct = default) =>
+        RunActionAsync(GraphQlArguments, ct, GraphQlBody(ReplyMutation, new Dictionary<string, string> { ["thread"] = thread.Id, ["body"] = body }));
+
+    /// <summary>Помечает обсуждение решённым или снова открывает его.</summary>
+    public Task<GitResult> ResolveAsync(ReviewThread thread, bool resolve, CancellationToken ct = default) =>
+        RunActionAsync(GraphQlArguments, ct,
+            GraphQlBody(resolve ? ResolveMutation : UnresolveMutation, new Dictionary<string, string> { ["thread"] = thread.Id }));
+
+    public static string[] CommentLineArguments(PullRequest pr) =>
+        ["api", "--method", "POST", $"repos/{pr.Repo.NameWithOwner}/pulls/{pr.Number}/comments", "--input", "-"];
+
+    /// <summary>Тело нового комментария к строке: привязка к последнему коммиту PR, стороне diff и номеру строки на ней.</summary>
+    public static string CommentLineBody(string headSha, string path, int line, ReviewSide side, string body) =>
+        JsonSerializer.Serialize(new { body, commit_id = headSha, path, line, side = side == ReviewSide.Left ? "LEFT" : "RIGHT" });
+
+    /// <summary>Новое обсуждение строки PR: публикуется сразу, без отдельного ревью.</summary>
+    public Task<GitResult> CommentLineAsync(PullRequest pr, string headSha, string path, int line, ReviewSide side, string body,
+        CancellationToken ct = default) =>
+        RunActionAsync(CommentLineArguments(pr), ct, CommentLineBody(headSha, path, line, side, body));
 
     /// <summary>Основная ветка репозитория (обычно main): в неё по умолчанию открывается PR.</summary>
     public async Task<string> GetDefaultBranchAsync(GitHubRepo repo, CancellationToken ct = default) =>
