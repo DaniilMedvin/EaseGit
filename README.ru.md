@@ -168,7 +168,8 @@ easegit ~/projects/x # открыть конкретный репозитори�
 
 ## Настройки
 
-`~/.config/easegit/config.json`: язык, тема, свои темы и клавиши. Подробнее — [docs/CONFIG.md](docs/CONFIG.md).
+`~/.config/easegit/config.json`: язык, тема, свои темы, клавиши и фоновый fetch (по умолчанию раз в 5 минут,
+`"autoFetchMinutes": 0` — выключить). Подробнее — [docs/CONFIG.md](docs/CONFIG.md).
 Раньше EaseGit назывался LGit (команда `lgit`): настройки из `~/.config/lazygit-cs/` подхватываются сами,
 старый файл `lgit` можно удалить.
 

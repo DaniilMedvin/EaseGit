@@ -40,6 +40,11 @@ public sealed record AppConfig
     /// <summary>Язык интерфейса: «ru» или «en». Не задан — по языку системы.</summary>
     public string? Language { get; init; }
 
+    /// <summary>Фоновый fetch раз в столько минут; не задано — 5, 0 — выключен.</summary>
+    public int? AutoFetchMinutes { get; init; }
+
+    public const int DefaultAutoFetchMinutes = 5;
+
     /// <summary>Свои клавиши: id команды («files.stage») → клавиша («s», «ctrl+x», «F5»).</summary>
     public Dictionary<string, string>? Keys { get; init; }
 }

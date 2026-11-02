@@ -168,7 +168,8 @@ Panel-specific keys are always shown in the bottom line.
 
 ## Configuration
 
-`~/.config/easegit/config.json`: language, theme, custom themes and key bindings. See [docs/CONFIG.md](docs/CONFIG.md).
+`~/.config/easegit/config.json`: language, theme, custom themes, key bindings and background fetch (every 5 minutes
+by default, `"autoFetchMinutes": 0` turns it off). See [docs/CONFIG.md](docs/CONFIG.md).
 EaseGit used to be called LGit (command `lgit`): settings from `~/.config/lazygit-cs/` are picked up automatically,
 the old `lgit` binary can be deleted.
 

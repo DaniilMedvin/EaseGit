@@ -538,6 +538,24 @@ public sealed class GitService
     public Task<GitResult> FetchAsync(CancellationToken ct = default) =>
         RunActionAsync(["fetch", "--all", "--prune"], ct);
 
+    /// <summary>
+    /// Фоновый fetch: как <see cref="FetchAsync"/>, но ничего не спрашивает и не пишется в журнал команд (он шёл бы
+    /// каждые несколько минут). ssh — с BatchMode: запрос пароля ключа испортил бы экран, лучше молча не получиться.
+    /// Свой core.sshCommand сохраняется, к нему только добавляется BatchMode.
+    /// </summary>
+    public async Task<GitResult> BackgroundFetchAsync(CancellationToken ct = default)
+    {
+        var configured = await _git.RunAsync(RepoRoot, ["config", "--get", "core.sshCommand"], ct);
+        var ssh = configured.Success && configured.StdOut.Trim().Length > 0
+            ? configured.StdOut.Trim()
+            : Environment.GetEnvironmentVariable("GIT_SSH_COMMAND") is { Length: > 0 } fromEnvironment ? fromEnvironment : "ssh";
+        return await _git.RunAsync(RepoRoot, ["fetch", "--all", "--prune", "--quiet"], ct,
+            environment: new Dictionary<string, string> { ["GIT_SSH_COMMAND"] = BatchSsh(ssh) });
+    }
+
+    /// <summary>Команда ssh, которая не спрашивает пароль и не ждёт ввода.</summary>
+    public static string BatchSsh(string ssh) => ssh.Contains("BatchMode", StringComparison.OrdinalIgnoreCase) ? ssh : ssh + " -o BatchMode=yes";
+
     /// <summary>Перематывает текущую ветку к её upstream, только fast-forward: разошедшуюся git не тронет.</summary>
     public Task<GitResult> FastForwardCurrentAsync(CancellationToken ct = default) =>
         RunActionAsync(["merge", "--ff-only", "@{u}"], ct);
