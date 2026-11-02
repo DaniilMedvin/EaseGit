@@ -40,6 +40,12 @@ public sealed class AppCommand
     /// <summary>Подсказка второстепенная: убирается первой, если строка не помещается.</summary>
     public bool HintOptional { get; init; }
 
+    /// <summary>Подсказка малозначимая: в конце строки и убирается раньше второстепенных.</summary>
+    public bool HintMinor { get; init; }
+
+    /// <summary>Подсказка закреплённая (справка, назад, выход): видна всегда.</summary>
+    public bool HintPinned { get; init; }
+
     /// <summary>Можно ли выполнить сейчас. Недоступная команда не ловит клавишу и не видна в палитре.</summary>
     public Func<bool> IsAvailable { get; init; } = () => true;
 

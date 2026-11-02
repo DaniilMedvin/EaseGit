@@ -303,7 +303,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
     /// <summary>Подсказки внизу — из команд панели в фокусе и глобальных.</summary>
     private void UpdateHints() =>
-        _hints.SetHints(_commands.Hints(FocusedScope).Select(c => new Hint(c.Key.Label, c.Hint!, c.HintOptional)));
+        _hints.SetHints(_commands.Hints(FocusedScope).Select(c => new Hint(c.Key.Label, c.Hint!, c.HintOptional, c.HintMinor, c.HintPinned)));
 
     protected override void OnIsRunningChanged(bool newIsRunning)
     {
@@ -392,7 +392,7 @@ public sealed class MainWindow : Runnable<MainResult?>
 
         void Add(string id, string title, CommandScope scope, CommandKey shortcut, Action execute, string? hint = null,
             bool hintOptional = false, Func<string?>? preview = null, bool dangerous = false, bool hidden = false,
-            Func<bool>? available = null, string keywords = "", string? unavailableNote = null)
+            Func<bool>? available = null, string keywords = "", string? unavailableNote = null, bool hintMinor = false, bool hintPinned = false)
         {
             if (keyOverrides.TryGetValue(id, out var text))
             {
@@ -415,6 +415,8 @@ public sealed class MainWindow : Runnable<MainResult?>
                 Execute = execute,
                 Hint = hint,
                 HintOptional = hintOptional,
+                HintMinor = hintMinor,
+                HintPinned = hintPinned,
                 Preview = preview,
                 IsDangerous = dangerous,
                 HiddenInPalette = hidden,
@@ -588,28 +590,28 @@ public sealed class MainWindow : Runnable<MainResult?>
             OpenCommitDialog, T("коммит", "commit"), preview: () => "git commit --file=- --cleanup=strip");
         Add("repo.createGitIgnore", T("Создать .gitignore (Visual Studio)", "Create .gitignore (Visual Studio)"), CommandScope.Global, CommandKey.Of("I", Key.I.WithShift),
             () => _ = CreateGitIgnoreAsync(),
-            ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
+            ".gitignore", hintMinor: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
             keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: T("уже есть", "already exists"));
         Add("repo.createEditorConfig", T("Создать .editorconfig (стандартный из .NET SDK)", "Create .editorconfig (the .NET SDK default)"), CommandScope.Global,
             CommandKey.Of("E", Key.E.WithShift), () => _ = CreateEditorConfigAsync(),
-            ".editorconfig", hintOptional: true, preview: () => EditorConfigSource.Command, available: () => !RepoScaffold.EditorConfigExists(_git.RepoRoot),
+            ".editorconfig", hintMinor: true, preview: () => EditorConfigSource.Command, available: () => !RepoScaffold.EditorConfigExists(_git.RepoRoot),
             keywords: "editorconfig форматирование стиль отступы dotnet format создать файл", unavailableNote: T("уже есть", "already exists"));
         Add("repo.createReadme", T("Создать README.md", "Create README.md"), CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
             () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, T("Добавить README", "Add README")),
-            "README", hintOptional: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
+            "README", hintMinor: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
             keywords: "ридми readme описание создать файл", unavailableNote: T("уже есть", "already exists"));
         Add("sync.pull", "Pull", CommandScope.Global, CommandKey.Of("p", Key.P),
-            () => _ = PullAsync(), "pull", hintOptional: true, preview: () => "git pull --no-edit", keywords: "пул получить скачать");
+            () => _ = PullAsync(), "pull", preview: () => "git pull --no-edit", keywords: "пул получить скачать");
         Add("sync.push", "Push / push -u", CommandScope.Global, CommandKey.Of("P", Key.P.WithShift),
-            () => _ = PushAsync(), "push", hintOptional: true, preview: () => "git push", keywords: "пуш отправить опубликовать upstream");
+            () => _ = PushAsync(), "push", preview: () => "git push", keywords: "пуш отправить опубликовать upstream");
         Add("stash.save", T("Спрятать изменения в stash", "Stash changes"), CommandScope.Global, CommandKey.Of("s", Key.S),
-            OpenStashDialog, "stash", hintOptional: true, preview: () => "git stash push --include-untracked",
+            OpenStashDialog, "stash", preview: () => "git stash push --include-untracked",
             keywords: "стэш спрятать отложить сохранить");
         Add("sync.fetch", "Fetch", CommandScope.Global, CommandKey.Of("f", Key.F),
             () => _ = FetchAsync(), preview: () => "git fetch --all --prune", keywords: "фетч обновить сервер");
 
         Add("nav.next", T("Следующая панель", "Next panel"), CommandScope.Global, CommandKey.Of("tab", Key.Tab),
-            () => FocusPanel(+1), T("панель", "panel"), hintOptional: true, hidden: true);
+            () => FocusPanel(+1), T("панель", "panel"), hidden: true);
         Add("nav.previous", T("Предыдущая панель", "Previous panel"), CommandScope.Global, CommandKey.Of("shift+tab", Key.Tab.WithShift),
             () => FocusPanel(-1), hidden: true);
         Add("nav.files", T("Панель файлов", "Files panel"), CommandScope.Global, CommandKey.Of("1", Key.D1), () => _files.SetFocus(), hidden: true);
@@ -625,7 +627,7 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = UndoAsync(), dangerous: true, keywords: "undo отмена откат reflog вернуть");
         Add("view.refresh", T("Обновить", "Refresh"), CommandScope.Global, CommandKey.Of("r", Key.R), () => _ = RefreshAsync(), keywords: "обновить");
         Add("github.open", T("GitHub: pull requests", "GitHub: pull requests"), CommandScope.Global, CommandKey.Of("g", Key.G),
-            () => OpenGitHub(GitHubTab.Repository), "GitHub", hintOptional: true,
+            () => OpenGitHub(GitHubTab.Repository), "GitHub",
             keywords: "гитхаб github pr пулл реквест pull request ревью review merge дашборд");
         Add("github.createPr", T("Создать PR из текущей ветки", "Create a PR from the current branch"), CommandScope.Global,
             CommandKey.Of("N", Key.N.WithShift), () => _ = CreatePullRequestAsync(), preview: () => T("gh pr create --head <ветка> --base <main>", "gh pr create --head <branch> --base <main>"),
@@ -642,10 +644,10 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("view.wrapOff", T("Выключить перенос строк (обрезать по ширине)", "Stop wrapping lines (cut at the width)"), CommandScope.Global,
             CommandKey.Of("w", Key.W), ToggleWrap, available: () => _diff.Wrap, keywords: "перенос строки обрезать wrap");
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
-            CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
+            CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintMinor: true,
             keywords: "подробнее методы классы что изменилось код roslyn сводка details");
         Add("dotnet.check", T("Проверка: dotnet build, test и format", "Check: dotnet build, test and format"), CommandScope.Global,
-            CommandKey.Of("F5", Key.F5), OpenCheck, T("проверка", "check"), hintOptional: true,
+            CommandKey.Of("F5", Key.F5), OpenCheck, T("проверка", "check"),
             available: () => _dotnetTarget is not null, unavailableNote: T("нет .sln / .csproj", "no .sln / .csproj"),
             preview: () => _dotnetTarget is { } target ? $"dotnet build {target}" : null,
             keywords: "сборка тесты build test rebuild пересборка format форматирование проверка dotnet перед push собрать");
@@ -671,13 +673,13 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("app.login", T("Войти в GitHub", "Sign in to GitHub"), CommandScope.Global, CommandKey.Of("ctrl+g", Key.G.WithCtrl),
             Login, T("войти", "sign in"), hintOptional: true, available: () => !_auth.IsAuthorized);
         Add("app.help", T("Справка (также F1)", "Help (also F1)"), CommandScope.Global,
-            CommandKey.Any("?", CommandKey.Char('?'), CommandKey.Of("F1", Key.F1)), OpenHelp, T("справка", "help"));
-        Add("app.back", T("Назад к выбору репо", "Back to repo selection"), CommandScope.Global, CommandKey.Of("esc", Key.Esc), RequestStop, T("назад", "back"));
+            CommandKey.Any("?", CommandKey.Char('?'), CommandKey.Of("F1", Key.F1)), OpenHelp, T("справка", "help"), hintPinned: true);
+        Add("app.back", T("Назад к выбору репо", "Back to repo selection"), CommandScope.Global, CommandKey.Of("esc", Key.Esc), RequestStop, T("назад", "back"), hintPinned: true);
         Add("app.quit", T("Выход", "Quit"), CommandScope.Global, CommandKey.Of("q", Key.Q), () =>
         {
             Result = MainResult.Quit;
             RequestStop();
-        }, T("выход", "quit"));
+        }, T("выход", "quit"), hintPinned: true);
 
         ReportKeyProblems(keyOverrides, overridden);
     }
@@ -1234,13 +1236,15 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
     }
 
-    /// <summary>Окно тегов: создать на HEAD, отправить, удалить.</summary>
+    /// <summary>Окно тегов: создать на HEAD, отправить, удалить; с GitHub — релизы.</summary>
     private void OpenTags()
     {
         if (_busy)
             return;
 
-        using var window = new TagsWindow(_git);
+        // Релизы — только если GitHub доступен; иначе окно тегов работает как раньше, без сообщения об ошибке.
+        var repo = _auth.GhInstalled && _auth.IsAuthorized ? _gitHubRepo : null;
+        using var window = new TagsWindow(_git, repo is null ? null : CreateGitHubService(), repo);
         App!.Run(window);
         if (window.Changed)
             _ = RefreshAsync();

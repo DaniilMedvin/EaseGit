@@ -5,7 +5,8 @@ namespace EaseGit.Tests.Commands;
 
 public class CommandRegistryTests
 {
-    private static AppCommand Command(string id, CommandScope scope, CommandKey key, string? hint = null, Func<bool>? available = null) => new()
+    private static AppCommand Command(string id, CommandScope scope, CommandKey key, string? hint = null, Func<bool>? available = null,
+        bool minor = false) => new()
     {
         Id = id,
         Title = id,
@@ -14,6 +15,7 @@ public class CommandRegistryTests
         Execute = () => { },
         Hint = hint,
         IsAvailable = available ?? (() => true),
+        HintMinor = minor,
     };
 
     [Fact]
@@ -59,6 +61,19 @@ public class CommandRegistryTests
         registry.Add(Command("stage", CommandScope.Files, CommandKey.Of("space", Key.Space), "stage"));
 
         Assert.Equal(["stage", "quit"], registry.Hints(CommandScope.Files).Select(c => c.Id));
+    }
+
+    [Fact]
+    public void Hints_MinorGoLastKeepingOrder()
+    {
+        var registry = new CommandRegistry();
+        registry.Add(Command("gitignore", CommandScope.Global, CommandKey.Of("I", Key.I.WithShift), ".gitignore", minor: true));
+        registry.Add(Command("pull", CommandScope.Global, CommandKey.Of("p", Key.P), "pull"));
+        registry.Add(Command("readme", CommandScope.Global, CommandKey.Of("R", Key.R.WithShift), "README", minor: true));
+        registry.Add(Command("quit", CommandScope.Global, CommandKey.Of("q", Key.Q), "выход"));
+        registry.Add(Command("stage", CommandScope.Files, CommandKey.Of("space", Key.Space), "stage"));
+
+        Assert.Equal(["stage", "pull", "quit", "gitignore", "readme"], registry.Hints(CommandScope.Files).Select(c => c.Id));
     }
 
     [Fact]

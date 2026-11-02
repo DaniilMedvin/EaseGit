@@ -69,6 +69,8 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
 - **Undo** (`z`) of the last commit, amend, merge, pull or checkout through reflog.
 - **Stash**: save with a message (everything or only the selected file or folder, `S`), pop, apply, drop, see its diff.
 - **Tags** (`#`): list, create on HEAD (annotated with a message), push, delete locally or on the server.
+  **GitHub releases** right from a tag (`R`): notes drafted from the commits since the previous tag, grouped by
+  Conventional Commit type (or left to `--generate-notes`); the tag is pushed first if needed; tags with a release are marked.
 - **Branches, more**: rename (`R`), skip the current commit of rebase / cherry-pick / revert (`K`), the commit log loads more as you scroll.
 - **Transparency**: every action shows the exact git command before it runs; the Command Log (`~`) shows what ran.
 - **Command palette** (`ctrl+p` or `:`) with fuzzy search, help (`?`) generated from the actual key bindings.

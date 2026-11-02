@@ -153,6 +153,31 @@ public sealed class GitHubService(GhRunner gh, string workingDirectory, CommandL
         CancellationToken ct = default) =>
         RunActionAsync(CreateArguments(repo, head, @base, title, draft), ct, body);
 
+    /// <summary>Релизы репозитория: по ним у тегов метка «релиз».</summary>
+    public async Task<IReadOnlyList<GitHubRelease>> ListReleasesAsync(GitHubRepo repo, CancellationToken ct = default) =>
+        ReleaseParser.ParseList(await RunCheckedAsync(
+            ["release", "list", "--repo", repo.NameWithOwner, "--limit", ListLimit.ToString(), "--json", ReleaseParser.ListFields], ct));
+
+    /// <summary>
+    /// Аргументы релиза из тега. --verify-tag: без тега на сервере gh не станет молча создавать его от основной ветки.
+    /// Заметки — через stdin (--notes-file -) или их составит GitHub (--generate-notes).
+    /// </summary>
+    public static string[] CreateReleaseArguments(GitHubRepo repo, string tag, string title, bool draft, bool prerelease, bool generateNotes) =>
+    [
+        "release", "create", tag, "--repo", repo.NameWithOwner, "--verify-tag", "--title", title,
+        .. generateNotes ? (string[])["--generate-notes"] : ["--notes-file", "-"],
+        .. draft ? (string[])["--draft"] : [],
+        .. prerelease ? (string[])["--prerelease"] : [],
+    ];
+
+    /// <summary>Создаёт релиз. При успехе в stdout — его адрес.</summary>
+    public Task<GitResult> CreateReleaseAsync(GitHubRepo repo, string tag, string title, string notes, bool draft, bool prerelease,
+        CancellationToken ct = default) =>
+        RunActionAsync(CreateReleaseArguments(repo, tag, title, draft, prerelease, notes.Length == 0), ct, notes.Length == 0 ? null : notes);
+
+    public Task<GitResult> OpenReleaseInBrowserAsync(GitHubRepo repo, string tag, CancellationToken ct = default) =>
+        gh.RunAsync(workingDirectory, ["release", "view", tag, "--repo", repo.NameWithOwner, "--web"], ct);
+
     /// <summary>Запуски Actions для коммита <paramref name="sha"/>: по ним статус CI в шапке.</summary>
     public async Task<IReadOnlyList<WorkflowRun>> GetRunsAsync(GitHubRepo repo, string sha, CancellationToken ct = default) =>
         WorkflowRunParser.Parse(await RunCheckedAsync(

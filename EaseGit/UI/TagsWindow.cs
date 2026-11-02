@@ -1,4 +1,5 @@
 using EaseGit.Git;
+using EaseGit.GitHub;
 using EaseGit.Models;
 using EaseGit.UI.Dialogs;
 using EaseGit.UI.Panels;
@@ -13,10 +14,13 @@ namespace EaseGit.UI;
 /// <summary>
 /// Теги: сверху список (свежие первыми), снизу коммит выбранного тега. n — новый тег на HEAD (с сообщением —
 /// аннотированный), P — отправить на сервер, D — удалить (локально или ещё и на сервере), y — имя, esc — закрыть.
+/// С GitHub: R — релиз из тега (заметки из коммитов с прошлого тега), o — релиз в браузере; у тегов — метка релиза.
 /// </summary>
 public sealed class TagsWindow : Runnable
 {
     private readonly GitService _git;
+    private readonly GitHubService? _github;
+    private readonly GitHubRepo? _repo;
     private readonly TagsPanel _list;
     private readonly DiffPanel _details;
     private readonly Label _detailsTitle;
@@ -24,9 +28,12 @@ public sealed class TagsWindow : Runnable
     private CancellationTokenSource? _detailsLoading;
     private bool _busy;
 
-    public TagsWindow(GitService git)
+    /// <param name="github">GitHub для релизов или null (нет gh, не вошёл, remote не на GitHub).</param>
+    public TagsWindow(GitService git, GitHubService? github = null, GitHubRepo? repo = null)
     {
         _git = git;
+        _github = repo is null ? null : github;
+        _repo = repo;
         Width = Dim.Fill();
         Height = Dim.Fill();
         SetScheme(Theme.Base);
@@ -43,6 +50,7 @@ public sealed class TagsWindow : Runnable
             new Hint("n", T("новый на HEAD", "new on HEAD")),
             new Hint("P", T("отправить", "push")),
             new Hint("D", T("удалить", "delete")),
+            .. _github is null ? (Hint[])[] : [new Hint("R", T("релиз", "release")), new Hint("o", T("релиз в браузере", "release in browser"), Optional: true)],
             new Hint("y", T("имя", "name"), Optional: true),
             new Hint("ctrl+d/u", "diff", Optional: true),
             new Hint("esc", T("закрыть", "close")),
@@ -59,7 +67,10 @@ public sealed class TagsWindow : Runnable
     {
         base.OnIsRunningChanged(newIsRunning);
         if (newIsRunning)
+        {
             _ = LoadAsync();
+            _ = LoadReleasesAsync();
+        }
     }
 
     protected override bool OnKeyDown(Key key)
@@ -76,6 +87,10 @@ public sealed class TagsWindow : Runnable
             return Handled(PushAsync());
         if (key == Key.D.WithShift)
             return Handled(DeleteAsync());
+        if (key == Key.R.WithShift)
+            return Handled(CreateReleaseAsync());
+        if (key == Key.O)
+            return Handled(OpenReleaseAsync());
         if (key == Key.Y && _list.Selected is { } tag)
         {
             SystemClipboard.SetText(tag.Name);
@@ -111,6 +126,131 @@ public sealed class TagsWindow : Runnable
         {
             App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.FirstLine(ex.Result.StdErr)}", Theme.Error));
         }
+    }
+
+    /// <summary>Релизы с GitHub — для меток у тегов; без сети меток просто нет.</summary>
+    private async Task LoadReleasesAsync()
+    {
+        if (_github is null || _repo is null)
+            return;
+
+        try
+        {
+            var releases = await _github.ListReleasesAsync(_repo);
+            App?.Invoke(() => _list.Releases = releases.GroupBy(r => r.TagName).ToDictionary(g => g.Key, g => g.First()));
+        }
+        catch (GitCommandException)
+        {
+            // Нет сети или прав: теги видны и без меток.
+        }
+    }
+
+    /// <summary>
+    /// R: релиз на GitHub из выбранного тега. Заголовок — имя тега, заметки — из коммитов с прошлого тега (можно править;
+    /// пустые — GitHub составит сам). Тега нет на сервере — сначала он отправляется. Перед созданием — подтверждение с командой.
+    /// </summary>
+    private async Task CreateReleaseAsync()
+    {
+        if (_busy || _list.Selected is not { } tag)
+            return;
+
+        if (_github is null || _repo is not { } repo)
+        {
+            ShowStatus(T($"{Theme.SymbolError} Релизы — на GitHub: нужен gh, вход (ctrl+g в главном окне) и remote на GitHub",
+                $"{Theme.SymbolError} Releases live on GitHub: gh, signing in (ctrl+g in the main window) and a GitHub remote are needed"), Theme.Error);
+            return;
+        }
+
+        if (_list.Releases.ContainsKey(tag.Name))
+        {
+            ShowStatus(T($"{Theme.SymbolError} У тега {tag.Name} уже есть релиз: o — открыть в браузере", $"{Theme.SymbolError} Tag {tag.Name} already has a release: o opens it"), Theme.Error);
+            return;
+        }
+
+        var remote = await FirstRemoteAsync();
+        if (remote is null)
+            return;
+
+        _busy = true;
+        ShowStatus($"{Theme.SpinnerFrames[0]} {T("Собираю заметки из коммитов…", "Collecting notes from commits…")}", Theme.Muted);
+        bool pushed;
+        string? previous;
+        IReadOnlyList<Commit> commits;
+        try
+        {
+            var pushedTask = _git.IsTagOnRemoteAsync(remote, tag);
+            previous = await _git.GetPreviousTagAsync(tag);
+            commits = await _git.GetReleaseCommitsAsync(tag, previous);
+            pushed = await pushedTask;
+        }
+        catch (GitCommandException ex)
+        {
+            App?.Invoke(() => ShowStatus($"{Theme.SymbolError} {GitErrors.FirstLine(ex.Result.StdErr)}", Theme.Error));
+            return;
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        App?.Invoke(() =>
+        {
+            ShowStatus("", Theme.Muted);
+            var prerelease = ReleaseNotes.IsPrerelease(tag.Name);
+            var since = previous is null ? T("с начала истории", "since the beginning") : T($"с {previous}", $"since {previous}");
+            var info = $"{Theme.SymbolTag}{tag.Name} {Theme.SymbolSeparator} {Plural(commits.Count, "коммит", "коммита", "коммитов", "commit", "commits")} {since}"
+                       + (prerelease ? $" {Theme.SymbolSeparator} {T("пре-релиз", "pre-release")}" : "");
+            using var dialog = new PullRequestDialog(repo.NameWithOwner, info, tag.Name, ReleaseNotes.Build(commits, repo, tag.Name, previous),
+                heading: T($"Новый релиз · {repo}", $"New release · {repo}"),
+                tip: T("Пустые заметки — GitHub составит сам (--generate-notes)", "Empty notes: GitHub writes them itself (--generate-notes)"));
+            App!.Run(dialog);
+            if (dialog.Result is not { } release)
+                return;
+
+            var create = GitHubService.CreateReleaseArguments(repo, tag.Name, release.Title, release.Draft, prerelease, release.Body.Length == 0);
+            var command = CommandText.Format(create, "gh");
+            if (!pushed)
+                command = CommandText.Format(GitService.PushTagArguments(remote, tag)) + " && " + command;
+            var warning = (pushed ? "" : T($"Тега ещё нет в {remote}: сначала он отправится. ", $"The tag isn't in {remote} yet: it's pushed first. "))
+                          + (release.Draft
+                              ? T("Черновик видят только те, у кого есть доступ на запись.", "Only people with write access see a draft.")
+                              : T("Релиз сразу увидят все, у кого есть доступ к репозиторию.", "Everyone with access to the repository sees the release right away."));
+            using var confirm = new ConfirmDialog(T($"Создать релиз {tag.Name}?", $"Create release {tag.Name}?"), command, warning, T("Создать", "Create"));
+            App!.Run(confirm);
+            if (confirm.Result != true)
+                return;
+
+            _ = RunAsync(async ct =>
+            {
+                if (!pushed)
+                {
+                    var push = await _git.PushTagAsync(remote, tag, ct);
+                    if (!push.Success)
+                        return push;
+                }
+
+                var result = await _github.CreateReleaseAsync(repo, tag.Name, release.Title, release.Body, release.Draft, prerelease, ct);
+                if (result.Success)
+                    _ = LoadReleasesAsync();
+                return result;
+            }, T($"Релиз {tag.Name} создан: o — открыть в браузере", $"Release {tag.Name} created: o opens it in the browser"));
+        });
+    }
+
+    /// <summary>o: релиз выбранного тега в браузере.</summary>
+    private Task OpenReleaseAsync()
+    {
+        if (_github is null || _repo is null || _list.Selected is not { } tag)
+            return Task.CompletedTask;
+
+        if (!_list.Releases.ContainsKey(tag.Name))
+        {
+            ShowStatus(T($"У тега {tag.Name} нет релиза: R — создать", $"Tag {tag.Name} has no release: R creates one"), Theme.Muted);
+            return Task.CompletedTask;
+        }
+
+        ShowStatus(T($"{Theme.SymbolSuccess} Открываю релиз {tag.Name}", $"{Theme.SymbolSuccess} Opening release {tag.Name}"), Theme.Success);
+        return _github.OpenReleaseInBrowserAsync(_repo, tag.Name);
     }
 
     private async Task LoadDetailsAsync()

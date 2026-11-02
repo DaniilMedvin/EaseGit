@@ -469,6 +469,25 @@ public sealed class GitService
     public Task<GitResult> PushTagAsync(string remote, Tag tag, CancellationToken ct = default) =>
         RunActionAsync(PushTagArguments(remote, tag), ct);
 
+    /// <summary>Ближайший тег до <paramref name="tag"/> в его истории (с него считаются заметки релиза); null — это первый тег.</summary>
+    public async Task<string?> GetPreviousTagAsync(Tag tag, CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["describe", "--tags", "--abbrev=0", $"{tag.Hash}^"], ct);
+        return result.Success ? result.StdOut.Trim() : null;
+    }
+
+    /// <summary>Коммиты релиза: после <paramref name="previous"/> до тега (без прошлого тега — вся история до него), новые первыми.</summary>
+    public async Task<IReadOnlyList<Commit>> GetReleaseCommitsAsync(Tag tag, string? previous, CancellationToken ct = default) =>
+        LogParser.Parse(await RunCheckedAsync(
+            LogParser.Arguments(GraphLogLimit, range: previous is null ? tag.Hash : $"refs/tags/{previous}..{tag.Hash}"), ct));
+
+    /// <summary>Есть ли тег на сервере <paramref name="remote"/>: релиз на GitHub создаётся только из отправленного тега.</summary>
+    public async Task<bool> IsTagOnRemoteAsync(string remote, Tag tag, CancellationToken ct = default)
+    {
+        var result = await _git.RunAsync(RepoRoot, ["ls-remote", "--tags", remote, $"refs/tags/{tag.Name}"], ct);
+        return result.Success && result.StdOut.Trim().Length > 0;
+    }
+
     public static string[] DeleteTagArguments(Tag tag) => ["tag", "--delete", tag.Name];
 
     public static string[] DeleteRemoteTagArguments(string remote, Tag tag) => ["push", remote, "--delete", $"refs/tags/{tag.Name}"];

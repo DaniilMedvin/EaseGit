@@ -10,7 +10,7 @@ namespace EaseGit.UI.Dialogs;
 public sealed record NewPullRequest(string Title, string Body, bool Draft);
 
 /// <summary>
-/// Новый PR: заголовок «>», описание, ветки «feature/x → main» и признак черновика.
+/// Новый PR (и релиз из тега): заголовок «>», описание, ветки «feature/x → main» и признак черновика.
 /// enter / ctrl+s — создать, ↓ — в описание, ctrl+d — черновик, esc — отмена. Result — введённое или null.
 /// </summary>
 public sealed class PullRequestDialog : Runnable<NewPullRequest?>
@@ -26,7 +26,9 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
     private bool _isDraft;
 
     /// <param name="info">«feature/x → main · 3 коммита».</param>
-    public PullRequestDialog(string repo, string info, string title, string body)
+    /// <param name="heading">Заголовок окна; null — «Новый PR · репо».</param>
+    /// <param name="tip">Подсказка под описанием (muted), пока нет ошибки.</param>
+    public PullRequestDialog(string repo, string info, string title, string body, string? heading = null, string? tip = null)
     {
         X = Pos.Center();
         Y = Pos.Center();
@@ -80,11 +82,12 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
         _body.SetScheme(Theme.Input);
         _body.HasFocusChanged += (_, _) => UpdateHints();
 
-        _tip = new Label { X = 0, Y = BodyHeight + 6, Width = Dim.Fill() };
+        _tip = new Label { X = 0, Y = BodyHeight + 6, Width = Dim.Fill(), Text = tip ?? "" };
+        _tip.SetScheme(Theme.Text(Theme.Muted));
 
         _hints = new HintBar { X = 1, Y = Pos.Bottom(box) };
         box.Add(infoLabel, _draft, prompt, _title, bodyLabel, bar, _body, _tip);
-        Add(box, BoxTitle.For(box, T($"Новый PR · {repo}", $"New PR · {repo}"), Theme.Accent), _hints);
+        Add(box, BoxTitle.For(box, heading ?? T($"Новый PR · {repo}", $"New PR · {repo}"), Theme.Accent), _hints);
         UpdateDraft();
         _title.SetFocus();
         UpdateHints();
@@ -134,7 +137,7 @@ public sealed class PullRequestDialog : Runnable<NewPullRequest?>
         var title = _title.Text.Trim();
         if (title.Length == 0)
         {
-            _tip.Text = $"{Theme.SymbolError} {T("Введи заголовок PR", "Enter the PR title")}";
+            _tip.Text = $"{Theme.SymbolError} {T("Введи заголовок", "Enter the title")}";
             _tip.SetScheme(Theme.Text(Theme.Error));
             _title.SetFocus();
             return;
