@@ -2,7 +2,7 @@ using System.Text.RegularExpressions;
 
 namespace EaseGit.DotNet;
 
-/// <summary>Разбор вывода dotnet build / test (английский, DOTNET_CLI_UI_LANGUAGE=en). Чистые функции.</summary>
+/// <summary>Разбор вывода dotnet build / test / format (английский, DOTNET_CLI_UI_LANGUAGE=en). Чистые функции.</summary>
 public static partial class DotnetOutput
 {
     public static DotnetLineKind Classify(string line)
@@ -11,7 +11,7 @@ public static partial class DotnetOutput
         if (FailedTestRegex().IsMatch(line))
             return DotnetLineKind.FailedTest;
         if (text.StartsWith("Build succeeded", StringComparison.Ordinal) || text.StartsWith("Build FAILED", StringComparison.Ordinal)
-            || TestSummaryRegex().IsMatch(text))
+            || text.StartsWith("Format complete", StringComparison.Ordinal) || TestSummaryRegex().IsMatch(text))
             return DotnetLineKind.Summary;
         if (line.Contains(": error ", StringComparison.Ordinal) || text.StartsWith("error ", StringComparison.Ordinal))
             return DotnetLineKind.Error;
@@ -48,6 +48,10 @@ public static partial class DotnetOutput
 
     public static int CountWarnings(IEnumerable<string> lines) =>
         lines.Where(l => Classify(l) == DotnetLineKind.Warning).Select(l => l.Trim()).Distinct().Count();
+
+    /// <summary>Сколько файлов поправил dotnet format: строки «Formatted code file '…/A.cs'.» (видны с -v normal).</summary>
+    public static int CountFormattedFiles(IEnumerable<string> lines) =>
+        lines.Select(l => l.Trim()).Where(l => l.StartsWith("Formatted code file ", StringComparison.Ordinal)).Distinct().Count();
 
     // Имя до « [12 ms]»: у [Theory] в нём параметры с пробелами — «Method(url: "x")».
     [GeneratedRegex(@"^\s+Failed (.+?) \[\d")]

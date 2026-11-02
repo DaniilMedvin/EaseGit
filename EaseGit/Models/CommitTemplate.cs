@@ -27,6 +27,7 @@ public sealed record CommitTemplate(string Name, string? Type, string Subject, s
         new(T("Первый коммит", "Initial commit"), "chore", "initial commit"),
         new(T("Добавить README", "Add README"), "docs", "add README"),
         new(T("Добавить .gitignore", "Add .gitignore"), "chore", "add .gitignore"),
+        new(T("Добавить .editorconfig", "Add .editorconfig"), "chore", "add .editorconfig"),
         new(T("Работа в процессе", "Work in progress"), "chore", "wip"),
     ];
 }

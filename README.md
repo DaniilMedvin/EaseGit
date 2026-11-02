@@ -19,6 +19,8 @@ EaseGit works with any git repository, but it is tuned for C# developers:
 - **`.gitignore` for .NET in one key** (`I`): the latest official
   [VisualStudio.gitignore](https://github.com/github/gitignore/blob/main/VisualStudio.gitignore) from GitHub,
   with a built-in copy when offline.
+- **`.editorconfig` in one key** (`E`): the standard one from your .NET SDK (`dotnet new editorconfig`): indents,
+  `using` order and code style rules that `dotnet format` follows; a built-in copy when `dotnet` isn't found.
 - Ignores `bin/`, `obj/` and `.vs/` noise out of the box once that `.gitignore` is in place.
 
 Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md](CONTRIBUTING.md).
@@ -56,8 +58,9 @@ Highlighting for more languages is a welcome contribution, see [CONTRIBUTING.md]
   (what a PR would contain) or between tips.
 - **Blame** (`B` on a file, `b` in file history): who wrote each line and in which commit; `p` jumps to the version
   before that commit to see who wrote the line earlier.
-- **Build and test** on demand (`F5`): `dotnet build` and `dotnet test` with live output, a summary and the failed tests;
-  pick which tests to run by class or one by one (`space`, `a` for all).
+- **Build, test and format** on demand (`F5`): opens with `dotnet build` only, live output and a summary;
+  `enter` runs the selected tests, `r` rebuilds from scratch, `f` runs `dotnet format`.
+  Pick which tests to run by class or one by one (`space`, `a` for all).
 - **GitHub Actions** (`ctrl+o`): runs of the branch, jobs and steps, the log of failed steps right in EaseGit,
   rerun failed jobs or the whole run, cancel; refreshes itself while something is running.
 - **Worktrees** (`W`): working folders for other branches — list with their state, create, open in EaseGit, delete, prune.

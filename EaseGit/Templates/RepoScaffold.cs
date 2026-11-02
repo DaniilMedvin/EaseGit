@@ -1,6 +1,6 @@
 namespace EaseGit.Templates;
 
-/// <summary>Быстрое создание стандартных файлов репозитория: README.md и .gitignore.</summary>
+/// <summary>Быстрое создание стандартных файлов репозитория: README.md, .gitignore и .editorconfig.</summary>
 public static class RepoScaffold
 {
     public const string ReadmeFileName = "README.md";
@@ -8,6 +8,8 @@ public static class RepoScaffold
     public static bool ReadmeExists(string repoRoot) => File.Exists(Path.Combine(repoRoot, ReadmeFileName));
 
     public static bool GitIgnoreExists(string repoRoot) => File.Exists(Path.Combine(repoRoot, GitIgnoreTemplate.FileName));
+
+    public static bool EditorConfigExists(string repoRoot) => File.Exists(Path.Combine(repoRoot, EditorConfigTemplate.FileName));
 
     /// <summary>Содержимое нового README: заголовок с именем папки репозитория и место для описания.</summary>
     public static string ReadmeContent(string repoRoot)
@@ -26,6 +28,13 @@ public static class RepoScaffold
     /// <summary>Создаёт .gitignore с переданным содержимым. Существующий файл не перезаписывается.</summary>
     public static bool CreateGitIgnore(string repoRoot, string content) =>
         CreateIfMissing(Path.Combine(repoRoot, GitIgnoreTemplate.FileName), content);
+
+    /// <summary>Создаёт .editorconfig со встроенной копией стандартного из SDK. Существующий файл не перезаписывается.</summary>
+    public static bool CreateEditorConfig(string repoRoot) => CreateEditorConfig(repoRoot, EditorConfigTemplate.Default);
+
+    /// <summary>Создаёт .editorconfig с переданным содержимым. Существующий файл не перезаписывается.</summary>
+    public static bool CreateEditorConfig(string repoRoot, string content) =>
+        CreateIfMissing(Path.Combine(repoRoot, EditorConfigTemplate.FileName), content);
 
     private static bool CreateIfMissing(string path, string content)
     {

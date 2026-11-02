@@ -31,6 +31,31 @@ public sealed class RepoScaffoldTests : IDisposable
     }
 
     [Fact]
+    public void CreateEditorConfig_NewRepo_WritesSdkDefaultWithoutBom()
+    {
+        Assert.True(RepoScaffold.CreateEditorConfig(_root));
+
+        var bytes = File.ReadAllBytes(Path.Combine(_root, ".editorconfig"));
+        Assert.NotEqual(0xEF, bytes[0]);
+        var text = File.ReadAllText(Path.Combine(_root, ".editorconfig"));
+        Assert.StartsWith("root = true", text);
+        Assert.Contains("[*.cs]", text);
+        Assert.Contains("dotnet_sort_system_directives_first = true", text);
+        Assert.EndsWith("\n", text);
+        Assert.True(RepoScaffold.EditorConfigExists(_root));
+    }
+
+    [Fact]
+    public void CreateEditorConfig_ExistingFile_IsNotOverwritten()
+    {
+        File.WriteAllText(Path.Combine(_root, ".editorconfig"), "root = true");
+
+        Assert.False(RepoScaffold.CreateEditorConfig(_root));
+
+        Assert.Equal("root = true", File.ReadAllText(Path.Combine(_root, ".editorconfig")));
+    }
+
+    [Fact]
     public void CreateReadme_UsesFolderNameAsTitle()
     {
         var project = Directory.CreateDirectory(Path.Combine(_root, "Мой проект")).FullName;

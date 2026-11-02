@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using EaseGit.DotNet;
+using EaseGit.Templates;
 using EaseGit.UI.Panels;
 using EaseGit.UI.Widgets;
 using Terminal.Gui.Drawing;
@@ -11,11 +12,11 @@ using Terminal.Gui.Views;
 namespace EaseGit.UI;
 
 /// <summary>
-/// Проверка по клавише: dotnet build, список тестов, затем выбранные тесты (dotnet test --no-build --filter).
+/// Проверка по клавише: при открытии только dotnet build и список тестов; тесты и dotnet format — по клавишам.
 /// Сверху итог по шагам и упавшие тесты, слева тесты по классам с выбором, справа весь вывод по мере выполнения.
 /// В списке тестов: space — включить / исключить тест или класс, a — все, → / ← — развернуть / свернуть класс.
-/// enter — прогнать выбранные без пересборки, r — пересобрать и прогнать, tab — тесты / вывод, e — только проблемы,
-/// esc — остановить, затем закрыть.
+/// enter — прогнать выбранные (dotnet test --no-build --filter), b — собрать, r — пересобрать с нуля, f — dotnet format,
+/// tab — тесты / вывод, e — только проблемы, esc — остановить, затем закрыть.
 /// </summary>
 public sealed class CheckWindow : Runnable
 {
@@ -26,6 +27,14 @@ public sealed class CheckWindow : Runnable
         Passed,
         Failed,
         Skipped,
+    }
+
+    private enum Job
+    {
+        Build,
+        Rebuild,
+        Tests,
+        Format,
     }
 
     private readonly DotnetRunner _dotnet = new();
@@ -40,6 +49,7 @@ public sealed class CheckWindow : Runnable
     private readonly ConcurrentQueue<string> _pending = new();
     private readonly List<string> _buildLines = [];
     private readonly List<string> _testLines = [];
+    private readonly List<string> _formatLines = [];
     private readonly List<string> _failedTests = [];
     private readonly HashSet<string> _expanded = new(StringComparer.Ordinal);
     private IReadOnlyList<string> _tests = [];
@@ -52,6 +62,7 @@ public sealed class CheckWindow : Runnable
     private object? _flushTimer;
     private (StepState State, string Note) _build = (StepState.Waiting, "");
     private (StepState State, string Note) _testsStep = (StepState.Waiting, "");
+    private (StepState State, string Note) _format;
     private int _frame;
 
     /// <param name="target">Решение или проект относительно <paramref name="root"/>.</param>
@@ -64,8 +75,9 @@ public sealed class CheckWindow : Runnable
         Width = Dim.Fill();
         Height = Dim.Fill();
         SetScheme(Theme.Base);
+        _format = (StepState.Waiting, T("f — dotnet format", "f — dotnet format") + EditorConfigNote());
 
-        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 4, BorderStyle = LineStyle.Rounded };
+        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 5, BorderStyle = LineStyle.Rounded };
         _summary.SetScheme(Theme.Text(Theme.Dim));
         _summary.DrawingContent += (_, _) => DrawSummary();
 
@@ -82,7 +94,9 @@ public sealed class CheckWindow : Runnable
             new Hint("a", T("все", "all")),
             new Hint("→ ←", T("развернуть", "expand"), Optional: true),
             new Hint("enter", T("прогнать выбранные", "run selected")),
+            new Hint("b", T("собрать", "build"), Optional: true),
             new Hint("r", T("пересобрать", "rebuild")),
+            new Hint("f", "format"),
             new Hint("tab", T("вывод", "output"), Optional: true),
             new Hint("e", T("только проблемы", "problems only"), Optional: true),
             new Hint("esc", T("остановить / закрыть", "stop / close")),
@@ -103,7 +117,7 @@ public sealed class CheckWindow : Runnable
                 Flush();
                 return true;
             });
-            _ = RunAsync(rebuild: true);
+            _ = RunAsync(Job.Build);
         }
         else
         {
@@ -130,15 +144,9 @@ public sealed class CheckWindow : Runnable
             return true;
         }
 
-        if (key == Key.R && _running is null)
+        if (_running is null && JobFor(key) is { } job)
         {
-            _ = RunAsync(rebuild: true);
-            return true;
-        }
-
-        if (key == Key.Enter && _running is null)
-        {
-            _ = RunAsync(rebuild: !_built);
+            _ = RunAsync(job);
             return true;
         }
 
@@ -236,38 +244,63 @@ public sealed class CheckWindow : Runnable
         return parts.Length >= 2 ? $"{parts[^2]}.{parts[^1]}" : cls;
     }
 
-    /// <summary>Сборка (если нужна), список тестов, затем выбранные тесты.</summary>
-    private async Task RunAsync(bool rebuild)
+    private static Job? JobFor(Key key)
+    {
+        if (key == Key.Enter)
+            return Job.Tests;
+        if (key == Key.B)
+            return Job.Build;
+        if (key == Key.R)
+            return Job.Rebuild;
+        if (key == Key.F)
+            return Job.Format;
+        return null;
+    }
+
+    /// <summary>
+    /// Сборка — с обновлением списка тестов; тесты — собирают, если ещё не собрано; format — сам по себе.
+    /// Тесты и format сами не запускаются: только по клавише.
+    /// </summary>
+    private async Task RunAsync(Job job)
     {
         var running = new CancellationTokenSource();
         _running = running;
-        _testLines.Clear();
-        _failedTests.Clear();
         _output.Clear();
-        _testsStep = (StepState.Waiting, "");
+        if (job != Job.Format)
+        {
+            _testLines.Clear();
+            _failedTests.Clear();
+        }
+
         try
         {
-            if (rebuild && !await BuildAsync(running.Token))
-                return;
-
-            if (rebuild || _tests.Count == 0)
+            switch (job)
             {
-                _testsStep = (StepState.Running, "");
-                var listing = new List<string>();
-                await _dotnet.RunAsync(_root, ["test", _target, "--no-build", "--list-tests", "-tl:off", "-nologo"], listing.Add, running.Token);
-                _tests = TestSelection.ParseList(listing);
-                App?.Invoke(UpdateRows);
+                case Job.Build or Job.Rebuild:
+                    if (await BuildAsync(job == Job.Rebuild, running.Token))
+                        await ListTestsAsync(running.Token);
+                    break;
+                case Job.Tests:
+                    if (!_built && !await BuildAsync(false, running.Token))
+                        return;
+                    if (_tests.Count == 0)
+                        await ListTestsAsync(running.Token);
+                    await TestAsync(running.Token);
+                    break;
+                case Job.Format:
+                    await FormatAsync(running.Token);
+                    break;
             }
-
-            await TestAsync(running.Token);
         }
         catch (OperationCanceledException)
         {
             Flush();
             if (_build.State == StepState.Running)
                 _build = (StepState.Failed, T("остановлено", "stopped"));
-            if (_testsStep.State is StepState.Running or StepState.Waiting)
+            if (_testsStep.State == StepState.Running)
                 _testsStep = (StepState.Skipped, T("остановлено", "stopped"));
+            if (_format.State == StepState.Running)
+                _format = (StepState.Failed, T("остановлено", "stopped"));
         }
         finally
         {
@@ -276,14 +309,17 @@ public sealed class CheckWindow : Runnable
         }
     }
 
-    /// <summary>dotnet build. Возвращает, собралось ли.</summary>
-    private async Task<bool> BuildAsync(CancellationToken ct)
+    /// <summary>dotnet build; rebuild — с нуля (--no-incremental). Возвращает, собралось ли.</summary>
+    private async Task<bool> BuildAsync(bool rebuild, CancellationToken ct)
     {
         _buildLines.Clear();
         _build = (StepState.Running, "");
         _built = false;
         var watch = Stopwatch.StartNew();
-        var build = await _dotnet.RunAsync(_root, ["build", _target, "-tl:off", "-nologo"], line => Receive(line, _buildLines), ct);
+        string[] args = rebuild
+            ? ["build", _target, "--no-incremental", "-tl:off", "-nologo"]
+            : ["build", _target, "-tl:off", "-nologo"];
+        var build = await _dotnet.RunAsync(_root, args, line => Receive(line, _buildLines), ct);
         Flush();
         if (build is null)
         {
@@ -303,11 +339,50 @@ public sealed class CheckWindow : Runnable
             return false;
         }
 
-        _build = (StepState.Passed, $"{time}{warningsNote}");
+        _build = (StepState.Passed, $"{(rebuild ? T("с нуля", "from scratch") + $" {Theme.SymbolSeparator} " : "")}{time}{warningsNote}");
         _built = true;
+        _testsStep = (StepState.Waiting, T("enter — прогнать выбранные", "enter runs the selected ones"));
         Receive("", _buildLines);
         return true;
     }
+
+    /// <summary>Список тестов (dotnet test --list-tests) для выбора слева; сами тесты не запускаются.</summary>
+    private async Task ListTestsAsync(CancellationToken ct)
+    {
+        var listing = new List<string>();
+        await _dotnet.RunAsync(_root, ["test", _target, "--no-build", "--list-tests", "-tl:off", "-nologo"], listing.Add, ct);
+        _tests = TestSelection.ParseList(listing);
+        App?.Invoke(UpdateRows);
+    }
+
+    /// <summary>
+    /// dotnet format: правит файлы по .editorconfig (его нет — по правилам по умолчанию). Сообщения format не слушают
+    /// DOTNET_CLI_UI_LANGUAGE, поэтому язык задаётся через LC_ALL — иначе не посчитать поправленные файлы.
+    /// </summary>
+    private async Task FormatAsync(CancellationToken ct)
+    {
+        _formatLines.Clear();
+        _format = (StepState.Running, "");
+        var watch = Stopwatch.StartNew();
+        var format = await _dotnet.RunAsync(_root, ["format", _target, "-v", "normal"], line => Receive(line, _formatLines),
+            new Dictionary<string, string> { ["LC_ALL"] = "C.UTF-8" }, ct);
+        Flush();
+        var time = $"{watch.Elapsed.TotalSeconds:0.0} {T("с", "s")}";
+        var files = DotnetOutput.CountFormattedFiles(_formatLines);
+        _format = format switch
+        {
+            null => (StepState.Failed, T("dotnet не найден: установи .NET SDK", "dotnet not found: install the .NET SDK")),
+            not 0 => (StepState.Failed, T($"dotnet format завершился с ошибкой {Theme.SymbolSeparator} {time}", $"dotnet format failed {Theme.SymbolSeparator} {time}")),
+            _ when files > 0 => (StepState.Passed, T($"поправлено: {Plural(files, "файл", "файла", "файлов", "file", "files")}", $"fixed {Plural(files, "файл", "файла", "файлов", "file", "files")}")
+                + $" {Theme.SymbolSeparator} {time}{EditorConfigNote()}"),
+            _ => (StepState.Passed, T("без изменений", "no changes") + $" {Theme.SymbolSeparator} {time}{EditorConfigNote()}"),
+        };
+    }
+
+    private string EditorConfigNote() => RepoScaffold.EditorConfigExists(_root)
+        ? ""
+        : T($" {Theme.SymbolSeparator} нет .editorconfig: правила по умолчанию (E в главном окне — создать)",
+            $" {Theme.SymbolSeparator} no .editorconfig: default rules (E in the main window creates one)");
 
     /// <summary>Выбранные тесты: без фильтра, если выбраны все; ничего не выбрано — шаг пропускается.</summary>
     private async Task TestAsync(CancellationToken ct)
@@ -388,25 +463,26 @@ public sealed class CheckWindow : Runnable
         int failed;
         lock (_failedTests)
             failed = _failedTests.Count;
-        _summary.Height = 4 + (failed > 0 ? Math.Min(failed, 5) + 1 : 0);
+        _summary.Height = 5 + (failed > 0 ? Math.Min(failed, 5) + 1 : 0);
     }
 
-    /// <summary>«✓ Сборка  3,2 с · 2 предупреждения», «⠹ Тесты  идут…», затем упавшие тесты (до 5).</summary>
+    /// <summary>«✓ Сборка  3,2 с · 2 предупреждения», «⠹ Тесты  идут…», «· Формат  f — dotnet format», затем упавшие тесты (до 5).</summary>
     private void DrawSummary()
     {
         DrawStep(0, T("Сборка", "Build"), _build);
         DrawStep(1, T("Тесты", "Tests"), _testsStep);
+        DrawStep(2, T("Формат", "Format"), _format);
         List<string> failed;
         lock (_failedTests)
             failed = _failedTests.Distinct().ToList();
         if (failed.Count == 0)
             return;
 
-        _summary.DrawSegments(1, 2, [new Segment(T("Упавшие тесты:", "Failed tests:"), Theme.Error, TextStyle.Bold)], _summary.Viewport.Width - 1);
+        _summary.DrawSegments(1, 3, [new Segment(T("Упавшие тесты:", "Failed tests:"), Theme.Error, TextStyle.Bold)], _summary.Viewport.Width - 1);
         for (var i = 0; i < Math.Min(failed.Count, 5); i++)
         {
             var more = i == 4 && failed.Count > 5 ? T($"  … и ещё {failed.Count - 5}", $"  … and {failed.Count - 5} more") : "";
-            _summary.DrawSegments(3, 3 + i, [new Segment($"{Theme.SymbolError} {failed[i]}{more}", Theme.Error)], _summary.Viewport.Width - 3);
+            _summary.DrawSegments(3, 4 + i, [new Segment($"{Theme.SymbolError} {failed[i]}{more}", Theme.Error)], _summary.Viewport.Width - 3);
         }
     }
 

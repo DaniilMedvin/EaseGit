@@ -32,6 +32,23 @@ public sealed class DotnetTests
     }
 
     [Fact]
+    public void Output_CountsFormattedFilesOnce()
+    {
+        string[] lines =
+        [
+            "Formatting code files in workspace '/src/App/App.csproj'.",
+            "Formatted code file '/src/App/A.cs'.",
+            "Formatted code file '/src/App/Кир/B.cs'.",
+            "Formatted code file '/src/App/A.cs'.",
+            "Format complete in 3905ms.",
+        ];
+
+        Assert.Equal(2, DotnetOutput.CountFormattedFiles(lines));
+        Assert.Equal(DotnetLineKind.Summary, DotnetOutput.Classify(lines[^1]));
+        Assert.Equal(0, DotnetOutput.CountFormattedFiles(["Format complete in 100ms."]));
+    }
+
+    [Fact]
     public void Target_PrefersRootSolutionThenSingleProject()
     {
         var root = Directory.CreateTempSubdirectory("easegit-dotnet-").FullName;

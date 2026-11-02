@@ -590,6 +590,10 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = CreateGitIgnoreAsync(),
             ".gitignore", hintOptional: true, preview: () => $"GET {GitIgnoreSource.Url}", available: () => !RepoScaffold.GitIgnoreExists(_git.RepoRoot),
             keywords: "гитигнор игнор visual studio шаблон создать файл ignore", unavailableNote: T("уже есть", "already exists"));
+        Add("repo.createEditorConfig", T("Создать .editorconfig (стандартный из .NET SDK)", "Create .editorconfig (the .NET SDK default)"), CommandScope.Global,
+            CommandKey.Of("E", Key.E.WithShift), () => _ = CreateEditorConfigAsync(),
+            ".editorconfig", hintOptional: true, preview: () => EditorConfigSource.Command, available: () => !RepoScaffold.EditorConfigExists(_git.RepoRoot),
+            keywords: "editorconfig форматирование стиль отступы dotnet format создать файл", unavailableNote: T("уже есть", "already exists"));
         Add("repo.createReadme", T("Создать README.md", "Create README.md"), CommandScope.Global, CommandKey.Of("R", Key.R.WithShift),
             () => CreateScaffoldFile(RepoScaffold.CreateReadme, RepoScaffold.ReadmeFileName, T("Добавить README", "Add README")),
             "README", hintOptional: true, available: () => !RepoScaffold.ReadmeExists(_git.RepoRoot),
@@ -640,11 +644,11 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("view.codeDetails", T("Подробнее: какие классы и методы изменились", "Details: which classes and methods changed"), CommandScope.Global,
             CommandKey.Of("ctrl+e", Key.E.WithCtrl), ToggleCodeDetails, T("подробнее", "details"), hintOptional: true,
             keywords: "подробнее методы классы что изменилось код roslyn сводка details");
-        Add("dotnet.check", T("Проверка: dotnet build и test", "Check: dotnet build and test"), CommandScope.Global,
+        Add("dotnet.check", T("Проверка: dotnet build, test и format", "Check: dotnet build, test and format"), CommandScope.Global,
             CommandKey.Of("F5", Key.F5), OpenCheck, T("проверка", "check"), hintOptional: true,
             available: () => _dotnetTarget is not null, unavailableNote: T("нет .sln / .csproj", "no .sln / .csproj"),
-            preview: () => _dotnetTarget is { } target ? $"dotnet build {target} && dotnet test {target} --no-build" : null,
-            keywords: "сборка тесты build test проверка dotnet перед push собрать");
+            preview: () => _dotnetTarget is { } target ? $"dotnet build {target}" : null,
+            keywords: "сборка тесты build test rebuild пересборка format форматирование проверка dotnet перед push собрать");
         Add("view.searchHistory", T("Поиск по истории", "Search history"), CommandScope.Global, CommandKey.Of("ctrl+f", Key.F.WithCtrl),
             OpenHistorySearch, T("поиск", "search"), hintOptional: true,
             keywords: "поиск найти коммит сообщение автор код строка grep pickaxe search find");
@@ -1089,7 +1093,7 @@ public sealed class MainWindow : Runnable<MainResult?>
         App!.Run(window);
     }
 
-    /// <summary>Сборка и тесты по F5: окно с выводом по мере выполнения. Ничего не запускается само.</summary>
+    /// <summary>Проверка по F5: окно сразу собирает, тесты и dotnet format — по клавишам в нём.</summary>
     private void OpenCheck()
     {
         if (_busy || _dotnetTarget is not { } target)
@@ -1510,6 +1514,41 @@ public sealed class MainWindow : Runnable<MainResult?>
 
             CreateScaffoldFile(root => RepoScaffold.CreateGitIgnore(root, template.Content), GitIgnoreTemplate.FileName,
                 T("Добавить .gitignore", "Add .gitignore"), T($"{Theme.SymbolWarning} GitHub недоступен, взят встроенный шаблон", $"{Theme.SymbolWarning} GitHub unavailable, using the built-in template"), warning: true);
+        });
+    }
+
+    /// <summary>
+    /// Создаёт стандартный .editorconfig через dotnet new editorconfig; без dotnet — встроенную копию того же шаблона.
+    /// Файл создаётся в UI-потоке, поэтому проверка «уже есть» повторяется после генерации.
+    /// </summary>
+    private async Task CreateEditorConfigAsync()
+    {
+        if (_busy)
+            return;
+
+        _busy = true;
+        ShowStatus(T($"Создаю .editorconfig: {EditorConfigSource.Command}…", $"Creating .editorconfig: {EditorConfigSource.Command}…"), Theme.Info);
+        EditorConfigResult template;
+        try
+        {
+            template = await EditorConfigSource.LoadAsync(new DotnetRunner());
+        }
+        finally
+        {
+            _busy = false;
+        }
+
+        App?.Invoke(() =>
+        {
+            if (template.Origin == EditorConfigOrigin.Sdk)
+            {
+                CreateScaffoldFile(root => RepoScaffold.CreateEditorConfig(root, template.Content), EditorConfigTemplate.FileName,
+                    T("Добавить .editorconfig", "Add .editorconfig"), T("стандартный из .NET SDK", "the .NET SDK default"));
+                return;
+            }
+
+            CreateScaffoldFile(root => RepoScaffold.CreateEditorConfig(root, template.Content), EditorConfigTemplate.FileName,
+                T("Добавить .editorconfig", "Add .editorconfig"), T($"{Theme.SymbolWarning} dotnet не найден, взята встроенная копия", $"{Theme.SymbolWarning} dotnet not found, using the built-in copy"), warning: true);
         });
     }
 
