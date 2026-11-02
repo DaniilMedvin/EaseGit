@@ -1938,6 +1938,43 @@ public sealed class MainWindow : Runnable<MainResult?>
         }
     }
 
+    /// <summary>
+    /// После merge PR в окне GitHub: fetch (влитая ветка и новая база приходят с сервера) и перемотка локальной базовой
+    /// ветки — текущей через merge --ff-only, другой без checkout. Разошедшуюся ветку git не трогает: тогда подсказка.
+    /// </summary>
+    private Task SyncAfterMergeAsync(PullRequest pr)
+    {
+        GitResult? update = null;
+        string? baseName = null;
+        var onHead = pr.HeadRef is not null && pr.HeadRef == _repoStatus?.Branch;
+        return RunAsync(async ct =>
+        {
+            var fetch = await _git.FetchAsync(ct);
+            if (!fetch.Success)
+                return fetch;
+
+            var branches = await _git.GetBranchesAsync(ct);
+            if (branches.FirstOrDefault(b => b.Name == pr.BaseRef) is { } local)
+            {
+                baseName = local.Name;
+                var remote = (await _git.GetRemotesAsync(ct)).FirstOrDefault() ?? "origin";
+                update = local.IsCurrent ? await _git.FastForwardCurrentAsync(ct) : await _git.FastForwardBranchAsync(remote, local.Name, ct);
+            }
+
+            return fetch;
+        }, _ =>
+        {
+            var merged = T($"PR #{pr.Number} влит", $"PR #{pr.Number} merged");
+            var baseNote = baseName is null ? ""
+                : update?.Success == true ? T($", локальная {baseName} обновлена", $", local {baseName} updated")
+                : T($"; локальная {baseName} разошлась с сервером — обнови её вручную (p на {baseName})", $"; local {baseName} diverged from the server: update it yourself (p on {baseName})");
+            var next = onHead && baseName is not null
+                ? T($". Ветка PR влита: переключись на {baseName} (space в ветках), X — удалить влитые", $". The PR branch is merged: switch to {baseName} (space in branches), X deletes merged ones")
+                : "";
+            return Task.FromResult(merged + baseNote + next);
+        }, T("Обновляю репозиторий после merge…", "Updating the repository after the merge…"));
+    }
+
     /// <summary>Скачивает новые коммиты и сообщает, есть ли что забрать.</summary>
     private Task FetchAsync() =>
         RunAsync(ct => _git.FetchAsync(ct), async _ =>
@@ -2145,6 +2182,9 @@ public sealed class MainWindow : Runnable<MainResult?>
                 break;
             case GitHubAction.Refresh:
                 _ = RefreshAsync();
+                break;
+            case GitHubAction.Merged when window.MergedPullRequest is { } merged:
+                _ = SyncAfterMergeAsync(merged);
                 break;
             case GitHubAction.CreatePullRequest:
                 _ = CreatePullRequestAsync();

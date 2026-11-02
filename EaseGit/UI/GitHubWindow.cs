@@ -51,6 +51,9 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
     /// <summary>Путь репозитория для <see cref="GitHubAction.OpenRepository"/>.</summary>
     public string? OpenPath { get; private set; }
 
+    /// <summary>PR этого репозитория, влитый в окне, — для <see cref="GitHubAction.Merged"/>.</summary>
+    public PullRequest? MergedPullRequest { get; private set; }
+
     // PR под курсором, загруженный целиком: по нему решается, можно ли влить и что предупредить.
     private PullRequest? _full;
 
@@ -941,7 +944,18 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
                 string.Join(' ', warnings), "Merge"))
             return Task.CompletedTask;
 
-        return RunAsync(ct => _github.MergeAsync(pr, method, ct), T($"PR #{pr.Number} влит ({method.ToString().ToLowerInvariant()})",
+        return RunAsync(async ct =>
+        {
+            var result = await _github.MergeAsync(pr, method, ct);
+            // Главное окно после закрытия обновит локальную базовую ветку — руками делать fetch и pull не нужно.
+            if (result.Success && IsCurrentRepo(pr))
+            {
+                MergedPullRequest = full;
+                Result = GitHubAction.Merged;
+            }
+
+            return result;
+        }, T($"PR #{pr.Number} влит ({method.ToString().ToLowerInvariant()})",
             $"PR #{pr.Number} merged ({method.ToString().ToLowerInvariant()})"), reload: true);
     }
 
@@ -968,7 +982,7 @@ public sealed class GitHubWindow : Runnable<GitHubAction?>
         try
         {
             var result = await action(CancellationToken.None);
-            if (result.Success && changesRepo)
+            if (result.Success && changesRepo && Result != GitHubAction.Merged)
                 Result = GitHubAction.Refresh;
             App?.Invoke(() =>
             {

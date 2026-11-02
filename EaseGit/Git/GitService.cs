@@ -538,6 +538,20 @@ public sealed class GitService
     public Task<GitResult> FetchAsync(CancellationToken ct = default) =>
         RunActionAsync(["fetch", "--all", "--prune"], ct);
 
+    /// <summary>Перематывает текущую ветку к её upstream, только fast-forward: разошедшуюся git не тронет.</summary>
+    public Task<GitResult> FastForwardCurrentAsync(CancellationToken ct = default) =>
+        RunActionAsync(["merge", "--ff-only", "@{u}"], ct);
+
+    public static string[] FastForwardBranchArguments(string remote, string branch) =>
+        ["fetch", remote, $"refs/heads/{branch}:refs/heads/{branch}"];
+
+    /// <summary>
+    /// Перематывает локальную ветку, на которой сейчас не стоишь, к её версии на сервере — без checkout. Только
+    /// fast-forward: разошедшуюся ветку и ветку, открытую в другом worktree, git не тронет.
+    /// </summary>
+    public Task<GitResult> FastForwardBranchAsync(string remote, string branch, CancellationToken ct = default) =>
+        RunActionAsync(FastForwardBranchArguments(remote, branch), ct);
+
     /// <summary>Pull текущей ветки. --no-edit: для merge-коммита git не открывает редактор.</summary>
     public Task<GitResult> PullAsync(CancellationToken ct = default) =>
         RunActionAsync(["pull", "--no-edit"], ct);
