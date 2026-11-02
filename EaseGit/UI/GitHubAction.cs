@@ -11,4 +11,10 @@ public enum GitHubAction
 
     /// <summary>Открыть другой репозиторий: его путь в <see cref="GitHubWindow.OpenPath"/>.</summary>
     OpenRepository,
+
+    /// <summary>
+    /// PR этого репозитория влит на GitHub (<see cref="GitHubWindow.MergedPullRequest"/>): fetch и перемотать
+    /// локальную базовую ветку.
+    /// </summary>
+    Merged,
 }
