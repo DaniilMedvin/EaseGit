@@ -9,9 +9,12 @@ namespace EaseGit.UI.Panels;
 /// <summary>
 /// Панель-список с выбором строки: ↑↓ / j k, Home / End, PageUp / PageDown, колесо мыши.
 /// Наследник рисует строку и задаёт, как узнать тот же элемент после обновления списка.
+/// Наследник с <see cref="Matches"/> фильтруется по «/» (<see cref="Filter"/>): видны только подходящие строки,
+/// а <see cref="Items"/> остаётся полным списком.
 /// </summary>
 public abstract class ListPanel<T> : View where T : class
 {
+    private IReadOnlyList<T> _all = [];
     private IReadOnlyList<T> _items = [];
     private int _selected = -1;
     private int _scroll;
@@ -20,11 +23,22 @@ public abstract class ListPanel<T> : View where T : class
     {
         CanFocus = true;
         BorderStyle = LineStyle.Rounded;
+        Filter.Changed += (_, _) => Show(_all, keepSelection: true);
     }
 
-    public IReadOnlyList<T> Items => _items;
+    /// <summary>Все элементы, без учёта фильтра.</summary>
+    public IReadOnlyList<T> Items => _all;
 
-    /// <summary>Номер выбранной строки с нуля или -1, если список пуст.</summary>
+    /// <summary>Показанные элементы: с фильтром — только подходящие.</summary>
+    public IReadOnlyList<T> Shown => _items;
+
+    /// <summary>Фильтр по «/». Работает, только если наследник переопределил <see cref="Matches"/>.</summary>
+    public PanelFilter Filter { get; } = new();
+
+    /// <summary>Подходит ли элемент под текст фильтра; по умолчанию панель не фильтруется.</summary>
+    protected virtual bool Matches(T item, string filter) => true;
+
+    /// <summary>Номер выбранной строки среди показанных с нуля или -1, если список пуст.</summary>
     public int SelectedIndex => _selected;
 
     /// <summary>Выбирает строку по номеру (с ограничением границами списка), например чтобы вернуться на прежнее место.</summary>
@@ -51,13 +65,18 @@ public abstract class ListPanel<T> : View where T : class
     protected virtual int DefaultIndex(IReadOnlyList<T> items) => items.Count > 0 ? 0 : -1;
 
     /// <summary>Обновляет список, по возможности сохраняя выбранный элемент.</summary>
-    public void SetItems(IReadOnlyList<T> items)
+    public void SetItems(IReadOnlyList<T> items) => Show(items, KeepSelection(items));
+
+    /// <summary>Показывает <paramref name="all"/> с учётом фильтра; при смене фильтра выбранный элемент сохраняется, если виден.</summary>
+    private void Show(IReadOnlyList<T> all, bool keepSelection)
     {
         var previous = Selected is { } item ? KeyOf(item) : null;
+        _all = all;
+        var items = Filter.Active ? all.Where(i => Matches(i, Filter.Text)).ToList() : all;
         _items = items;
 
         var same = -1;
-        var keep = KeepSelection(items);
+        var keep = keepSelection;
         for (var i = 0; i < items.Count && previous is not null && keep; i++)
         {
             if (KeyOf(items[i]) == previous)
@@ -76,6 +95,9 @@ public abstract class ListPanel<T> : View where T : class
 
     protected override bool OnKeyDown(Key key)
     {
+        if (Filter.HandleKey(key))
+            return true;
+
         if (key == Key.CursorDown || key == Key.J)
             return Select(_selected + 1);
         if (key == Key.CursorUp || key == Key.K)
@@ -109,7 +131,9 @@ public abstract class ListPanel<T> : View where T : class
     {
         if (_items.Count == 0)
         {
-            var text = EmptyText;
+            var text = Filter.Active && _all.Count > 0
+                ? T($"Ничего не найдено по «{Filter.Text}» · esc — сбросить", $"Nothing matches '{Filter.Text}' · esc clears")
+                : EmptyText;
             this.DrawSegments(Math.Max(0, (Viewport.Width - text.Length) / 2), Viewport.Height / 2,
                 [new Segment(text, Theme.Muted)], Viewport.Width);
             return true;
@@ -134,6 +158,14 @@ public abstract class ListPanel<T> : View where T : class
         }
 
         return true;
+    }
+
+    /// <summary>Уход фокуса с панели завершает набор фильтра, текст остаётся.</summary>
+    protected override void OnHasFocusChanged(bool newHasFocus, View? currentFocused, View? newFocused)
+    {
+        base.OnHasFocusChanged(newHasFocus, currentFocused, newFocused);
+        if (!newHasFocus)
+            Filter.Stop();
     }
 
     /// <summary>Маркер выбранной строки «❯ » или два пробела.</summary>

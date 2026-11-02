@@ -13,6 +13,7 @@ namespace EaseGit.UI.Panels;
 /// заголовок раздела — мягкая плашка.
 /// Навигация: ↑↓ / j k, Home / End, PageUp / PageDown. Заголовки разделов не выбираются.
 /// Папки: enter — свернуть / развернуть, ← / h — свернуть или перейти к родительской папке, → / l — развернуть.
+/// «/» — фильтр по пути (<see cref="Filter"/>): видны только подходящие файлы, <see cref="Entries"/> — по-прежнему все.
 /// </summary>
 public sealed class FilesPanel : View
 {
@@ -27,7 +28,20 @@ public sealed class FilesPanel : View
     {
         CanFocus = true;
         BorderStyle = LineStyle.Rounded;
+        Filter.Changed += (_, _) =>
+        {
+            var before = SelectedRow;
+            Rebuild();
+            if (SelectedRow != before)
+                SelectionChanged?.Invoke(this, EventArgs.Empty);
+        };
     }
+
+    /// <summary>Фильтр по пути, по «/».</summary>
+    public PanelFilter Filter { get; } = new();
+
+    /// <summary>Сколько разных файлов видно с фильтром (с ним папки не сворачиваются).</summary>
+    public int ShownFiles => _rows.OfType<FileEntryRow>().Select(r => r.File.Path).Distinct().Count();
 
     /// <summary>Все изменённые файлы по разделам, включая файлы в свёрнутых папках.</summary>
     public IReadOnlyList<FileEntryRow> Entries => _entries;
@@ -63,7 +77,7 @@ public sealed class FilesPanel : View
 
         var previous = SelectedRow;
         var previousIndex = _selected;
-        _rows = FileRows.Build(_status, _collapsed);
+        _rows = FileRows.Build(_status, _collapsed, Filter.Text);
 
         var index = previous switch
         {
@@ -81,6 +95,9 @@ public sealed class FilesPanel : View
 
     protected override bool OnKeyDown(Key key)
     {
+        if (Filter.HandleKey(key))
+            return true;
+
         if (key == Key.CursorDown || key == Key.J)
             return Move(+1);
         if (key == Key.CursorUp || key == Key.K)
@@ -111,9 +128,12 @@ public sealed class FilesPanel : View
     {
         if (_rows.Count == 0)
         {
-            var text = T("✓ Нет изменений", "✓ No changes");
+            var filtered = Filter.Active && _entries.Count > 0;
+            var text = filtered
+                ? T($"Ничего не найдено по «{Filter.Text}» · esc — сбросить", $"Nothing matches '{Filter.Text}' · esc clears")
+                : T("✓ Нет изменений", "✓ No changes");
             this.DrawSegments(Math.Max(0, (Viewport.Width - text.Length) / 2), Viewport.Height / 2,
-                [new Segment(text, Theme.Success)], Viewport.Width);
+                [new Segment(text, filtered ? Theme.Muted : Theme.Success)], Viewport.Width);
             return true;
         }
 
@@ -205,6 +225,14 @@ public sealed class FilesPanel : View
         SetAttribute(new Attribute(Theme.Fg, Theme.SelectionBg));
         AddStr(0, line, new string(' ', Viewport.Width));
         return Theme.SelectionBg;
+    }
+
+    /// <summary>Уход фокуса с панели завершает набор фильтра, текст остаётся.</summary>
+    protected override void OnHasFocusChanged(bool newHasFocus, View? currentFocused, View? newFocused)
+    {
+        base.OnHasFocusChanged(newHasFocus, currentFocused, newFocused);
+        if (!newHasFocus)
+            Filter.Stop();
     }
 
     private static Segment Marker(bool selected) =>

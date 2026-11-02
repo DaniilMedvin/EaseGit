@@ -190,6 +190,17 @@ public sealed class MainWindow : Runnable<MainResult?>
             if (_stash.HasFocus)
                 _ = LoadDiffAsync();
         };
+        // Фильтр по «/»: счётчик в заголовке и подсказки набора внизу.
+        _files.Filter.Changed += (_, _) =>
+        {
+            UpdateTitles();
+            UpdateHints();
+        };
+        _commits.Filter.Changed += (_, _) =>
+        {
+            UpdateTitles();
+            UpdateHints();
+        };
         // Справа — контекст панели в фокусе, поэтому выбор в остальных панелях его не меняет.
         _files.SelectionChanged += (_, _) =>
         {
@@ -302,8 +313,33 @@ public sealed class MainWindow : Runnable<MainResult?>
     }
 
     /// <summary>Подсказки внизу — из команд панели в фокусе и глобальных.</summary>
-    private void UpdateHints() =>
+    private void UpdateHints()
+    {
+        if (TypingFilter is not null)
+        {
+            _hints.SetHints(
+            [
+                new Hint(T("текст", "text"), T("фильтр", "filter")),
+                new Hint("↑↓", T("выбор", "select")),
+                new Hint("enter", T("оставить фильтр", "keep filter")),
+                new Hint("esc", T("сбросить", "clear")),
+            ]);
+            return;
+        }
+
         _hints.SetHints(_commands.Hints(FocusedScope).Select(c => new Hint(c.Key.Label, c.Hint!, c.HintOptional, c.HintMinor, c.HintPinned)));
+    }
+
+    /// <summary>Фильтр, в который сейчас набирается текст, или null.</summary>
+    private PanelFilter? TypingFilter =>
+        _files.HasFocus && _files.Filter.Typing ? _files.Filter
+        : _commits.HasFocus && _commits.Filter.Typing ? _commits.Filter
+        : null;
+
+    /// <summary>« · /текст▏ 3 из 22»: что отфильтровано и сколько видно; пусто — фильтра нет.</summary>
+    private static string FilterTitle(PanelFilter filter, int shown, int total, bool more = false) =>
+        !filter.Active && !filter.Typing ? ""
+        : $" {Theme.SymbolSeparator} /{filter.Text}{(filter.Typing ? "▏" : "")} {T($"{shown} из {total}{(more ? "+" : "")}", $"{shown} of {total}{(more ? "+" : "")}")}";
 
     protected override void OnIsRunningChanged(bool newIsRunning)
     {
@@ -466,6 +502,8 @@ public sealed class MainWindow : Runnable<MainResult?>
         Add("conflict.back", T("Вернуться к файлам", "Back to files"), CommandScope.Conflict, CommandKey.Of("esc", Key.Esc),
             () => _files.SetFocus(), T("к файлам", "to files"), available: () => _conflict is not null);
 
+        Add("files.filter", T("Фильтр файлов по пути", "Filter files by path"), CommandScope.Files, CommandKey.Char('/'),
+            () => _files.Filter.Start(), T("фильтр", "filter"), hintOptional: true, keywords: "фильтр поиск найти файл путь filter search");
         Add("files.stashSelected", T("Спрятать в stash только это", "Stash only this"), CommandScope.Files, CommandKey.Of("S", Key.S.WithShift),
             StashSelected, hintOptional: true, available: () => _files.SelectedRow is FileEntryRow or DirectoryRow,
             preview: () => "git stash push --include-untracked -- <путь>", keywords: "стэш спрятать файл часть выбранное отложить");
@@ -531,6 +569,9 @@ public sealed class MainWindow : Runnable<MainResult?>
             () => _ = CherryPickBranchTipAsync(), "cherry-pick", hintOptional: true, available: () => _repoOperation == RepoOperation.None,
             preview: () => BranchPreview(b => ["cherry-pick", b.Name]), keywords: "черри пик скопировать коммит перенести");
 
+        Add("commits.filter", T("Фильтр коммитов: заголовок, автор, хеш", "Filter commits: subject, author, hash"), CommandScope.Commits,
+            CommandKey.Char('/'), () => _commits.Filter.Start(), T("фильтр", "filter"), hintOptional: true,
+            keywords: "фильтр поиск найти коммит автор хеш filter search");
         Add("commits.amend", T("Amend: добавить staged в последний коммит", "Amend: add staged to the last commit"), CommandScope.Commits, CommandKey.Of("a", Key.A),
             () => _ = AmendAsync(), "amend", dangerous: true, preview: () => CommandText.Format(GitService.AmendArguments),
             keywords: "дополнить исправить последний коммит аменд");
@@ -2393,9 +2434,13 @@ public sealed class MainWindow : Runnable<MainResult?>
             : $" {Theme.SymbolSeparator} {panel.SelectedIndex + 1}/{panel.Items.Count}{(panel.Items.Count >= limit ? "+" : "")}";
 
         var files = _files.Entries.Select(e => e.File.Path).Distinct().Count();
-        _filesTitle.Text = $" {T("[1] Файлы", "[1] Files")}{(files > 0 ? $" {Theme.SymbolSeparator} {files}" : "")} ";
+        _filesTitle.Text = _files.Filter.Active || _files.Filter.Typing
+            ? $" {T("[1] Файлы", "[1] Files")}{FilterTitle(_files.Filter, _files.ShownFiles, files)} "
+            : $" {T("[1] Файлы", "[1] Files")}{(files > 0 ? $" {Theme.SymbolSeparator} {files}" : "")} ";
         _branchesTitle.Text = $" {T("[2] Ветки", "[2] Branches")}{Position(_branches)} ";
-        _commitsTitle.Text = $" {T("[3] Коммиты", "[3] Commits")}{Position(_commits, _logLimit)} ";
+        _commitsTitle.Text = _commits.Filter.Active || _commits.Filter.Typing
+            ? $" {T("[3] Коммиты", "[3] Commits")}{FilterTitle(_commits.Filter, _commits.Shown.Count, _commits.Items.Count, _commits.Items.Count >= _logLimit)} "
+            : $" {T("[3] Коммиты", "[3] Commits")}{Position(_commits, _logLimit)} ";
         _stashTitle.Text = $" [4] Stash{Position(_stash)} ";
     }
 
