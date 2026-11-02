@@ -34,6 +34,12 @@ public enum DiffLineKind
 
     /// <summary>Строка сводки «что изменилось в коде»: Text — имя члена, вид и тип изменения в <see cref="DiffLine.Change"/>.</summary>
     CodeChange,
+
+    /// <summary>
+    /// Строка обсуждения ревью под строкой кода PR: автор с давностью или текст комментария; обсуждение — в
+    /// <see cref="DiffLine.Thread"/>. Добавляется при подготовке к показу.
+    /// </summary>
+    Comment,
 }
 
 /// <summary>Строка diff.</summary>
@@ -54,4 +60,13 @@ public sealed record DiffLine(DiffLineKind Kind, string Text, int? OldNumber = n
 
     /// <summary>Для <see cref="DiffLineKind.CodeChange"/>: что случилось с членом кода.</summary>
     public CodeChange? Change { get; init; }
+
+    /// <summary>Для <see cref="DiffLineKind.Comment"/>: обсуждение, к которому относится строка.</summary>
+    public ReviewThread? Thread { get; init; }
+
+    /// <summary>Для <see cref="DiffLineKind.Comment"/>: первая строка обсуждения — на неё встаёт курсор.</summary>
+    public bool ThreadStart { get; init; }
+
+    /// <summary>Для <see cref="DiffLineKind.Comment"/>: строка автора «alice · 2 ч», а не текст комментария.</summary>
+    public bool CommentAuthor { get; init; }
 }
