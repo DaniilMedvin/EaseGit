@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           version="${GITHUB_REF_NAME#v}"
-          dotnet publish LazyGit --configuration Release --runtime ${{ matrix.rid }} \
+          dotnet publish EaseGit --configuration Release --runtime ${{ matrix.rid }} \
             -p:Version="$version" --output publish
 
       - name: Archive
@@ -40,15 +40,15 @@ jobs:
         run: |
           cd publish
           if [ "${{ matrix.rid }}" = "win-x64" ]; then
-            7z a "../lgit-${{ matrix.rid }}.zip" lgit.exe
+            7z a "../easegit-${{ matrix.rid }}.zip" easegit.exe
           else
-            tar -czf "../lgit-${{ matrix.rid }}.tar.gz" lgit
+            tar -czf "../easegit-${{ matrix.rid }}.tar.gz" easegit
           fi
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lgit-${{ matrix.rid }}
-          path: lgit-${{ matrix.rid }}.*
+          name: easegit-${{ matrix.rid }}
+          path: easegit-${{ matrix.rid }}.*
 
   release:
     needs: publish
@@ -62,4 +62,4 @@ jobs:
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "LGit $GITHUB_REF_NAME" --generate-notes
+        run: gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "EaseGit $GITHUB_REF_NAME" --generate-notes

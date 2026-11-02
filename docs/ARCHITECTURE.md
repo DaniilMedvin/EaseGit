@@ -19,7 +19,7 @@
 ## Структура папок
 
 ```
-LazyGit/
+EaseGit/
 ├── Program.cs                 точка входа: проверки, создание сервисов, запуск UI
 ├── Git/
 │   ├── GitRunner.cs           запуск процесса git → GitResult
@@ -46,7 +46,7 @@ LazyGit/
 │   └── Loc.cs                 язык интерфейса: T("ru", "en"), Plural, выбор по конфигу или системе
 ├── Config/
 │   ├── AppConfig.cs           настройки: пропуск входа, последний репозиторий, маскот
-│   └── ConfigStore.cs         ~/.config/lazygit-cs/config.json
+│   └── ConfigStore.cs         ~/.config/easegit/config.json
 ├── Models/
 │   ├── ChangeKind.cs          Modified, Added, Deleted, Renamed, Untracked, ...
 │   ├── FileChange.cs          Path, Staged, Unstaged, OriginalPath?
@@ -70,7 +70,7 @@ LazyGit/
     ├── Panels/                ListPanel<T> (база списков), FilesPanel, BranchesPanel, CommitsPanel (+ CommitGraph), StashPanel, DiffPanel, CommandLogPanel, RebaseStepsPanel
     ├── Dialogs/               CommitDialog, InputDialog (ветка, stash), ConfirmDialog, SettingsDialog, CommandPalette, RebaseDialog
     └── Widgets/               StatusBar (подсказки), Spinner, Header
-LazyGit.Tests/
+EaseGit.Tests/
 └── Parsers/                   тесты на реальных образцах вывода git
 ```
 
@@ -154,4 +154,4 @@ public sealed class AppCommand
 ## Ошибки
 - Ошибка git → `ErrorDialog` или строка `✗ ...` в статусе с текстом stderr и подсказкой, что делать.
 - Известные ситуации распознаются и получают понятный текст: нет upstream, конфликт, грязное дерево, отказ push.
-- Необработанное исключение → лог в `~/.local/state/lazygit-cs/error.log`, приложение не падает молча.
+- Необработанное исключение → лог в `~/.local/state/easegit/error.log`, приложение не падает молча.

@@ -1,6 +1,6 @@
-# Contributing to LGit
+# Contributing to EaseGit
 
-Thanks for wanting to make LGit better! [Русская версия ниже](#участие-в-разработке-lgit).
+Thanks for wanting to make EaseGit better! [Русская версия ниже](#участие-в-разработке-easegit).
 
 ## How it works
 
@@ -35,7 +35,7 @@ Please don't report vulnerabilities in public issues, see [SECURITY.md](SECURITY
 
 ---
 
-# Участие в разработке LGit
+# Участие в разработке EaseGit
 
 1. Сделай **fork** и ветку `feature/<кратко>` или `fix/<кратко>`.
 2. Внеси изменения, добавь тесты, проверь `dotnet build` и `dotnet test`.

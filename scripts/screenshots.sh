@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Скриншоты для README: собирает демо-проект, снимает сцены LGit в tmux и сохраняет SVG в docs/screenshots/.
+# Скриншоты для README: собирает демо-проект, снимает сцены EaseGit в tmux и сохраняет SVG в docs/screenshots/.
 #
 #   scripts/screenshots.sh [рабочая папка]     нужны tmux и python3
 #
@@ -15,8 +15,8 @@ cols=120
 rows=34
 mkdir -p "$out"
 
-dotnet build "$project/LazyGit" --configuration Release --verbosity quiet --nologo > /dev/null
-dll="$project/LazyGit/bin/Release/net10.0/lgit.dll"
+dotnet build "$project/EaseGit" --configuration Release --verbosity quiet --nologo > /dev/null
+dll="$project/EaseGit/bin/Release/net10.0/easegit.dll"
 
 # --- демо-проект ------------------------------------------------------------
 repo="$work/weather-cli"
@@ -146,10 +146,10 @@ sed -i 's/string Summary);/string Summary, double WindSpeed);/' "$repo/src/Forec
 printf '# Roadmap\n\n- hourly forecast\n' | write docs/roadmap.md
 
 # --- съёмка -----------------------------------------------------------------
-session="lgit-shots"
+session="easegit-shots"
 shot() {
     sleep 1.2
-    tmux capture-pane -t "$session" -e -p | python3 "$project/scripts/ansi2svg.py" "lgit — ~/weather-cli" > "$out/$1.svg"
+    tmux capture-pane -t "$session" -e -p | python3 "$project/scripts/ansi2svg.py" "easegit — ~/weather-cli" > "$out/$1.svg"
     echo "  $out/$1.svg"
 }
 keys() {
@@ -160,11 +160,11 @@ keys() {
 }
 
 for lang in en ru; do
-    mkdir -p "$work/.config/lazygit-cs"
-    printf '{ "language": "%s", "authPromptSkipped": true, "showCommandLog": false }\n' "$lang" > "$work/.config/lazygit-cs/config.json"
+    mkdir -p "$work/.config/easegit"
+    printf '{ "language": "%s", "authPromptSkipped": true, "showCommandLog": false }\n' "$lang" > "$work/.config/easegit/config.json"
     tmux kill-session -t "$session" 2> /dev/null || true
     tmux new-session -d -s "$session" -x "$cols" -y "$rows" \
-        "cd '$repo' && HOME='$work' GH_CONFIG_DIR='$gh_config' dotnet '$dll' '$repo'"
+        "cd '$repo' && HOME='$work' XDG_CONFIG_HOME='$work/.config' GH_CONFIG_DIR='$gh_config' dotnet '$dll' '$repo'"
     sleep 3
 
     # Staged C#-файл: справа diff с подсветкой.

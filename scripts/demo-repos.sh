@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Создаёт демо-репозитории для ручной проверки LGit.
+# Создаёт демо-репозитории для ручной проверки EaseGit.
 #
-#   scripts/demo-repos.sh [папка]        по умолчанию /tmp/lgit-demo (пересоздаётся)
-#   dotnet run --project LazyGit -- /tmp/lgit-demo/conflict
+#   scripts/demo-repos.sh [папка]        по умолчанию /tmp/easegit-demo (пересоздаётся)
+#   dotnet run --project EaseGit -- /tmp/easegit-demo/conflict
 #
 # Репозитории:
 #   files     — все разделы панели файлов: staged, изменения, новые, rename, вложенные папки,
@@ -14,14 +14,14 @@
 #   empty     — репозиторий без коммитов
 set -euo pipefail
 
-root="${1:-/tmp/lgit-demo}"
+root="${1:-/tmp/easegit-demo}"
 rm -rf "$root"
 mkdir -p "$root"
 
 # Своё имя и почта в каждом репозитории, чтобы не зависеть от глобального конфига.
 init() {
     git init -q -b main "$1"
-    git -C "$1" config user.name "LGit Demo"
+    git -C "$1" config user.name "EaseGit Demo"
     git -C "$1" config user.email "demo@example.com"
     git -C "$1" config commit.gpgsign false
 }
@@ -45,7 +45,7 @@ printf 'line 1\nline 2\n' > "$r/both.txt"
 commit "$r" "feat: initial project"
 
 # staged: изменение, rename, новый файл
-sed -i 's/Hello/Hello, LGit/' "$r/src/Program.cs"
+sed -i 's/Hello/Hello, EaseGit/' "$r/src/Program.cs"
 git -C "$r" mv docs/old-name.md docs/new-name.md
 printf 'public sealed class CommitsPanel { }\n' > "$r/src/UI/Panels/CommitsPanel.cs"
 git -C "$r" add src/Program.cs src/UI/Panels/CommitsPanel.cs
@@ -148,5 +148,5 @@ printf 'first\n' > "$r/first.txt"
 
 echo "Готово: $root"
 for name in files conflict branches stash sync empty; do
-    echo "  dotnet run --project LazyGit -- $root/$name"
+    echo "  dotnet run --project EaseGit -- $root/$name"
 done

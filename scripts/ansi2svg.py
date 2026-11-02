@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Снимок терминала с цветами (tmux capture-pane -e -p) → SVG для README.
 
-    tmux capture-pane -t lgit -e -p | scripts/ansi2svg.py "lgit" > shot.svg
+    tmux capture-pane -t easegit -e -p | scripts/ansi2svg.py "easegit" > shot.svg
 
 Сетка символов сохраняется точно: каждый отрезок текста растягивается до своей ширины (textLength),
 поэтому рамки не «плывут», даже если в шрифте зрителя другие ширины у ⎇ или ╭.
@@ -18,7 +18,7 @@ BAR = 30
 BG = "#14161B"
 FG = "#D4D4D4"
 
-# 16 базовых цветов (палитра близкая к теме LGit).
+# 16 базовых цветов (палитра близкая к теме EaseGit).
 BASIC = ["#14161B", "#FFC0B9", "#B3F6C0", "#FCE094", "#A6DBFF", "#FFCAFF", "#8CF8F7", "#DCDCDC",
          "#4F5258", "#FFC0B9", "#B3F6C0", "#FCE094", "#A6DBFF", "#FFCAFF", "#8CF8F7", "#FFFFFF"]
 
@@ -146,4 +146,4 @@ def render(rows, title):
 
 
 if __name__ == "__main__":
-    print(render(parse(sys.stdin.read()), sys.argv[1] if len(sys.argv) > 1 else "lgit"))
+    print(render(parse(sys.stdin.read()), sys.argv[1] if len(sys.argv) > 1 else "easegit"))

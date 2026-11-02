@@ -27,9 +27,9 @@ jobs:
 
       # Single-file сборка тоже должна собираться: её выкладывает release.yml.
       - name: Publish (linux-x64)
-        run: dotnet publish LazyGit --configuration Release --runtime linux-x64 --output publish
+        run: dotnet publish EaseGit --configuration Release --runtime linux-x64 --output publish
 
       - uses: actions/upload-artifact@v4
         with:
-          name: lgit-linux-x64
-          path: publish/lgit
+          name: easegit-linux-x64
+          path: publish/easegit

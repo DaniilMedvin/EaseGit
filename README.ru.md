@@ -1,7 +1,7 @@
-# LGit
+# EaseGit
 
-[![CI](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml/badge.svg)](https://github.com/DaniilMedvin/LazyGit/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/DaniilMedvin/LazyGit)](https://github.com/DaniilMedvin/LazyGit/releases/latest)
+[![CI](https://github.com/DaniilMedvin/EaseGit/actions/workflows/ci.yml/badge.svg)](https://github.com/DaniilMedvin/EaseGit/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/DaniilMedvin/EaseGit)](https://github.com/DaniilMedvin/EaseGit/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Спокойный git-клиент для терминала, который управляется с клавиатуры. C#, .NET 10, Terminal.Gui v2.
@@ -12,7 +12,7 @@
 
 ## Сделан для C# / .NET
 
-LGit работает с любым git-репозиторием, но заточен под C#-разработчиков:
+EaseGit работает с любым git-репозиторием, но заточен под C#-разработчиков:
 
 - **Подсветка C# в diff** работает на Roslyn — настоящем компиляторе C# (`Microsoft.CodeAnalysis`) — в цветах
   тёмной темы Visual Studio. Остальные языки показываются обычным цветным diff.
@@ -58,9 +58,9 @@ LGit работает с любым git-репозиторием, но зато�
   коммита, чтобы увидеть, кто написал строку раньше.
 - **Сборка и тесты** по клавише (`F5`): `dotnet build` и `dotnet test` с выводом по мере выполнения, итогом и упавшими тестами;
   какие тесты гонять — выбор по классам или по одному (`space`, `a` — все).
-- **GitHub Actions** (`ctrl+o`): запуски ветки, jobs и шаги, лог упавших шагов прямо в LGit, перезапуск упавших
+- **GitHub Actions** (`ctrl+o`): запуски ветки, jobs и шаги, лог упавших шагов прямо в EaseGit, перезапуск упавших
   или всего запуска, отмена; пока что-то идёт, обновляется само.
-- **Worktrees** (`W`): рабочие папки для других веток — список с состоянием, создать, открыть в LGit, удалить, убрать пропавшие.
+- **Worktrees** (`W`): рабочие папки для других веток — список с состоянием, создать, открыть в EaseGit, удалить, убрать пропавшие.
 - **Отмена** (`z`) последнего коммита, amend, merge, pull или checkout через reflog.
 - **Stash**: сохранить с сообщением (всё или только выбранный файл или папку, `S`), pop, apply, удалить, посмотреть diff.
 - **Теги** (`#`): список, создать на HEAD (с сообщением — аннотированный), push, удалить локально или на сервере.
@@ -75,16 +75,16 @@ LGit работает с любым git-репозиторием, но зато�
 
 ## Установка
 
-Один исполняемый файл со всем нужным: скачай его из [Releases](https://github.com/DaniilMedvin/LazyGit/releases/latest), .NET не нужен.
+Один исполняемый файл со всем нужным: скачай его из [Releases](https://github.com/DaniilMedvin/EaseGit/releases/latest), .NET не нужен.
 
 ```sh
 # Linux x64
-curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-linux-x64.tar.gz | tar xz
-sudo mv lgit /usr/local/bin/
+curl -L https://github.com/DaniilMedvin/EaseGit/releases/latest/download/easegit-linux-x64.tar.gz | tar xz
+sudo mv easegit /usr/local/bin/
 
 # macOS (Apple Silicon)
-curl -L https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-osx-arm64.tar.gz | tar xz
-sudo mkdir -p /usr/local/bin && sudo mv lgit /usr/local/bin/
+curl -L https://github.com/DaniilMedvin/EaseGit/releases/latest/download/easegit-osx-arm64.tar.gz | tar xz
+sudo mkdir -p /usr/local/bin && sudo mv easegit /usr/local/bin/
 ```
 
 ### macOS
@@ -92,52 +92,52 @@ sudo mkdir -p /usr/local/bin && sudo mv lgit /usr/local/bin/
 Сборка для Apple Silicon (M1 и новее); на Mac с Intel собери из исходников (см. ниже).
 На новом Mac папки `/usr/local/bin` может не быть — команда выше её создаёт.
 
-Если ставить через `curl`, как выше, `lgit` просто запускается. Если архив скачан **в браузере**, macOS помечает
+Если ставить через `curl`, как выше, `easegit` просто запускается. Если архив скачан **в браузере**, macOS помечает
 его как скачанный из интернета и не даёт открыть («не удалось проверить разработчика»): файл не нотаризован Apple.
 Сними пометку один раз:
 
 ```sh
-xattr -d com.apple.quarantine lgit
+xattr -d com.apple.quarantine easegit
 ```
 
-или в Finder: правый клик по `lgit` → **Открыть** → **Открыть**.
+или в Finder: правый клик по `easegit` → **Открыть** → **Открыть**.
 
 ### Windows
 
-В PowerShell: скачать, распаковать в `%LOCALAPPDATA%\Programs\lgit` и добавить эту папку в пользовательский `PATH`.
+В PowerShell: скачать, распаковать в `%LOCALAPPDATA%\Programs\easegit` и добавить эту папку в пользовательский `PATH`.
 
 ```powershell
-$dir = "$env:LOCALAPPDATA\Programs\lgit"
+$dir = "$env:LOCALAPPDATA\Programs\easegit"
 New-Item -ItemType Directory -Force $dir | Out-Null
-Invoke-WebRequest https://github.com/DaniilMedvin/LazyGit/releases/latest/download/lgit-win-x64.zip -OutFile "$env:TEMP\lgit.zip"
-Expand-Archive "$env:TEMP\lgit.zip" -DestinationPath $dir -Force
+Invoke-WebRequest https://github.com/DaniilMedvin/EaseGit/releases/latest/download/easegit-win-x64.zip -OutFile "$env:TEMP\easegit.zip"
+Expand-Archive "$env:TEMP\easegit.zip" -DestinationPath $dir -Force
 $path = [Environment]::GetEnvironmentVariable("Path", "User")
 if ($path -notlike "*$dir*") { [Environment]::SetEnvironmentVariable("Path", "$path;$dir", "User") }
 ```
 
-Открой новый терминал и набери `lgit`. Лучше в Windows Terminal: старая консоль плохо рисует рамки.
+Открой новый терминал и набери `easegit`. Лучше в Windows Terminal: старая консоль плохо рисует рамки.
 Файл не подписан, поэтому при первом запуске SmartScreen может предупредить: *Подробнее → Выполнить в любом случае*.
 Чтобы входить в GitHub из приложения, поставь `gh`: `winget install GitHub.cli`.
 Обновить — выполнить те же команды ещё раз; удалить — стереть папку и убрать её из `PATH`.
 
-Через GitHub CLI можно скачать любой файл релиза: `gh release download --repo DaniilMedvin/LazyGit --pattern 'lgit-linux-x64.tar.gz'`.
+Через GitHub CLI можно скачать любой файл релиза: `gh release download --repo DaniilMedvin/EaseGit --pattern 'easegit-linux-x64.tar.gz'`.
 
 Нужен `git`. По желанию — [GitHub CLI](https://cli.github.com/) `gh`, чтобы входить в GitHub из приложения.
 
 ### Из исходников
 
 ```sh
-git clone https://github.com/DaniilMedvin/LazyGit.git && cd LazyGit
-dotnet run --project LazyGit -- /путь/к/репозиторию
-# или один файл в LazyGit/bin/Release/net10.0/linux-x64/publish/lgit
-dotnet publish LazyGit -c Release -r linux-x64
+git clone https://github.com/DaniilMedvin/EaseGit.git && cd EaseGit
+dotnet run --project EaseGit -- /путь/к/репозиторию
+# или один файл в EaseGit/bin/Release/net10.0/linux-x64/publish/easegit
+dotnet publish EaseGit -c Release -r linux-x64
 ```
 
 ## Запуск
 
 ```sh
-lgit              # репозиторий в текущей папке или стартовый экран
-lgit ~/projects/x # открыть конкретный репозиторий
+easegit              # репозиторий в текущей папке или стартовый экран
+easegit ~/projects/x # открыть конкретный репозиторий
 ```
 
 | Клавиша | Действие | Клавиша | Действие |
@@ -157,7 +157,9 @@ lgit ~/projects/x # открыть конкретный репозиторий
 
 ## Настройки
 
-`~/.config/lazygit-cs/config.json`: язык, тема, свои темы и клавиши. Подробнее — [docs/CONFIG.md](docs/CONFIG.md).
+`~/.config/easegit/config.json`: язык, тема, свои темы и клавиши. Подробнее — [docs/CONFIG.md](docs/CONFIG.md).
+Раньше EaseGit назывался LGit (команда `lgit`): настройки из `~/.config/lazygit-cs/` подхватываются сами,
+старый файл `lgit` можно удалить.
 
 ```jsonc
 {

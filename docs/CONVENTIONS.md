@@ -1,7 +1,7 @@
 # Соглашения
 
 ## Код (C#)
-- File-scoped namespace: `namespace LazyGit.Git;`
+- File-scoped namespace: `namespace EaseGit.Git;`
 - Один публичный тип на файл, имя файла = имя типа.
 - `PascalCase` для типов, методов и свойств; `_camelCase` для приватных полей; `camelCase` для локальных переменных.
 - Асинхронные методы заканчиваются на `Async` и принимают `CancellationToken ct` последним параметром.
@@ -20,7 +20,7 @@
 - Опасные команды (`reset --hard`, `push --force`, `branch -D`, `restore`, `clean`) — только через `ConfirmDialog` с предпросмотром команды.
 
 ## Тесты
-- Каждый парсер покрыт тестами на реальном выводе git (образцы в `LazyGit.Tests/Samples/`).
+- Каждый парсер покрыт тестами на реальном выводе git (образцы в `EaseGit.Tests/Samples/`).
 - Обязательные кейсы: пустой репозиторий, пути с пробелами, кириллица, rename, detached HEAD.
 - Имена тестов: `Метод_Условие_Результат`, например `Parse_RenamedFile_ReturnsOldPath`.
 

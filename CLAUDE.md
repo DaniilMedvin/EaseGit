@@ -1,4 +1,4 @@
-# LazyGit (C#)
+# EaseGit (C#)
 
 TUI-клиент для git на .NET 10 + Terminal.Gui v2.
 
