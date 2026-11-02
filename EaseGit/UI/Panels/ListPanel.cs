@@ -114,13 +114,35 @@ public abstract class ListPanel<T> : View where T : class
         return base.OnKeyDown(key);
     }
 
+    /// <summary>
+    /// Колесо двигает выбор; клик — фокус в панель и выбор строки; двойной клик — ещё и enter, как с клавиатуры
+    /// (его обработает панель или окно: открыть, развернуть, checkout…).
+    /// </summary>
     protected override bool OnMouseEvent(Mouse mouse)
     {
         var step = mouse.Flags.HasFlag(MouseFlags.WheeledDown) ? 1 : mouse.Flags.HasFlag(MouseFlags.WheeledUp) ? -1 : 0;
-        if (step == 0)
+        if (step != 0)
+        {
+            Select(_selected + step);
+            return true;
+        }
+
+        var doubleClick = mouse.Flags.HasFlag(MouseFlags.LeftButtonDoubleClicked);
+        if (!doubleClick && !mouse.Flags.HasFlag(MouseFlags.LeftButtonClicked))
             return base.OnMouseEvent(mouse);
 
-        Select(_selected + step);
+        if (CanFocus && !HasFocus)
+            SetFocus();
+        if (mouse.Position is not { } position)
+            return true;
+
+        var index = _scroll + position.Y;
+        if (index < 0 || index >= _items.Count)
+            return true;
+
+        Select(index);
+        if (doubleClick)
+            App?.Keyboard.RaiseKeyDownEvent(Key.Enter);
         return true;
     }
 

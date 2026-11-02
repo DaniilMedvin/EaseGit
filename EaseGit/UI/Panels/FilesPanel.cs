@@ -14,6 +14,8 @@ namespace EaseGit.UI.Panels;
 /// Навигация: ↑↓ / j k, Home / End, PageUp / PageDown. Заголовки разделов не выбираются.
 /// Папки: enter — свернуть / развернуть, ← / h — свернуть или перейти к родительской папке, → / l — развернуть.
 /// «/» — фильтр по пути (<see cref="Filter"/>): видны только подходящие файлы, <see cref="Entries"/> — по-прежнему все.
+/// Мышь: колесо двигает выбор, клик — фокус и выбор строки, клик по стрелке папки — свернуть / развернуть,
+/// двойной клик — enter (папка сворачивается, файл — построчный stage).
 /// </summary>
 public sealed class FilesPanel : View
 {
@@ -225,6 +227,41 @@ public sealed class FilesPanel : View
         SetAttribute(new Attribute(Theme.Fg, Theme.SelectionBg));
         AddStr(0, line, new string(' ', Viewport.Width));
         return Theme.SelectionBg;
+    }
+
+    protected override bool OnMouseEvent(Mouse mouse)
+    {
+        var step = mouse.Flags.HasFlag(MouseFlags.WheeledDown) ? 1 : mouse.Flags.HasFlag(MouseFlags.WheeledUp) ? -1 : 0;
+        if (step != 0)
+            return Move(step);
+
+        var doubleClick = mouse.Flags.HasFlag(MouseFlags.LeftButtonDoubleClicked);
+        if (!doubleClick && !mouse.Flags.HasFlag(MouseFlags.LeftButtonClicked))
+            return base.OnMouseEvent(mouse);
+
+        if (!HasFocus)
+            SetFocus();
+        if (mouse.Position is not { } position)
+            return true;
+
+        var index = _scroll + position.Y;
+        // Заголовок раздела не выбирается.
+        if (index < 0 || index >= _rows.Count || _rows[index] is SectionHeaderRow)
+            return true;
+
+        Select(index);
+        if (doubleClick)
+            App?.Keyboard.RaiseKeyDownEvent(Key.Enter);
+        else if (_rows[index] is DirectoryRow directory && OnArrow(directory, position.X))
+            SetCollapsed(directory, !directory.Collapsed);
+        return true;
+    }
+
+    /// <summary>Попал ли клик в стрелку «▾ / ▸» папки: после отступа слева, маркера и направляющих уровней.</summary>
+    private static bool OnArrow(DirectoryRow directory, int x)
+    {
+        var arrow = 1 + 2 + Indent(directory.Depth).Length;
+        return x >= arrow && x <= arrow + 1;
     }
 
     /// <summary>Уход фокуса с панели завершает набор фильтра, текст остаётся.</summary>
