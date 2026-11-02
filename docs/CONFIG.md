@@ -10,6 +10,7 @@
 {
   "language": "en",                       // ru или en; не задан — по языку системы (LANG)
   "theme": "ocean",                       // dark (по умолчанию), light или имя своей темы
+  "autoFetchMinutes": 5,                  // фоновый fetch раз в N минут; 0 — выключен
   "customThemes": {
     "ocean": {
       "base": "dark",                     // основа: dark или light
@@ -48,6 +49,7 @@
 | `language` | `ru` или `en`; без ключа — по языку системы. `L` переключает и запоминает |
 | `mascot` | `None`, `Claude`, `ChatGpt`, `Gemini` — маскот в углу diff (также `,`) |
 | `showCommandLog` | панель Command Log открыта (`~`) |
+| `autoFetchMinutes` | фоновый `git fetch --all --prune` раз в столько минут; без ключа — 5, `0` — выключен. Тихий: ничего не спрашивает (ssh с `BatchMode`), не пишется в журнал команд, без сети молчит; появились новые коммиты в upstream — `↓ На сервере 2 новых коммита: p — забрать` |
 | `authPromptSkipped` | окно входа в GitHub пропущено |
 | `lastRepoPath` | последний открытый репозиторий |
 | `recentRepos` | недавние репозитории (до 20): в них окно GitHub ищет локальную копию проекта PR |

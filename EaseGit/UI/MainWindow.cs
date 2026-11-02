@@ -348,12 +348,16 @@ public sealed class MainWindow : Runnable<MainResult?>
         {
             _ = RefreshAsync();
             StartWatching();
+            StartAutoFetch();
             ShowStartupMessage();
         }
         else
         {
             _watcher?.Dispose();
             _watcher = null;
+            if (_autoFetchTimer is not null)
+                App?.RemoveTimeout(_autoFetchTimer);
+            _autoFetchTimer = null;
             if (_ciTimer is not null)
                 App?.RemoveTimeout(_ciTimer);
             _ciTimer = null;
@@ -371,6 +375,53 @@ public sealed class MainWindow : Runnable<MainResult?>
         else if (_notice is not null)
         {
             ShowStatus($"{Theme.SymbolSuccess} {_notice}", Theme.Success, autoHide: true);
+        }
+    }
+
+    private object? _autoFetchTimer;
+    private bool _autoFetching;
+
+    /// <summary>Фоновый fetch раз в AutoFetchMinutes (по умолчанию 5): PR, влитые на сайте GitHub, видны без f.</summary>
+    private void StartAutoFetch()
+    {
+        var minutes = _config.Load().AutoFetchMinutes ?? AppConfig.DefaultAutoFetchMinutes;
+        if (minutes <= 0)
+            return;
+
+        _autoFetchTimer = App?.AddTimeout(TimeSpan.FromMinutes(minutes), () =>
+        {
+            _ = AutoFetchAsync();
+            return true;
+        });
+    }
+
+    /// <summary>
+    /// Тихий fetch: не мешает действиям пользователя (пропускается, пока идёт другая команда), ошибки (нет сети) не
+    /// показывает. Появились новые коммиты в upstream — подсказка «p — забрать».
+    /// </summary>
+    private async Task AutoFetchAsync()
+    {
+        if (_busy || _operation is not null || _autoFetching || _remoteUrl is null)
+            return;
+
+        _autoFetching = true;
+        try
+        {
+            var behind = _repoStatus?.Behind ?? 0;
+            var result = await _git.BackgroundFetchAsync();
+            if (!result.Success)
+                return;
+
+            // Статус окна обновляется в потоке интерфейса — число новых коммитов берём прямо из git.
+            var now = (await _git.GetStatusAsync()).Behind;
+            await RefreshAsync(silent: true);
+            if (now > behind)
+                App?.Invoke(() => ShowStatus(T($"↓ На сервере {PluralRu(now, "новый коммит", "новых коммита", "новых коммитов")}: p — забрать",
+                    $"↓ The server has {PluralEn(now, "new commit", "new commits")}: p gets them"), Theme.Info, autoHide: true));
+        }
+        finally
+        {
+            _autoFetching = false;
         }
     }
 

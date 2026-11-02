@@ -82,4 +82,26 @@ public sealed class FastForwardTests : IAsyncLifetime
         Assert.True(result.Success, result.StdErr);
         Assert.Equal(await Head("origin/main"), await Head("HEAD"));
     }
+
+    [Fact]
+    public async Task BackgroundFetch_GetsNewCommitsWithoutLogging()
+    {
+        var log = new CommandLog();
+        var service = new GitService(_repo.Git, _repo.Path, log);
+        _other.Write("c.txt", "4");
+        await _other.CommitAsync("merged on GitHub");
+        await _other.RunAsync("push", "origin", "HEAD:main");
+
+        var result = await service.BackgroundFetchAsync();
+
+        Assert.True(result.Success, result.StdErr);
+        Assert.Equal(1, (await service.GetStatusAsync()).Behind);
+        Assert.Empty(log.Entries);
+    }
+
+    [Theory]
+    [InlineData("ssh", "ssh -o BatchMode=yes")]
+    [InlineData("ssh -i ~/.ssh/work", "ssh -i ~/.ssh/work -o BatchMode=yes")]
+    [InlineData("ssh -o BatchMode=no", "ssh -o BatchMode=no")]
+    public void BatchSsh_AddsBatchModeOnce(string ssh, string expected) => Assert.Equal(expected, GitService.BatchSsh(ssh));
 }
