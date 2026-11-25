@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Text;
 using System.Text.RegularExpressions;
 
 namespace EaseGit.Auth;
@@ -20,6 +21,8 @@ public sealed partial class GhAuthService
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
         };
         foreach (var arg in new[] { "auth", "status", "--hostname", Host, "--active" })

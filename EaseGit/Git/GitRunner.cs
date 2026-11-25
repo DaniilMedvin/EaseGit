@@ -27,6 +27,10 @@ public sealed class GitRunner
             StandardInputEncoding = input is not null ? new UTF8Encoding(false) : null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // git пишет в UTF-8, а по умолчанию вывод читается в кодировке консоли: на Windows это 866,
+            // и кириллица в сообщениях, ветках и путях превращалась в «╨┐╨░╤А».
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
         };
         psi.ArgumentList.Add("-c");

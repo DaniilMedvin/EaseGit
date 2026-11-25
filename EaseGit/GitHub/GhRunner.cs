@@ -21,6 +21,9 @@ public sealed class GhRunner
             StandardInputEncoding = input is not null ? new UTF8Encoding(false) : null,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
+            // gh пишет в UTF-8; без этого на Windows вывод читается в кодировке консоли (866).
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
             UseShellExecute = false,
         };
         foreach (var arg in args)
