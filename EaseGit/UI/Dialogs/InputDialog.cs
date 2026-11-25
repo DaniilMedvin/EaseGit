@@ -38,7 +38,7 @@ public sealed class InputDialog : Runnable<string?>
             Y = 0,
             Width = Dim.Fill(),
             Height = 7,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

@@ -77,7 +77,7 @@ public sealed class CheckWindow : Runnable
         SetScheme(Theme.Base);
         _format = (StepState.Waiting, T("f — dotnet format", "f — dotnet format") + EditorConfigNote());
 
-        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 5, BorderStyle = LineStyle.Rounded };
+        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 5, BorderStyle = Theme.Border };
         _summary.SetScheme(Theme.Text(Theme.Dim));
         _summary.DrawingContent += (_, _) => DrawSummary();
 

@@ -32,7 +32,7 @@ public sealed class HelpDialog : Runnable<bool?>
             Y = 0,
             Width = Dim.Fill(),
             Height = visibleLines + 2,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

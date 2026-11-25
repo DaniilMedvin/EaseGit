@@ -37,7 +37,7 @@ public sealed class ActionsRunsPanel : ListPanel<ActionsRun>
     {
         CheckState.Success => (conclusion == "skipped" ? "–" : Theme.SymbolSuccess, conclusion == "skipped" ? Theme.Dim : Theme.Success),
         CheckState.Pending => (Theme.SymbolCurrent, Theme.Warning),
-        _ when conclusion == "cancelled" => ("⊘", Theme.Muted),
+        _ when conclusion == "cancelled" => (Theme.SymbolCancelled, Theme.Muted),
         _ => (Theme.SymbolError, Theme.Error),
     };
 

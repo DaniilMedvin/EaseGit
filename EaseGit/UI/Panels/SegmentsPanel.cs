@@ -15,7 +15,7 @@ public sealed class SegmentsPanel : View
     public SegmentsPanel()
     {
         CanFocus = false;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 

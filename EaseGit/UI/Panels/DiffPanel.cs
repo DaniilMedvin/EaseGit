@@ -55,7 +55,7 @@ public sealed class DiffPanel : View
     public DiffPanel()
     {
         CanFocus = false;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 
@@ -980,7 +980,7 @@ public sealed class DiffPanel : View
                 ], width - 1);
                 return;
             case DiffLineKind.NoNewline:
-                this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + T("⏎ нет перевода строки в конце файла", "⏎ no newline at end of file"), Theme.Dim, TextStyle.Italic)], width);
+                this.DrawSegments(0, row, [new Segment(new string(' ', _numberWidth * 2 + 3) + T($"{Theme.SymbolNoNewline} нет перевода строки в конце файла", $"{Theme.SymbolNoNewline} no newline at end of file"), Theme.Dim, TextStyle.Italic)], width);
                 return;
         }
 
@@ -1009,7 +1009,7 @@ public sealed class DiffPanel : View
         else
         {
             // Продолжение перенесённой строки: номера пустые, «↪» вместо знака — код остаётся в своей колонке.
-            segments = [new(new string(' ', _numberWidth * 2 + 2), Theme.Dim), new("↪ ", Theme.Dim)];
+            segments = [new(new string(' ', _numberWidth * 2 + 2), Theme.Dim), new($"{Theme.SymbolWrapped} ", Theme.Dim)];
         }
 
         var code = highlight is null

@@ -27,7 +27,7 @@ public sealed class IssueDialog : Runnable<IssueText?>
         Height = BodyHeight + (withTitle ? 9 : 7);
         SetScheme(Theme.Base);
 
-        var box = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill(1), BorderStyle = LineStyle.Rounded, CanFocus = true };
+        var box = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = Dim.Fill(1), BorderStyle = Theme.Border, CanFocus = true };
         box.SetScheme(Theme.Text(Theme.Accent));
         box.Padding!.Thickness = new Thickness(1, 0, 1, 0);
 

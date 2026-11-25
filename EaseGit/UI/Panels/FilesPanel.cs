@@ -29,7 +29,7 @@ public sealed class FilesPanel : View
     public FilesPanel()
     {
         CanFocus = true;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         Filter.Changed += (_, _) =>
         {
             var before = SelectedRow;
@@ -133,7 +133,7 @@ public sealed class FilesPanel : View
             var filtered = Filter.Active && _entries.Count > 0;
             var text = filtered
                 ? T($"Ничего не найдено по «{Filter.Text}» · esc — сбросить", $"Nothing matches '{Filter.Text}' · esc clears")
-                : T("✓ Нет изменений", "✓ No changes");
+                : T($"{Theme.SymbolSuccess} Нет изменений", $"{Theme.SymbolSuccess} No changes");
             this.DrawSegments(Math.Max(0, (Viewport.Width - text.Length) / 2), Viewport.Height / 2,
                 [new Segment(text, filtered ? Theme.Muted : Theme.Success)], Viewport.Width);
             return true;

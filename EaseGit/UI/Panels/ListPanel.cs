@@ -22,7 +22,7 @@ public abstract class ListPanel<T> : View where T : class
     protected ListPanel()
     {
         CanFocus = true;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         Filter.Changed += (_, _) => Show(_all, keepSelection: true);
     }
 

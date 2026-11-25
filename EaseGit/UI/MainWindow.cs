@@ -339,7 +339,7 @@ public sealed class MainWindow : Runnable<MainResult?>
     /// <summary>« · /текст▏ 3 из 22»: что отфильтровано и сколько видно; пусто — фильтра нет.</summary>
     private static string FilterTitle(PanelFilter filter, int shown, int total, bool more = false) =>
         !filter.Active && !filter.Typing ? ""
-        : $" {Theme.SymbolSeparator} /{filter.Text}{(filter.Typing ? "▏" : "")} {T($"{shown} из {total}{(more ? "+" : "")}", $"{shown} of {total}{(more ? "+" : "")}")}";
+        : $" {Theme.SymbolSeparator} /{filter.Text}{(filter.Typing ? Theme.SymbolTypingCursor : "")} {T($"{shown} из {total}{(more ? "+" : "")}", $"{shown} of {total}{(more ? "+" : "")}")}";
 
     protected override void OnIsRunningChanged(bool newIsRunning)
     {

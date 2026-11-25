@@ -37,7 +37,7 @@ public sealed class TagsPanel : ListPanel<Tag>
             new Segment($"{Theme.SymbolTag}{tag.Name}", Theme.Warning, TextStyle.Bold),
             .. ReleaseBadge(tag),
             new Segment($"  {tag.ShortHash}  ", Theme.Muted),
-            new Segment(tag.Annotated ? "✎ " : "", Theme.Info),
+            new Segment(tag.Annotated ? $"{Theme.SymbolAnnotated} " : "", Theme.Info),
             new Segment(tag.Subject, Theme.Fg),
         ], textWidth, background);
         this.DrawSegments(Viewport.Width - age.Length - 1, line, [new Segment(age, Theme.Dim)], age.Length, background);

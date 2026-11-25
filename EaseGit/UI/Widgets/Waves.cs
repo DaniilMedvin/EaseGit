@@ -10,7 +10,8 @@ namespace EaseGit.UI.Widgets;
 /// </summary>
 public sealed class Waves : AnimatedView
 {
-    private const string Blocks = " ▁▂▃▄▅▆▇█";
+    // В Consolas нет восьмушек блока: там гребень рисуется половинками.
+    private static readonly string Blocks = ConsoleGlyphs.Pick(" ▁▂▃▄▅▆▇█", " ▄█");
     private const int MinScreenHeight = 26;
 
     private double _time;

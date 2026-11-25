@@ -62,7 +62,7 @@ public sealed class StartWindow : Runnable<StartAction?>
 
         var box = new View
         {
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             X = Pos.Center(),
             Y = Pos.Bottom(tagline) + 2,
             Width = Dim.Percent(60),

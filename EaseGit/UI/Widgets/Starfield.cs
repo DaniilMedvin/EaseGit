@@ -14,8 +14,11 @@ public sealed class Starfield : AnimatedView
     // Одна звезда на N ячеек: в центре экрана и у краёв.
     private const int CenterDensity = 130;
     private const int EdgeDensity = 60;
-    private static readonly char[] StarGlyphs = ['·', '·', '·', '·', '·', '∙', '∙', '⋆'];
-    private static readonly char[] EdgeStarGlyphs = ['·', '·', '∙', '•', '•', '⋆', '⋆', '✧'];
+    private static readonly char SmallStar = ConsoleGlyphs.Pick('⋆', '*');
+    private static readonly char Sparkle = ConsoleGlyphs.Pick('✧', '+');
+    private static readonly char MeteorHead = ConsoleGlyphs.Pick('✦', '*');
+    private static readonly char[] StarGlyphs = ['·', '·', '·', '·', '·', '∙', '∙', SmallStar];
+    private static readonly char[] EdgeStarGlyphs = ['·', '·', '∙', '•', '•', SmallStar, SmallStar, Sparkle];
     private static readonly Color StarColor = new("#E0E2EA");
 
     private readonly Random _random = new();
@@ -194,7 +197,7 @@ public sealed class Starfield : AnimatedView
                     continue;
 
                 var tail = k / (double)_length;
-                var glyph = k == 0 ? '✦' : tail < 0.4 ? '─' : '·';
+                var glyph = k == 0 ? MeteorHead : tail < 0.4 ? '─' : '·';
                 var bright = Theme.Blend(Theme.Accent, StarColor, 1 - tail);
                 var color = Theme.Blend(Theme.Backdrop, bright, (1 - tail * 0.85) * fade);
 

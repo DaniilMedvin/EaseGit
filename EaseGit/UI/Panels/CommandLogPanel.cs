@@ -16,7 +16,7 @@ public sealed class CommandLogPanel : View
     public CommandLogPanel()
     {
         CanFocus = false;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 
@@ -55,7 +55,7 @@ public sealed class CommandLogPanel : View
 
         var (symbol, color) = entry switch
         {
-            { Cancelled: true } => ("⊘", Theme.Muted),
+            { Cancelled: true } => (Theme.SymbolCancelled, Theme.Muted),
             { Success: true } => (Theme.SymbolSuccess, Theme.Success),
             _ => (Theme.SymbolError, Theme.Error),
         };

@@ -36,7 +36,7 @@ public sealed class CommitTemplatePicker : Runnable<CommitTemplate?>
             Y = 0,
             Width = Dim.Fill(),
             Height = listHeight + 5,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

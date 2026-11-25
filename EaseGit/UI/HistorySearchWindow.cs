@@ -40,7 +40,7 @@ public sealed class HistorySearchWindow : Runnable
         Height = Dim.Fill();
         SetScheme(Theme.Base);
 
-        var box = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 4, BorderStyle = LineStyle.Rounded, CanFocus = true };
+        var box = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 4, BorderStyle = Theme.Border, CanFocus = true };
         box.SetScheme(Theme.Text(Theme.Accent));
         box.Padding!.Thickness = new Thickness(1, 0, 1, 0);
         var prompt = new Label { Text = "> ", X = 0, Y = 0 };

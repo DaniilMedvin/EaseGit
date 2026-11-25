@@ -36,7 +36,7 @@ public sealed class CommandOutputWindow : Runnable
         Height = Dim.Fill();
         SetScheme(Theme.Base);
 
-        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 4, BorderStyle = LineStyle.Rounded };
+        _summary = new View { X = 0, Y = 0, Width = Dim.Fill(), Height = 4, BorderStyle = Theme.Border };
         _summary.SetScheme(Theme.Text(Theme.Dim));
         _summary.DrawingContent += (_, _) => DrawSummary();
 

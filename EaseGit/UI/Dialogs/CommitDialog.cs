@@ -47,7 +47,7 @@ public sealed class CommitDialog : Runnable<string?>
             Y = 0,
             Width = Dim.Fill(),
             Height = BodyHeight + 12,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

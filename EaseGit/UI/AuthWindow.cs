@@ -29,7 +29,7 @@ public sealed class AuthWindow : Runnable<AuthChoice?>
 
         var box = new View
         {
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             X = Pos.Center(),
             Y = Pos.Bottom(logo) + 2,
             Width = 56,

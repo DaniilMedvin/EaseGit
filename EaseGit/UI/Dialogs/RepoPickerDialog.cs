@@ -38,7 +38,7 @@ public sealed class RepoPickerDialog : Runnable<GitHubRepo?>
             Y = 0,
             Width = Dim.Fill(),
             Height = Dim.Fill(1),
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

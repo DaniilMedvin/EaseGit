@@ -40,23 +40,40 @@ public static class Theme
     /// <summary>Предполагаемый фон терминала. Используется для приглушения цветов декораций.</summary>
     public static Color Backdrop => _palette.Backdrop;
 
-    public const string SymbolCurrent = "●";
-    public const string SymbolEmpty = "○";
-    public const string SymbolSuccess = "✓";
-    public const string SymbolError = "✗";
+    // Второй вариант — для шрифтов без подстановки (Consolas в консоли Windows), см. ConsoleGlyphs.
+    public static readonly string SymbolCurrent = ConsoleGlyphs.Pick("●", "*");
+    public static readonly string SymbolEmpty = ConsoleGlyphs.Pick("○", "o");
+    public static readonly string SymbolSuccess = ConsoleGlyphs.Pick("✓", "√");
+    public static readonly string SymbolError = ConsoleGlyphs.Pick("✗", "×");
     // Не ⚠: многие терминалы рисуют его эмодзи двойной ширины, и он налезает на текст.
-    public const string SymbolWarning = "▲";
-    public const string SymbolSeparator = "·";
-    public const string SymbolSelection = "❯";
-    public const string SymbolBranch = "⎇";
-    public const string SymbolAhead = "↑";
-    public const string SymbolBehind = "↓";
-    public const string SymbolEllipsis = "…";
-    public const string SymbolExpanded = "▾";
-    public const string SymbolCollapsed = "▸";
+    public static readonly string SymbolWarning = ConsoleGlyphs.Pick("▲", "!");
+    public static readonly string SymbolSeparator = ConsoleGlyphs.Pick("·", "-");
+    public static readonly string SymbolSelection = ConsoleGlyphs.Pick("❯", "►");
+    public static readonly string SymbolBranch = ConsoleGlyphs.Pick("⎇", "±");
+    public static readonly string SymbolAhead = ConsoleGlyphs.Pick("↑", "^");
+    public static readonly string SymbolBehind = ConsoleGlyphs.Pick("↓", "v");
+    public static readonly string SymbolEllipsis = ConsoleGlyphs.Pick("…", "~");
+    public static readonly string SymbolExpanded = ConsoleGlyphs.Pick("▾", "▼");
+    public static readonly string SymbolCollapsed = ConsoleGlyphs.Pick("▸", "►");
     public const string SymbolTreeGuide = "│";
     public const string SymbolTag = "#";
-    public static readonly string[] SpinnerFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+    /// <summary>Отменено (CI, команда).</summary>
+    public static readonly string SymbolCancelled = ConsoleGlyphs.Pick("⊘", "ø");
+    /// <summary>Перенесённое продолжение длинной строки diff.</summary>
+    public static readonly string SymbolWrapped = ConsoleGlyphs.Pick("↪", "»");
+    public static readonly string SymbolNoNewline = ConsoleGlyphs.Pick("⏎", "¶");
+    public static readonly string SymbolComments = ConsoleGlyphs.Pick("✉", "≡");
+    /// <summary>Аннотированный тег (с сообщением).</summary>
+    public static readonly string SymbolAnnotated = ConsoleGlyphs.Pick("✎", "≡");
+    /// <summary>Курсор в строке фильтра панели.</summary>
+    public static readonly string SymbolTypingCursor = ConsoleGlyphs.Pick("▏", "│");
+
+    /// <summary>Рамки со скруглёнными углами; прямые — если шрифт консоли скруглённых не рисует (Lucida Console).</summary>
+    public static readonly LineStyle Border = ConsoleGlyphs.Supports("╭╮╰╯") ? LineStyle.Rounded : LineStyle.Single;
+
+    public static readonly string[] SpinnerFrames =ConsoleGlyphs.Supports("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
+        ? ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        : ["|", "/", "-", "\\"];
 
     public static Scheme Text(Color fg, TextStyle style = TextStyle.None) => new(new Attribute(fg, Color.None, style));
 

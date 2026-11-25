@@ -30,7 +30,7 @@ public sealed class SettingsDialog : Runnable<Mascot?>
             Y = 0,
             Width = Dim.Fill(),
             Height = MascotArt.Rows + 4,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

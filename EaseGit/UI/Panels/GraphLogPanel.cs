@@ -20,7 +20,7 @@ public sealed class GraphLogPanel : View
     public GraphLogPanel()
     {
         CanFocus = false;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 
@@ -93,10 +93,10 @@ public sealed class GraphLogPanel : View
             var color = CommitsPanel.BranchColor(i / 2);
             yield return ch switch
             {
-                '*' => new Segment(line.IsMerge ? "◉" : "●", color, TextStyle.Bold),
+                '*' => new Segment((line.IsMerge ? CommitGraph.Merge : CommitGraph.Commit).ToString(), color, TextStyle.Bold),
                 '|' => new Segment("│", color),
-                '/' => new Segment("╱", color),
-                '\\' => new Segment("╲", color),
+                '/' => new Segment(ConsoleGlyphs.Pick("╱", "/"), color),
+                '\\' => new Segment(ConsoleGlyphs.Pick("╲", "\\"), color),
                 '_' => new Segment("─", color),
                 _ => new Segment(ch.ToString(), color),
             };

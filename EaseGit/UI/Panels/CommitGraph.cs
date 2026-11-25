@@ -15,8 +15,14 @@ public readonly record struct GraphCell(char Symbol, int Color);
 /// </summary>
 public static class CommitGraph
 {
-    public const char Commit = '●';
-    public const char Merge = '◉';
+    public static readonly char Commit = ConsoleGlyphs.Pick('●', '*');
+    public static readonly char Merge = ConsoleGlyphs.Pick('◉', '○');
+
+    // Скруглённых изгибов нет в Lucida Console.
+    private static readonly char UpLeft = ConsoleGlyphs.Pick('╯', '┘');
+    private static readonly char UpRight = ConsoleGlyphs.Pick('╰', '└');
+    private static readonly char DownLeft = ConsoleGlyphs.Pick('╮', '┐');
+    private static readonly char DownRight = ConsoleGlyphs.Pick('╭', '┌');
 
     /// <summary>
     /// Дорожка: хеш коммита, который на ней ожидается ниже (null — свободна), цвет её ветки
@@ -130,9 +136,9 @@ public static class CommitGraph
             if (i == column)
                 cells.Add(new GraphCell(isMerge ? Merge : Commit, commitColor));
             else if (merging.Contains(i))
-                cells.Add(new GraphCell(Down(i) ? (i > column ? '┤' : '├') : (i > column ? '╯' : '╰'), ColorOf(i)));
+                cells.Add(new GraphCell(Down(i) ? (i > column ? '┤' : '├') : (i > column ? UpLeft : UpRight), ColorOf(i)));
             else if (targets.Contains(i))
-                cells.Add(new GraphCell(Up(i) ? (i > column ? '┤' : '├') : (i > column ? '╮' : '╭'), ColorOf(i)));
+                cells.Add(new GraphCell(Up(i) ? (i > column ? '┤' : '├') : (i > column ? DownLeft : DownRight), ColorOf(i)));
             else if (i > low && i < high)
                 cells.Add(Up(i) || Down(i) ? new GraphCell('┼', ColorOf(i)) : new GraphCell('─', i < column ? leftColor : rightColor));
             else if (Up(i) || Down(i))

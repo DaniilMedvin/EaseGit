@@ -21,7 +21,7 @@ public sealed class OutputPanel : View
     public OutputPanel()
     {
         CanFocus = true;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
     }
 
     public bool OnlyProblems

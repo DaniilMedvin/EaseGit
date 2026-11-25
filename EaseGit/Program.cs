@@ -130,7 +130,8 @@ class Program
         Console.WriteLine(T("Вход в GitHub через gh. Следуй инструкциям ниже.\n", "Signing in to GitHub with gh. Follow the instructions below.\n"));
         if (auth.LoginInteractive() != 0)
         {
-            Console.WriteLine(T("\n✗ Вход не выполнен. Нажми Enter, чтобы вернуться в EaseGit.", "\n✗ Sign-in failed. Press Enter to return to EaseGit."));
+            Console.WriteLine(T($"\n{Theme.SymbolError} Вход не выполнен. Нажми Enter, чтобы вернуться в EaseGit.",
+                $"\n{Theme.SymbolError} Sign-in failed. Press Enter to return to EaseGit."));
             Console.ReadLine();
         }
     }

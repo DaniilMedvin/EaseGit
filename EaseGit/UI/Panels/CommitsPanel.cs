@@ -92,7 +92,7 @@ public sealed class CommitsPanel : ListPanel<Commit>
         foreach (var cell in shown)
         {
             var color = cell.Color < 0 ? Theme.Dim : BranchColor(cell.Color);
-            var style = cell.Symbol is CommitGraph.Commit or CommitGraph.Merge ? TextStyle.Bold : TextStyle.None;
+            var style = cell.Symbol == CommitGraph.Commit || cell.Symbol == CommitGraph.Merge ? TextStyle.Bold : TextStyle.None;
             yield return new Segment(cell.Symbol.ToString(), color, style);
         }
 

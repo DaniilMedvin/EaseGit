@@ -37,7 +37,7 @@ public sealed class ConflictPanel : View
     public ConflictPanel()
     {
         CanFocus = true;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 

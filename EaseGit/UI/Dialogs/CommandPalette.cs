@@ -38,7 +38,7 @@ public sealed class CommandPalette : Runnable<AppCommand?>
             Y = 0,
             Width = Dim.Fill(),
             Height = ListHeight + 6,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Accent));

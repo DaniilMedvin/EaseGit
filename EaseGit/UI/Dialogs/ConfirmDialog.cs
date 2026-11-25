@@ -41,7 +41,7 @@ public sealed class ConfirmDialog : Runnable<bool?>
             Y = 0,
             Width = Dim.Fill(),
             Height = height,
-            BorderStyle = LineStyle.Rounded,
+            BorderStyle = Theme.Border,
             CanFocus = true,
         };
         box.SetScheme(Theme.Text(Theme.Warning));

@@ -30,7 +30,7 @@ public sealed class IssuesPanel : ListPanel<Issue>
         if (issue.Labels.Count > 0)
             segments.Add(new Segment("  " + string.Join(" · ", issue.Labels), Theme.Info));
         if (issue.CommentCount > 0)
-            segments.Add(new Segment($"  ✉{issue.CommentCount}", Theme.Muted));
+            segments.Add(new Segment($"  {Theme.SymbolComments}{issue.CommentCount}", Theme.Muted));
         this.DrawSegments(1, line, segments, textWidth, background);
         if (showRight)
             this.DrawSegments(Viewport.Width - right.Length - 1, line, [new Segment(right, Theme.Dim)], right.Length, background);

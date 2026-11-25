@@ -25,7 +25,7 @@ public sealed class RepoHeader : View
         _auth = auth;
         Width = Dim.Fill();
         Height = 3;
-        BorderStyle = LineStyle.Rounded;
+        BorderStyle = Theme.Border;
         SetScheme(Theme.Text(Theme.Dim));
     }
 
