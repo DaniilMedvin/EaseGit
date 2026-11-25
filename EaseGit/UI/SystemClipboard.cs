@@ -5,7 +5,7 @@ namespace EaseGit.UI;
 
 /// <summary>
 /// Системный буфер обмена через утилиты ОС: wl-copy / wl-paste (Wayland), xsel или xclip (X11),
-/// pbcopy / pbpaste (macOS), clip / Get-Clipboard (Windows).
+/// pbcopy / pbpaste (macOS); на Windows — напрямую через user32 (<see cref="WindowsClipboard"/>).
 /// Если ни одна утилита недоступна, текст хранится внутри приложения.
 /// </summary>
 public static class SystemClipboard
@@ -16,6 +16,9 @@ public static class SystemClipboard
 
     public static string GetText()
     {
+        if (OperatingSystem.IsWindows())
+            return WindowsClipboard.GetText() ?? _fallback;
+
         foreach (var (command, args) in PasteCommands())
         {
             if (TryRun(command, args, input: null, out var output))
@@ -28,6 +31,12 @@ public static class SystemClipboard
     public static void SetText(string text)
     {
         _fallback = text;
+        if (OperatingSystem.IsWindows())
+        {
+            WindowsClipboard.SetText(text);
+            return;
+        }
+
         foreach (var (command, args) in CopyCommands())
         {
             if (TryRun(command, args, text, out _))
@@ -40,12 +49,6 @@ public static class SystemClipboard
         if (OperatingSystem.IsMacOS())
         {
             yield return ("pbpaste", []);
-            yield break;
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            yield return ("powershell", ["-NoProfile", "-Command", "Get-Clipboard -Raw"]);
             yield break;
         }
 
@@ -63,12 +66,6 @@ public static class SystemClipboard
         if (OperatingSystem.IsMacOS())
         {
             yield return ("pbcopy", []);
-            yield break;
-        }
-
-        if (OperatingSystem.IsWindows())
-        {
-            yield return ("clip", []);
             yield break;
         }
 
