@@ -86,6 +86,7 @@ public sealed class GitRunner
             return null;
 
         var result = await RunAsync(path, ["rev-parse", "--show-toplevel"], ct);
-        return result.Success ? result.StdOut.Trim() : null;
+        // На Windows git отвечает «C:/repo»: GetFullPath приводит к «C:\repo», как остальные пути программы.
+        return result.Success ? Path.GetFullPath(result.StdOut.Trim()) : null;
     }
 }
