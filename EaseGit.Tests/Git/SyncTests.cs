@@ -26,7 +26,7 @@ public sealed class SyncTests : IAsyncLifetime
     {
         await _repo.DisposeAsync();
         await _other.DisposeAsync();
-        Directory.Delete(_remote, recursive: true);
+        TempDirectory.Delete(_remote);
     }
 
     /// <summary>Второй клон отправляет на «сервер» новый коммит.</summary>

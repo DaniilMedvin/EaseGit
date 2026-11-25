@@ -29,7 +29,7 @@ public sealed class FastForwardTests : IAsyncLifetime
     {
         await _repo.DisposeAsync();
         await _other.DisposeAsync();
-        Directory.Delete(_server, recursive: true);
+        TempDirectory.Delete(_server);
     }
 
     private async Task AdvanceServerAsync(string content)

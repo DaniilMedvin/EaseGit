@@ -58,7 +58,7 @@ public sealed class LocalClonesTests
         }
         finally
         {
-            Directory.Delete(parent, recursive: true);
+            TempDirectory.Delete(parent);
         }
     }
 }

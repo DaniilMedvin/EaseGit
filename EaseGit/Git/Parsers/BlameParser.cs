@@ -28,18 +28,19 @@ public static class BlameParser
                 continue;
             }
 
-            var space = raw.IndexOf(' ');
-            var key = space < 0 ? raw : raw[..space];
+            var header = raw.TrimEnd('\r');
+            var space = header.IndexOf(' ');
+            var key = space < 0 ? header : header[..space];
             if (key.Length == 40 && key.All(Uri.IsHexDigit))
             {
                 hash = key;
-                var parts = raw.Split(' ');
+                var parts = header.Split(' ');
                 number = parts.Length > 2 && int.TryParse(parts[2], out var final) ? final : number + 1;
                 commits.TryAdd(hash, []);
             }
             else if (hash is not null && key.Length > 0)
             {
-                commits[hash][key] = space < 0 ? "" : raw[(space + 1)..];
+                commits[hash][key] = space < 0 ? "" : header[(space + 1)..];
             }
         }
 

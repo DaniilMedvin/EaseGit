@@ -137,7 +137,7 @@ public sealed class ReleaseTests : IAsyncLifetime
         }
         finally
         {
-            Directory.Delete(server, recursive: true);
+            TempDirectory.Delete(server);
         }
     }
 }

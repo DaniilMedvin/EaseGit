@@ -6,7 +6,7 @@ public sealed class RepoScaffoldTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("easegit-scaffold-").FullName;
 
-    public void Dispose() => Directory.Delete(_root, recursive: true);
+    public void Dispose() => TempDirectory.Delete(_root);
 
     [Fact]
     public void CreateGitIgnore_NewRepo_WritesVisualStudioRules()

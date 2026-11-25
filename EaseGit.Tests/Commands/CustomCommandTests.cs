@@ -76,7 +76,7 @@ public sealed class CustomCommandTests
         }
         finally
         {
-            Directory.Delete(dir, recursive: true);
+            TempDirectory.Delete(dir);
         }
     }
 }

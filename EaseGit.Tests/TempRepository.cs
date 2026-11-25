@@ -16,11 +16,13 @@ public sealed class TempRepository : IAsyncLifetime
         await RunAsync("config", "user.email", "test@example.com");
         // Глобальные настройки пользователя не должны влиять на тесты.
         await RunAsync("config", "commit.gpgsign", "false");
+        // Git для Windows по умолчанию ставит core.autocrlf=true, и файлы после checkout получают \r\n.
+        await RunAsync("config", "core.autocrlf", "false");
     }
 
     public Task DisposeAsync()
     {
-        Directory.Delete(Path, recursive: true);
+        TempDirectory.Delete(Path);
         return Task.CompletedTask;
     }
 

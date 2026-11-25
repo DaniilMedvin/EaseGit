@@ -8,7 +8,7 @@ public sealed class ConfigStoreTests : IDisposable
 
     private string ConfigPath => Path.Combine(_dir, "config.json");
 
-    public void Dispose() => Directory.Delete(_dir, recursive: true);
+    public void Dispose() => TempDirectory.Delete(_dir);
 
     [Fact]
     public void SaveAndLoad_Mascot_StoredAsName()

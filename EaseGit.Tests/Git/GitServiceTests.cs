@@ -55,7 +55,7 @@ public sealed class GitServiceTests : IAsyncLifetime
         }
         finally
         {
-            Directory.Delete(Path.GetDirectoryName(dir)!, recursive: true);
+            TempDirectory.Delete(Path.GetDirectoryName(dir)!);
         }
     }
 

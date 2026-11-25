@@ -88,7 +88,7 @@ public sealed class GraphActionsTests : IAsyncLifetime
         }
         finally
         {
-            Directory.Delete(remote, recursive: true);
+            TempDirectory.Delete(remote);
         }
     }
 

@@ -73,7 +73,7 @@ public sealed class DotnetTests
         }
         finally
         {
-            Directory.Delete(root, recursive: true);
+            TempDirectory.Delete(root);
         }
     }
 

@@ -21,7 +21,7 @@ public sealed class WorktreeTests : IAsyncLifetime
     {
         await _repo.DisposeAsync();
         foreach (var folder in _folders.Where(Directory.Exists))
-            Directory.Delete(folder, recursive: true);
+            TempDirectory.Delete(folder);
     }
 
     private string Folder(string name)
@@ -71,7 +71,7 @@ public sealed class WorktreeTests : IAsyncLifetime
     {
         var path = Folder("gone");
         await _service.AddWorktreeAsync(path, "gone", newBranch: true);
-        Directory.Delete(path, recursive: true);
+        TempDirectory.Delete(path);
 
         Assert.NotNull((await _service.GetWorktreesAsync())[1].Prunable);
         Assert.True((await _service.PruneWorktreesAsync()).Success);
